@@ -1,32 +1,23 @@
 import { NextResponse } from 'next/server';
-import connectDB from '../../../../lib/mongodb';
-import User from '../../../../models/User';
-import bcrypt from 'bcryptjs';
+import { AuthService } from '../../../../services/authService';
+import { registerSchema } from '../../../../validation/auth.schema';
 
 export async function POST(req) {
   try {
-    await connectDB();
-    const { name, email, password } = await req.json();
+    const body = await req.json();
+    
+    // Validate input
+    const validated = registerSchema.parse(body);
 
-    if (!name || !email || !password) {
-      return NextResponse.json({ message: 'Missing fields' }, { status: 400 });
-    }
+    const { user } = await AuthService.register(validated.name, validated.email, validated.password);
 
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return NextResponse.json({ message: 'User already exists' }, { status: 400 });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await User.create({
-      name,
-      email,
-      password: hashedPassword,
-      role: 'user' // Default to user, admin setup manually via DB
-    });
-
-    return NextResponse.json({ message: 'User created successfully' }, { status: 201 });
+    return NextResponse.json({ 
+      message: 'User created successfully', 
+      user 
+    }, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ message: 'Error registering user', error: error.message }, { status: 500 });
+    const status = error.name === 'ZodError' ? 400 : 400;
+    const message = error.name === 'ZodError' ? error.errors[0].message : error.message;
+    return NextResponse.json({ message }, { status });
   }
 }

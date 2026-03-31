@@ -1,35 +1,22 @@
 import { NextResponse } from 'next/server';
-import connectDB from '../../../../lib/mongodb';
-import User from '../../../../models/User';
-import bcrypt from 'bcryptjs';
-import * as jose from 'jose';
+import { AuthService } from '../../../../services/authService';
+import { loginSchema } from '../../../../validation/auth.schema';
 
 export async function POST(req) {
   try {
-    await connectDB();
-    const { email, password } = await req.json();
+    const body = await req.json();
+    
+    // Validate input
+    const validated = loginSchema.parse(body);
 
-    const user = await User.findOne({ email });
-    if (!user) {
-      return NextResponse.json({ message: 'Invalid credentials' }, { status: 401 });
-    }
+    const { token, user } = await AuthService.login(validated.email, validated.password);
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return NextResponse.json({ message: 'Invalid credentials' }, { status: 401 });
-    }
+    const response = NextResponse.json({ 
+      message: 'Logged in successfully', 
+      role: user.role 
+    });
 
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-    const alg = 'HS256';
-
-    const jwt = await new jose.SignJWT({ id: user._id, role: user.role, email: user.email })
-      .setProtectedHeader({ alg })
-      .setIssuedAt()
-      .setExpirationTime('24h')
-      .sign(secret);
-
-    const response = NextResponse.json({ message: 'Logged in successfully', role: user.role });
-    response.cookies.set('auth-token', jwt, {
+    response.cookies.set('auth-token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
@@ -38,6 +25,8 @@ export async function POST(req) {
 
     return response;
   } catch (error) {
-    return NextResponse.json({ message: 'Error logging in', error: error.message }, { status: 500 });
+    const status = error.name === 'ZodError' ? 400 : 401;
+    const message = error.name === 'ZodError' ? error.errors[0].message : error.message;
+    return NextResponse.json({ message }, { status });
   }
 }

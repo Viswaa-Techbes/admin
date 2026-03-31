@@ -1,13 +1,11 @@
 import { NextResponse } from 'next/server';
-import connectDB from '../../../lib/mongodb';
-import User from '../../../models/User';
+import { UserService } from '../../../services/userService';
 
 export async function GET(req) {
   try {
-    await connectDB();
-    const users = await User.find().select('-password');
+    const users = await UserService.getAllUsers();
     return NextResponse.json({ users });
   } catch (error) {
-    return NextResponse.json({ message: 'Error fetching users' }, { status: 500 });
+    return NextResponse.json({ message: 'Error fetching users', error: error.message }, { status: 500 });
   }
 }
