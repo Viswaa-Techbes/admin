@@ -24,7 +24,7 @@ function ResetForm() {
       } else {
         setStatus({ type: 'error', msg: data.message });
       }
-    } catch (err) {
+    } catch {
       setStatus({ type: 'error', msg: 'Something went wrong' });
     }
   };

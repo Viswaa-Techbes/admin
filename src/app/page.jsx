@@ -1,19 +1,31 @@
 "use client";
-import { useState } from "react";
-import { Sidebar, TopNavbar } from "../components/Layout";
-import { DashboardPage } from "../components/Dashboard";
-import { CustomersPage, TechniciansPage, JobsPage, ServicesPage, PaymentsPage, TrackingPage, NotificationsPage, ReportsPage, SettingsPage } from "../components/Pages";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Sidebar, TopNavbar } from "../components/LayoutModern";
+import { DashboardPage } from "../components/ManagerDashboard";
+import { CustomersPage, TechniciansPage, JobsPage, RequestsPage, ReviewsPage, ServicesPage, PaymentsPage, TrackingPage, NotificationsPage, ReportsPage, SettingsPage } from "../components/AdminPagesModern";
+import { useAuth } from "../contexts/AuthContext";
 // ─── ROOT APP ─────────────────────────────────────────────────────────────────
 
 export default function TechbesDashboard() {
   const [activePage, setActivePage] = useState("dashboard");
   const [collapsed, setCollapsed] = useState(false);
+  const { user, loading, logout } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace("/login");
+    }
+  }, [loading, router, user]);
 
   const pages = {
-    dashboard: <DashboardPage />,
+    dashboard: <DashboardPage onNavigate={setActivePage} />,
     customers: <CustomersPage />,
     technicians: <TechniciansPage />,
     jobs: <JobsPage />,
+    requests: <RequestsPage />,
+    reviews: <ReviewsPage />,
     services: <ServicesPage />,
     payments: <PaymentsPage />,
     tracking: <TrackingPage />,
@@ -21,6 +33,14 @@ export default function TechbesDashboard() {
     reports: <ReportsPage />,
     settings: <SettingsPage />,
   };
+
+  if (loading) {
+    return <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#f1f5f9", color: "#475569", fontFamily: "'Geist', 'DM Sans', system-ui, sans-serif" }}>Loading admin panel...</div>;
+  }
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <>
@@ -38,9 +58,9 @@ export default function TechbesDashboard() {
         @keyframes ping { 75%,100%{transform:translate(-50%,-50%) scale(2.5);opacity:0} }
       `}</style>
       <div style={{ display: "flex", height: "100vh", background: "#f1f5f9", fontFamily: "'Geist', 'DM Sans', system-ui, sans-serif" }}>
-        <Sidebar active={activePage} setActive={setActivePage} collapsed={collapsed} setCollapsed={setCollapsed} />
+        <Sidebar active={activePage} setActive={setActivePage} collapsed={collapsed} setCollapsed={setCollapsed} user={user} onLogout={logout} />
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          <TopNavbar page={activePage} notifCount={3} />
+          <TopNavbar page={activePage} notifCount={3} user={user} onLogout={logout} />
           <main style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
             {pages[activePage]}
           </main>

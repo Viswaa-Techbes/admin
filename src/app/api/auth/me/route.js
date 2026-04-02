@@ -1,26 +1,19 @@
 import { NextResponse } from 'next/server';
-import connectDB from '../../../../lib/mongodb';
-import User from '../../../../models/User';
-import * as jose from 'jose';
+import { fetchBackend, getAuthToken } from '@/lib/backendApi';
 
 export async function GET(req) {
   try {
-    const token = req.cookies.get('auth-token')?.value;
+    const token = getAuthToken(req);
     if (!token) {
       return NextResponse.json({ message: 'Not authenticated' }, { status: 401 });
     }
 
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-    const { payload } = await jose.jwtVerify(token, secret);
-
-    await connectDB();
-    const user = await User.findById(payload.id).select('-password');
-    if (!user) {
-      return NextResponse.json({ message: 'User not found' }, { status: 404 });
-    }
-
-    return NextResponse.json({ user });
-  } catch (error) {
+    const { response, payload } = await fetchBackend('/auth/me', { token });
+    return NextResponse.json(
+      { user: payload.data, message: payload.message },
+      { status: response.status }
+    );
+  } catch {
     return NextResponse.json({ message: 'Token invalid' }, { status: 401 });
   }
 }

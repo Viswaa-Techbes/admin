@@ -1,33 +1,30 @@
 import { NextResponse } from 'next/server';
-import { LeadService } from '@/services/leadService';
-import { leadSchema } from '@/validation/lead.schema';
+import { fetchBackend, getAuthToken } from '@/lib/backendApi';
 
 export async function POST(req) {
   try {
     const body = await req.json();
-    
-    // Optional: Validate with Zod
-    const validated = leadSchema.parse(body);
-
-    const newLead = await LeadService.createLead(validated);
-    return NextResponse.json({ success: true, data: newLead });
+    const { response, payload } = await fetchBackend('/leads', {
+      method: 'POST',
+      token: getAuthToken(req),
+      body,
+    });
+    return NextResponse.json(payload, { status: response.status });
 
   } catch (err) {
-    const status = err.name === 'ZodError' ? 400 : 500;
     return NextResponse.json({
       success: false,
       message: err.message
-    }, { status });
+    }, { status: 500 });
   }
 }
 
-export async function GET() {
+export async function GET(req) {
   try {
-    const leads = await LeadService.getAllLeads();
-    return NextResponse.json({
-      success: true,
-      data: leads
+    const { response, payload } = await fetchBackend('/leads', {
+      token: getAuthToken(req),
     });
+    return NextResponse.json(payload, { status: response.status });
 
   } catch (err) {
     return NextResponse.json({

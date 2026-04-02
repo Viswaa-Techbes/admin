@@ -20,7 +20,7 @@ export default function ForgotPasswordPage() {
       } else {
         setStatus({ type: 'error', msg: data.message });
       }
-    } catch (err) {
+    } catch {
       setStatus({ type: 'error', msg: 'Something went wrong' });
     }
   };
@@ -30,7 +30,7 @@ export default function ForgotPasswordPage() {
       <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 border border-slate-100">
         <div className="mb-6 text-center">
           <h2 className="text-2xl font-bold text-slate-900">Forgot Password</h2>
-          <p className="text-slate-500 text-sm mt-1">Enter your email and we'll send a reset link</p>
+          <p className="text-slate-500 text-sm mt-1">Enter your email and we will send a reset link</p>
         </div>
         {status.msg && (
           <div className={`p-3 rounded-xl text-sm mb-4 border ${status.type === 'error' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>

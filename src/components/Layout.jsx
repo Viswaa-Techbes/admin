@@ -6,6 +6,8 @@ export const NAV_ITEMS = [
   { id: "customers", label: "Customers", icon: <UsersIcon /> },
   { id: "technicians", label: "Technicians", icon: <HardHatIcon /> },
   { id: "jobs", label: "Service Requests", icon: <BriefcaseIcon /> },
+  { id: "requests", label: "Completion Requests", icon: <BellIcon /> },
+  { id: "reviews", label: "Technician Reviews", icon: <ChartIcon /> },
   { id: "services", label: "Services", icon: <WrenchIcon /> },
   { id: "payments", label: "Payments", icon: <CreditCardIcon /> },
   { id: "tracking", label: "Live Tracking", icon: <MapPinIcon /> },
@@ -102,6 +104,7 @@ export function TopNavbar({ page, notifCount }) {
   const titles = {
     dashboard: "Dashboard", customers: "Customers",
     technicians: "Technicians", jobs: "Service Requests",
+    requests: "Completion Requests", reviews: "Technician Reviews",
     services: "Services", payments: "Payments",
     tracking: "Live Tracking", notifications: "Notifications",
     reports: "Reports & Analytics", settings: "Settings"

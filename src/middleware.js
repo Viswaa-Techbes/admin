@@ -3,9 +3,10 @@ import { verifyToken } from './lib/auth';
 
 export async function middleware(req) {
   const token = req.cookies.get('auth-token')?.value;
+  const path = req.nextUrl.pathname;
 
   // Protect all API routes except auth
-  if (req.nextUrl.pathname.startsWith('/api') && !req.nextUrl.pathname.startsWith('/api/auth')) {
+  if (path.startsWith('/api') && !path.startsWith('/api/auth') && path !== '/api/admin/login') {
     if (!token) {
       return NextResponse.json({ message: 'Authentication required' }, { status: 401 });
     }

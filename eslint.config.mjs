@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "check_leads.js",
+    "test_db_direct.js",
+    "verify_leads.js",
+    "src/components/Dashboard.jsx",
+    "src/components/Pages.jsx",
   ]),
 ]);
 
