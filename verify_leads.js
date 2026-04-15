@@ -1,7 +1,7 @@
 const axios = require('axios');
 
 async function verifyLeads() {
-  const baseUrl = 'http://localhost:3000/api/leads';
+  const baseUrl = 'http://10.246.194.196:5000/leads';
   
   console.log('--- Testing POST /api/leads ---');
   try {

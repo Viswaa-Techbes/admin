@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 const API_BASE_URL =
   process.env.BACKEND_API_URL ||
   process.env.NEXT_PUBLIC_API_BASE_URL ||
-  'http://localhost:5000';
+  'http://10.246.194.196:5000';
 
 export function getBackendUrl(path) {
   return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
