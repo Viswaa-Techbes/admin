@@ -361,7 +361,56 @@ export function ServicesPage() {
 }
 
 export function PaymentsPage() {
-  return <PlaceholderPage title="Payments" subtitle="Payments remain unchanged. Manager-side operational functionality is now available elsewhere in admin." />;
+  const { data: requests, setData: setRequests, loading, error } = useApiData("/api/admin/payment-requests");
+  const [busyId, setBusyId] = useState("");
+
+  async function updateRequest(jobId, action) {
+    try {
+      setBusyId(jobId);
+      const res = await fetch(`/api/admin/payment-requests/${jobId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.message || "Failed to update payment request");
+      setRequests((current) => current.filter((item) => item.id !== jobId));
+    } finally {
+      setBusyId("");
+    }
+  }
+
+  return (
+    <div>
+      <PageHeader title="Payment Requests" subtitle={`${requests.length} payment confirmations awaiting admin approval`} />
+      <DataCard loading={loading} error={error} empty={!requests.length} emptyText="No payment confirmations are waiting right now.">
+        <TableWrapper
+          headers={["Customer", "Service", "Amount", "Technician", "Payment", "Actions"]}
+          rows={requests.map((request) => (
+            <tr key={request.id} style={{ borderBottom: "1px solid #f8fafc" }}>
+              <td style={TD_STYLE}>
+                <div style={{ fontWeight: 700, color: "#0f172a" }}>{request.customerName || "Client"}</div>
+                <div style={{ fontSize: 12, color: "#64748b" }}>{request.customerPhone || "No phone"}</div>
+              </td>
+              <td style={TD_STYLE}>{request.title || request.serviceName || "Service Job"}</td>
+              <td style={TD_STYLE}>INR {Number(request.amount || request.price || 0).toFixed(2)}</td>
+              <td style={TD_STYLE}>{request.technicianName || "Unassigned"}</td>
+              <td style={TD_STYLE}>
+                <div>{request.paymentId || "Awaiting capture id"}</div>
+                <div style={{ fontSize: 12, color: "#64748b" }}>{request.paymentStatus || "pending"}</div>
+              </td>
+              <td style={TD_STYLE}>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button disabled={busyId === request.id} onClick={() => updateRequest(request.id, "approve")} style={approveButton}>Approve</button>
+                  <button disabled={busyId === request.id} onClick={() => updateRequest(request.id, "reject")} style={rejectButton}>Reject</button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        />
+      </DataCard>
+    </div>
+  );
 }
 
 export function NotificationsPage() {

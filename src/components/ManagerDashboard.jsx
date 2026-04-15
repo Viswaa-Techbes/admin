@@ -8,6 +8,7 @@ const STAT_META = [
   { key: "completedJobs", label: "Completed Jobs", icon: "DN", color: "#10b981", bg: "#ecfdf5" },
   { key: "activeTechnicians", label: "Active Technicians", icon: "TM", color: "#8b5cf6", bg: "#f5f3ff" },
   { key: "pendingRequests", label: "Approval Queue", icon: "RQ", color: "#f43f5e", bg: "#fff1f2" },
+  { key: "paymentApprovals", label: "Payment Queue", icon: "PY", color: "#0f766e", bg: "#ecfeff" },
 ];
 
 export function DashboardPage({ onNavigate }) {
@@ -55,7 +56,7 @@ export function DashboardPage({ onNavigate }) {
 
   return (
     <div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 14, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 14, marginBottom: 20 }}>
         {STAT_META.map((item) => (
           <Card key={item.key} style={{ padding: 18 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
@@ -80,6 +81,7 @@ export function DashboardPage({ onNavigate }) {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
             <ActionCard title="Completion Requests" subtitle={`${pendingRequests.length} jobs are waiting for approval`} color="#8b5cf6" onClick={() => onNavigate?.("requests")} />
             <ActionCard title="Assign New Project" subtitle="Create and dispatch a service request" color="#1d4ed8" onClick={() => onNavigate?.("jobs")} />
+            <ActionCard title="Payment Requests" subtitle={`${data?.paymentRequests?.length || 0} payments are waiting for confirmation`} color="#0f766e" onClick={() => onNavigate?.("payments")} />
             <ActionCard title="Technician Reviews" subtitle={`${recentReviews.length} latest feedback entries`} color="#f59e0b" onClick={() => onNavigate?.("reviews")} />
           </div>
         </Card>
