@@ -356,6 +356,58 @@ export function TrackingPage() {
   );
 }
 
+export function AttendancePage() {
+  const { data: attendanceList, loading, error } = useApiData("/api/admin/attendance");
+
+  const total = attendanceList.length;
+  const present = attendanceList.filter((u) => u.status === "present").length;
+  const absent = total - present;
+
+  return (
+    <div>
+      <PageHeader title="Daily Attendance Overview" subtitle="Real-time daily login monitoring" />
+      <DataCard loading={loading} error={error} empty={!attendanceList.length} emptyText="No attendance data is available.">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24 }}>
+          <Card style={{ padding: 20, textAlign: "center", border: "2px solid rgba(59,130,246,0.3)" }}>
+            <div style={{ color: "#64748b", fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Total Technicians</div>
+            <div style={{ fontSize: 32, fontWeight: 900, color: "#3b82f6" }}>{total}</div>
+          </Card>
+          <Card style={{ padding: 20, textAlign: "center", border: "2px solid rgba(34,197,94,0.3)" }}>
+            <div style={{ color: "#64748b", fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Present Today</div>
+            <div style={{ fontSize: 32, fontWeight: 900, color: "#22c55e" }}>{present}</div>
+          </Card>
+          <Card style={{ padding: 20, textAlign: "center", border: "2px solid rgba(239,68,68,0.3)" }}>
+            <div style={{ color: "#64748b", fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Absent Today</div>
+            <div style={{ fontSize: 32, fontWeight: 900, color: "#ef4444" }}>{absent}</div>
+          </Card>
+        </div>
+        <TableWrapper
+          headers={["Technician", "Status", "Login", "Logout", "Duration"]}
+          rows={attendanceList.map((user) => {
+            const isPresent = user.status === "present";
+            return (
+              <tr key={user.technicianId || user.email} style={{ borderBottom: "1px solid #f8fafc" }}>
+                <td style={TD_STYLE}>
+                  <div style={{ fontWeight: 700, color: "#0f172a" }}>{user.name || "Unknown"}</div>
+                  <div style={{ fontSize: 12, color: "#64748b" }}>{user.email}</div>
+                </td>
+                <td style={TD_STYLE}>
+                  <span style={{ padding: "4px 10px", borderRadius: 99, fontSize: 11, fontWeight: 700, background: isPresent ? "#dcfce7" : "#fee2e2", color: isPresent ? "#15803d" : "#b91c1c" }}>
+                    {isPresent ? "PRESENT" : "ABSENT"}
+                  </span>
+                </td>
+                <td style={TD_STYLE}>{user.loginTime ? new Date(user.loginTime).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }) : "N/A"}</td>
+                <td style={TD_STYLE}>{user.logoutTime ? new Date(user.logoutTime).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }) : "—"}</td>
+                <td style={TD_STYLE}>{user.workingHours ? `${user.workingHours} hrs` : "—"}</td>
+              </tr>
+            );
+          })}
+        />
+      </DataCard>
+    </div>
+  );
+}
+
 export function ServicesPage() {
   return <PlaceholderPage title="Services" subtitle="Service catalog UI still uses placeholder content. Manager functions now live in jobs, requests, reviews, tracking, and dashboard." />;
 }
