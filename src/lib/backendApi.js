@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 const API_BASE_URL =
   process.env.BACKEND_API_URL ||
   process.env.NEXT_PUBLIC_API_BASE_URL ||
-  'http://10.246.194.196:5000';
+  'https://technician-app.onrender.com';
 
 export function getBackendUrl(path) {
   return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
