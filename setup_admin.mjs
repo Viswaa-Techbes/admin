@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
-const MONGODB_URI = 'mongodb+srv://promoadmin:PromoAdmin@cluster0.vcubuna.mongodb.net/promoDB';
+const MONGODB_URI = 'mongodb://promoadmin:PromoAdmin@ac-dtpfamu-shard-00-00.vcubuna.mongodb.net:27017,ac-dtpfamu-shard-00-01.vcubuna.mongodb.net:27017,ac-dtpfamu-shard-00-02.vcubuna.mongodb.net:27017/promoDB?ssl=true&replicaSet=atlas-h7ecwq-shard-0&authSource=admin&appName=Cluster0';
 
 const UserSchema = new mongoose.Schema({
   name: { type: String, required: true },
@@ -21,12 +21,20 @@ async function setup() {
     console.log('Connected to DB');
 
     const email = 'admin@techbes.co.in';
-    const password = 'admin123';
+    const password = 'admin*#123';
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await User.findOneAndUpdate(
       { email },
-      { name: 'Admin', email, password: hashedPassword, role: 'admin' },
+      { 
+        name: 'Admin', 
+        email, 
+        password: hashedPassword, 
+        role: 'admin',
+        mobileNumber: '0000000000',
+        sessionActive: true,
+        lastSeen: new Date()
+      },
       { upsert: true, new: true }
     );
 

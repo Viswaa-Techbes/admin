@@ -619,7 +619,7 @@ function ChangePasswordForm() {
 
 export function SettingsPage() {
   const sections = [
-    { title: "Company Profile", fields: [["Company Name", "Techbes Services Pvt. Ltd."], ["Email", "admin@techbes.in"], ["Phone", "+91 80 4123 5678"], ["Address", "Koramangala, Bangalore - 560034"]] },
+    { title: "Company Profile", fields: [["Company Name", "Techbes Services Pvt. Ltd."], ["Email", "admin@techbes.co.in"], ["Phone", "+91 80 4123 5678"], ["Address", "Koramangala, Bangalore - 560034"]] },
     { title: "Notification Preferences", fields: [["Email Notifications", "Enabled"], ["SMS Alerts", "Enabled"], ["Push Notifications", "Disabled"]] },
     { title: "System Settings", fields: [["Timezone", "Asia/Kolkata (IST)"], ["Currency", "Indian Rupee (₹)"], ["Language", "English"]] },
   ];

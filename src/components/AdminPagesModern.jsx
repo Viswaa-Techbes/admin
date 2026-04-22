@@ -159,9 +159,9 @@ export function JobsPage() {
 
   const filteredJobs = useMemo(() => {
     if (statusFilter === "All") return jobs;
-    if (statusFilter === "Active") return jobs.filter((job) => job.rawStatus === "inProgress");
-    if (statusFilter === "Done") return jobs.filter((job) => ["completed", "pendingApproval"].includes(job.rawStatus));
-    if (statusFilter === "Pending Approval") return jobs.filter((job) => job.rawStatus === "pendingApproval");
+    if (statusFilter === "Active") return jobs.filter((job) => ["started", "work_uploaded", "completion_requested"].includes(job.rawStatus));
+    if (statusFilter === "Done") return jobs.filter((job) => ["completed", "payment_done", "approved_by_manager", "payment_pending"].includes(job.rawStatus));
+    if (statusFilter === "Pending Approval") return jobs.filter((job) => job.rawStatus === "completion_requested" || job.rawStatus === "work_uploaded");
     return jobs.filter((job) => job.status === statusFilter);
   }, [jobs, statusFilter]);
 
