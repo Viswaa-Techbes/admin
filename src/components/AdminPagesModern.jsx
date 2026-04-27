@@ -479,46 +479,120 @@ export function TrackingPage() {
 }
 
 export function AttendancePage() {
-  const { data: attendanceList, loading, error } = useApiData("/api/v2/attendance/today");
+  const { data: todayList, loading: loadingToday, error: errorToday } = useApiData("/api/v2/attendance/today");
+  const { data: users } = useApiData("/api/v2/admin/users");
+  
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [view, setView] = useState("table"); // "table" or "calendar"
+  const [monthData, setMonthData] = useState([]);
+  const [loadingMonth, setLoadingMonth] = useState(false);
+
+  useEffect(() => {
+    if (selectedUser && view === "calendar") {
+      fetchMonthData(selectedUser._id || selectedUser.id);
+    }
+  }, [selectedUser, view]);
+
+  async function fetchMonthData(uid) {
+    try {
+      setLoadingMonth(true);
+      const now = new Date();
+      const res = await fetch(`/api/v2/attendance/range?userId=${uid}&month=${now.getMonth() + 1}&year=${now.getFullYear()}`);
+      const payload = await res.json();
+      if (res.ok) setMonthData(payload.data || []);
+    } finally {
+      setLoadingMonth(false);
+    }
+  }
 
   return (
     <div>
-      <PageHeader title="Daily Attendance" subtitle={`Tracking staff presence for today: ${new Date().toLocaleDateString()}`} />
-      
-      <DataCard loading={loading} error={error} empty={!attendanceList.length} emptyText="No staff members found.">
-        <TableWrapper
-          headers={["Staff Member", "Role", "Date", "Status", "Login Time", "Logout Time", "Work Hours"]}
-          rows={attendanceList.map((record) => {
-            const isPresent = record.status === "present";
-            return (
-              <tr key={record.id || record.userId} style={{ borderBottom: "1px solid #f8fafc" }}>
-                <td style={TD_STYLE}>
-                  <div style={{ fontWeight: 700, color: "#0f172a" }}>{record.name}</div>
-                </td>
-                <td style={TD_STYLE}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>{record.role}</div>
-                </td>
-                <td style={TD_STYLE}>{record.date}</td>
-                <td style={TD_STYLE}>
-                  <span style={{ 
-                    padding: "4px 10px", 
-                    borderRadius: 99, 
-                    fontSize: 11, 
-                    fontWeight: 700, 
-                    background: isPresent ? "#dcfce7" : "#fee2e2", 
-                    color: isPresent ? "#15803d" : "#b91c1c" 
-                  }}>
-                    {record.status.toUpperCase()}
-                  </span>
-                </td>
-                <td style={TD_STYLE}>{record.loginTime ? new Date(record.loginTime).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
-                <td style={TD_STYLE}>{record.logoutTime ? new Date(record.logoutTime).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
-                <td style={TD_STYLE}>{record.workingHours || 0} hrs</td>
-              </tr>
-            );
-          })}
-        />
-      </DataCard>
+      <PageHeader 
+        title="Attendance Management" 
+        subtitle="Daily presence and monthly tracking" 
+        actions={
+          <div style={{ display: "flex", gap: 10 }}>
+            <button onClick={() => setView("table")} style={pillButton(view === "table")}>Table View</button>
+            <button onClick={() => setView("calendar")} style={pillButton(view === "calendar")}>Calendar View</button>
+          </div>
+        }
+      />
+
+      {view === "calendar" && (
+        <Card style={{ padding: 20, marginBottom: 20 }}>
+          <SectionHeader title="Staff Presence Calendar" />
+          <div style={{ marginBottom: 16 }}>
+            <label style={LABEL_STYLE}>Select Staff Member</label>
+            <select 
+              onChange={(e) => {
+                const u = users.find(x => (x._id || x.id) === e.target.value);
+                setSelectedUser(u);
+              }}
+              style={{ ...INPUT_STYLE, width: "100%", marginTop: 6 }}
+            >
+              <option value="">-- Choose User --</option>
+              {users.map(u => <option key={u._id || u.id} value={u._id || u.id}>{u.name} ({u.role})</option>)}
+            </select>
+          </div>
+
+          {selectedUser ? (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 10 }}>
+              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => (
+                <div key={d} style={{ textAlign: "center", fontSize: 12, fontWeight: 800, color: "#64748b", padding: 8 }}>{d}</div>
+              ))}
+              {monthData.map((day) => (
+                <div 
+                  key={day.date} 
+                  style={{ 
+                    height: 80, 
+                    borderRadius: 12, 
+                    padding: 8,
+                    background: day.status === "present" ? "#dcfce7" : "#fee2e2",
+                    border: `1px solid ${day.status === "present" ? "#86efac" : "#fecaca"}`,
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between"
+                  }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 800, color: day.status === "present" ? "#166534" : "#991b1b" }}>
+                    {new Date(day.date).getDate()}
+                  </div>
+                  <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: day.status === "present" ? "#15803d" : "#b91c1c" }}>
+                    {day.status}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ textAlign: "center", padding: 40, color: "#94a3b8" }}>Select a staff member to view their attendance calendar.</div>
+          )}
+        </Card>
+      )}
+
+      {view === "table" && (
+        <DataCard loading={loadingToday} error={errorToday} empty={!todayList.length} emptyText="No staff activity today.">
+          <TableWrapper
+            headers={["Staff Member", "Role", "Status", "Login", "Logout", "Hours"]}
+            rows={todayList.map((record) => {
+              const isPresent = record.status === "present";
+              return (
+                <tr key={record.id || record.userId} style={{ borderBottom: "1px solid #f8fafc" }}>
+                  <td style={TD_STYLE}><div style={{ fontWeight: 700 }}>{record.name}</div></td>
+                  <td style={TD_STYLE}><div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>{record.role}</div></td>
+                  <td style={TD_STYLE}>
+                    <span style={{ padding: "4px 10px", borderRadius: 99, fontSize: 11, fontWeight: 700, background: isPresent ? "#dcfce7" : "#fee2e2", color: isPresent ? "#15803d" : "#b91c1c" }}>
+                      {record.status.toUpperCase()}
+                    </span>
+                  </td>
+                  <td style={TD_STYLE}>{record.loginTime ? new Date(record.loginTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "—"}</td>
+                  <td style={TD_STYLE}>{record.logoutTime ? new Date(record.logoutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "—"}</td>
+                  <td style={TD_STYLE}>{record.workingHours || 0}h</td>
+                </tr>
+              );
+            })}
+          />
+        </DataCard>
+      )}
     </div>
   );
 }
