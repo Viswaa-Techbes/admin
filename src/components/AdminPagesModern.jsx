@@ -476,21 +476,44 @@ export function TrackingPage() {
 }
 
 export function AttendancePage() {
-  const { data: attendanceList, loading, error } = useApiData("/api/v2/admin/attendance");
+  const { data: attendanceList, loading, error } = useApiData("/api/v2/attendance/today");
+
   return (
     <div>
-      <PageHeader title="Attendance Reporting" subtitle="Staff login activity" />
-      <DataCard loading={loading} error={error} empty={!attendanceList.length} emptyText="No records found.">
+      <PageHeader title="Daily Attendance" subtitle={`Tracking staff presence for today: ${new Date().toLocaleDateString()}`} />
+      
+      <DataCard loading={loading} error={error} empty={!attendanceList.length} emptyText="No staff members found.">
         <TableWrapper
-          headers={["Name", "Role", "Status", "Last Seen"]}
-          rows={attendanceList.map((record) => (
-            <tr key={record.id} style={{ borderBottom: "1px solid #f8fafc" }}>
-              <td style={TD_STYLE}>{record.name}</td>
-              <td style={TD_STYLE}><span style={{ textTransform: "uppercase", fontSize: 11, fontWeight: 700 }}>{record.role}</span></td>
-              <td style={TD_STYLE}><StatusBadge status={record.status} /></td>
-              <td style={TD_STYLE}>{record.loginTime ? new Date(record.loginTime).toLocaleString() : "—"}</td>
-            </tr>
-          ))}
+          headers={["Staff Member", "Role", "Date", "Status", "Login Time", "Logout Time", "Work Hours"]}
+          rows={attendanceList.map((record) => {
+            const isPresent = record.status === "present";
+            return (
+              <tr key={record.id || record.userId} style={{ borderBottom: "1px solid #f8fafc" }}>
+                <td style={TD_STYLE}>
+                  <div style={{ fontWeight: 700, color: "#0f172a" }}>{record.name}</div>
+                </td>
+                <td style={TD_STYLE}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>{record.role}</div>
+                </td>
+                <td style={TD_STYLE}>{record.date}</td>
+                <td style={TD_STYLE}>
+                  <span style={{ 
+                    padding: "4px 10px", 
+                    borderRadius: 99, 
+                    fontSize: 11, 
+                    fontWeight: 700, 
+                    background: isPresent ? "#dcfce7" : "#fee2e2", 
+                    color: isPresent ? "#15803d" : "#b91c1c" 
+                  }}>
+                    {record.status.toUpperCase()}
+                  </span>
+                </td>
+                <td style={TD_STYLE}>{record.loginTime ? new Date(record.loginTime).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+                <td style={TD_STYLE}>{record.logoutTime ? new Date(record.logoutTime).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+                <td style={TD_STYLE}>{record.workingHours || 0} hrs</td>
+              </tr>
+            );
+          })}
         />
       </DataCard>
     </div>
