@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { PlusIcon } from "./Icons";
+import { PlusIcon, EditIcon, TrashIcon } from "./Icons";
 import { PageHeader, SearchFilter, Card, TableWrapper, Avatar, StatusBadge, ActionBtn, StarRating, SectionHeader } from "./UI";
 
 function useApiData(url, initial = []) {
@@ -35,11 +35,51 @@ function useApiData(url, initial = []) {
 }
 
 export function CustomersPage() {
-  const { data: leads, loading, error } = useApiData("/api/leads");
+  const { data: leads, setData: setLeads, loading, error } = useApiData("/api/leads");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [serviceFilter, setServiceFilter] = useState("All");
   const [groupByPincode, setGroupByPincode] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ name: "", email: "", phone: "", pincode: "", status: "Active" });
+  const [formError, setFormError] = useState("");
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    try {
+      setSaving(true);
+      setFormError("");
+      const url = editingId ? `/api/v2/admin/leads/${editingId}` : "/api/leads";
+      const method = editingId ? "PUT" : "POST";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.message || "Failed to save lead");
+      if (editingId) {
+        setLeads(leads.map(l => (l._id || l.id) === editingId ? { ...l, ...payload.data } : l));
+      } else {
+        setLeads([payload.data, ...leads]);
+      }
+      setShowForm(false);
+      setEditingId(null);
+      setForm({ name: "", email: "", phone: "", pincode: "", status: "Active" });
+    } catch (err) {
+      setFormError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function startEdit(lead) {
+    setEditingId(lead._id || lead.id);
+    setForm({ name: lead.name, email: lead.email, phone: lead.phone, pincode: lead.pincode, status: lead.status || "Active" });
+    setShowForm(true);
+  }
 
   const filteredLeads = useMemo(() => leads.filter((lead) => {
     const query = searchQuery.toLowerCase();
@@ -54,6 +94,17 @@ export function CustomersPage() {
     return matchesSearch && matchesStatus && matchesService;
   }), [leads, searchQuery, serviceFilter, statusFilter]);
 
+  async function handleDelete(id) {
+    if (!window.confirm("Are you sure you want to delete this lead?")) return;
+    try {
+      const res = await fetch(`/api/v2/admin/leads/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete lead");
+      setLeads(leads.filter(l => (l._id || l.id) !== id));
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
   const groupedRows = filteredLeads.reduce((acc, lead) => {
     const key = lead.pincode || "Unassigned";
     if (!acc[key]) acc[key] = [];
@@ -64,17 +115,41 @@ export function CustomersPage() {
   const rows = groupByPincode
     ? Object.entries(groupedRows).flatMap(([pin, bucket]) => [
         <tr key={`group-${pin}`} style={{ background: "#f8fafc" }}>
-          <td colSpan="6" style={{ padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#475569" }}>
+          <td colSpan="7" style={{ padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#475569" }}>
             Pincode {pin} • {bucket.length} leads
           </td>
         </tr>,
-        ...bucket.map((lead, index) => leadRow(lead, index)),
+        ...bucket.map((lead, index) => leadRow(lead, index, handleDelete)),
       ])
-    : filteredLeads.map((lead, index) => leadRow(lead, index));
+    : filteredLeads.map((lead, index) => leadRow(lead, index, handleDelete));
 
   return (
     <div className="font-[family-name:var(--font-geist-sans)] max-w-[1400px] mx-auto">
-      <PageHeader title="Lead Management" subtitle={`${filteredLeads.length} leads available`} actions={<ActionBtn icon={<PlusIcon />} label="Add Lead" primary />} />
+      <PageHeader title="Lead Management" subtitle={`${filteredLeads.length} leads available`} actions={<ActionBtn icon={<PlusIcon />} onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({name: "", email: "", phone: "", pincode: "", status: "Active"}); }} label={showForm ? "Close Form" : "Add Lead"} primary />} />
+      
+      {showForm && (
+        <Card style={{ padding: 20, marginBottom: 20 }}>
+          <SectionHeader title={editingId ? "Edit Lead" : "Add New Lead"} />
+          <form onSubmit={handleSubmit} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Field label="Full Name" value={form.name} onChange={(v) => setForm({...form, name: v})} />
+            <Field label="Email" value={form.email} onChange={(v) => setForm({...form, email: v})} />
+            <Field label="Phone" value={form.phone} onChange={(v) => setForm({...form, phone: v})} />
+            <Field label="Pincode" value={form.pincode} onChange={(v) => setForm({...form, pincode: v})} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label style={LABEL_STYLE}>Status</label>
+              <select value={form.status} onChange={(e) => setForm({...form, status: e.target.value})} style={INPUT_STYLE}>
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+              </select>
+            </div>
+            <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ color: "#f43f5e", fontSize: 12 }}>{formError}</span>
+              <button type="submit" disabled={saving} style={primaryButton}>{saving ? "Saving..." : (editingId ? "Update Lead" : "Create Lead")}</button>
+            </div>
+          </form>
+        </Card>
+      )}
+
       <SearchFilter
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -87,13 +162,14 @@ export function CustomersPage() {
         placeholder="Search by name, email, phone or pincode..."
       />
       <DataCard loading={loading} error={error} empty={!filteredLeads.length} emptyText="No leads found for the selected filters.">
-        <TableWrapper headers={["Customer", "Contact", "Plan", "Pincode", "Date", "Status"]} rows={rows} />
+        <TableWrapper headers={["Customer", "Contact", "Plan", "Pincode", "Date", "Status", "Actions"]} rows={rows} />
       </DataCard>
     </div>
   );
 }
 
-function leadRow(lead, index) {
+function leadRow(lead, index, onDelete) {
+  const id = lead._id || lead.id;
   return (
     <tr key={lead._id || lead.id || `${lead.email}-${index}`} style={{ borderBottom: "1px solid #f8fafc" }}>
       <td style={TD_STYLE}>
@@ -113,33 +189,130 @@ function leadRow(lead, index) {
       <td style={TD_STYLE}>{lead.pincode || "—"}</td>
       <td style={TD_STYLE}>{formatDate(lead.createdAt)}</td>
       <td style={TD_STYLE}><StatusBadge status={lead.status || "Active"} /></td>
+      <td style={TD_STYLE}>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button title="Edit" onClick={() => startEdit(lead)} style={{ border: "none", background: "none", cursor: "pointer", color: "#64748b" }}><EditIcon /></button>
+          <button title="Delete" onClick={() => onDelete(id)} style={{ border: "none", background: "none", cursor: "pointer", color: "#f43f5e" }}><TrashIcon /></button>
+        </div>
+      </td>
     </tr>
   );
 }
 
 export function TechniciansPage() {
-  const { data: technicians, loading, error } = useApiData("/api/admin/technicians");
+  const { data: users, setData: setUsers, loading, error } = useApiData("/api/admin/users");
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ name: "", mobileNumber: "", password: "", role: "technician" });
+  const [formError, setFormError] = useState("");
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    try {
+      setSaving(true);
+      setFormError("");
+      const url = editingId ? `/api/v2/admin/update-user/${editingId}` : "/api/v2/admin/create-user";
+      const method = editingId ? "PUT" : "POST";
+      
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.message || "Failed to save user");
+      
+      if (editingId) {
+        setUsers(users.map(u => u.id === editingId ? { ...u, ...payload.data } : u));
+        alert("User updated successfully!");
+      } else {
+        alert(`User created! Credentials:\nMobile: ${payload.data.mobileNumber}\nPassword: ${payload.data.password}`);
+        setUsers([payload.data, ...users]);
+      }
+      
+      setShowForm(false);
+      setEditingId(null);
+      setForm({ name: "", mobileNumber: "", password: "", role: "technician" });
+    } catch (err) {
+      setFormError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function startEdit(user) {
+    setEditingId(user.id);
+    setForm({ name: user.name, mobileNumber: user.mobileNumber, role: user.role, password: "" });
+    setShowForm(true);
+  }
+
+  async function handleDelete(id) {
+    if (!window.confirm("Are you sure you want to delete this user?")) return;
+    try {
+      const res = await fetch(`/api/v2/admin/delete-user/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete user");
+      setUsers(users.filter(u => u.id !== id));
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
   return (
     <div>
-      <PageHeader title="Technician Management" subtitle={`${technicians.length} technicians in the system`} />
-      <DataCard loading={loading} error={error} empty={!technicians.length} emptyText="No technicians found yet.">
+      <PageHeader 
+        title="User Management" 
+        subtitle={`${users.length} active technicians/managers`} 
+        actions={<ActionBtn icon={<PlusIcon />} onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({name: "", mobileNumber: "", password: "", role: "technician"}); }} label={showForm ? "Close Form" : "Create User"} primary />} 
+      />
+
+      {showForm && (
+        <Card style={{ padding: 20, marginBottom: 20 }}>
+          <SectionHeader title={editingId ? "Edit Staff Account" : "Register New Staff Account"} />
+          <form onSubmit={handleSubmit} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Field label="Full Name" value={form.name} onChange={(v) => setForm({...form, name: v})} />
+            <Field label="Mobile Number" value={form.mobileNumber} onChange={(v) => setForm({...form, mobileNumber: v})} />
+            {!editingId && <Field label="Password" value={form.password} onChange={(v) => setForm({...form, password: v})} />}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label style={LABEL_STYLE}>Role</label>
+              <select value={form.role} onChange={(e) => setForm({...form, role: e.target.value})} disabled={!!editingId} style={INPUT_STYLE}>
+                <option value="technician">Technician</option>
+                <option value="manager">Manager</option>
+              </select>
+            </div>
+            <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ color: "#f43f5e", fontSize: 12 }}>{formError}</span>
+              <button type="submit" disabled={saving} style={primaryButton}>{saving ? "Saving..." : (editingId ? "Update Account" : "Create Account")}</button>
+            </div>
+          </form>
+        </Card>
+      )}
+
+      <DataCard loading={loading} error={error} empty={!users.length} emptyText="No users found.">
         <TableWrapper
-          headers={["Technician", "Specialty", "Status", "Location", "Joined"]}
-          rows={technicians.map((tech) => (
-            <tr key={tech.id} style={{ borderBottom: "1px solid #f8fafc" }}>
+          headers={["Staff Member", "Role", "Specialty / Info", "Status", "Actions"]}
+          rows={users.map((u) => (
+            <tr key={u.id} style={{ borderBottom: "1px solid #f8fafc" }}>
               <td style={TD_STYLE}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <Avatar initials={(tech.name || "?").charAt(0)} size={34} />
+                  <Avatar initials={(u.name || "?").charAt(0)} size={34} />
                   <div>
-                    <div style={{ fontWeight: 700, color: "#0f172a" }}>{tech.name}</div>
-                    <div style={{ fontSize: 12, color: "#64748b" }}>{tech.email}</div>
+                    <div style={{ fontWeight: 700, color: "#0f172a" }}>{u.name}</div>
+                    <div style={{ fontSize: 12, color: "#64748b" }}>{u.mobileNumber}</div>
                   </div>
                 </div>
               </td>
-              <td style={TD_STYLE}>{tech.specialty || "General service"}</td>
-              <td style={TD_STYLE}><StatusBadge status={tech.status} /></td>
-              <td style={TD_STYLE}>{tech.lat && tech.lng ? `${tech.lat.toFixed(3)}, ${tech.lng.toFixed(3)}` : "Not shared"}</td>
-              <td style={TD_STYLE}>{formatDate(tech.createdAt)}</td>
+              <td style={TD_STYLE}>
+                <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: u.role === "manager" ? "#6366f1" : "#64748b" }}>{u.role}</span>
+              </td>
+              <td style={TD_STYLE}>{u.specialty || "—"}</td>
+              <td style={TD_STYLE}><StatusBadge status={u.status} /></td>
+              <td style={TD_STYLE}>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button title="Edit" onClick={() => startEdit(u)} style={{ border: "none", background: "none", cursor: "pointer", color: "#64748b" }}><EditIcon /></button>
+                  <button title="Delete" onClick={() => handleDelete(u.id)} style={{ border: "none", background: "none", cursor: "pointer", color: "#f43f5e" }}><TrashIcon /></button>
+                </div>
+              </td>
             </tr>
           ))}
         />
@@ -357,48 +530,81 @@ export function TrackingPage() {
 }
 
 export function AttendancePage() {
-  const { data: attendanceList, loading, error } = useApiData("/api/admin/attendance");
+  const [filterMode, setFilterMode] = useState("day"); // day, month, year
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
-  const total = attendanceList.length;
-  const present = attendanceList.filter((u) => u.status === "present").length;
-  const absent = total - present;
+  const apiUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    if (filterMode === "day") params.append("date", selectedDate);
+    if (filterMode === "month") {
+      params.append("month", selectedMonth);
+      params.append("year", selectedYear);
+    }
+    if (filterMode === "year") params.append("year", selectedYear);
+    return `/api/v2/attendance?${params.toString()}`;
+  }, [filterMode, selectedDate, selectedMonth, selectedYear]);
+
+  const { data: attendanceList, loading, error } = useApiData(apiUrl);
 
   return (
     <div>
-      <PageHeader title="Daily Attendance Overview" subtitle="Real-time daily login monitoring" />
-      <DataCard loading={loading} error={error} empty={!attendanceList.length} emptyText="No attendance data is available.">
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24 }}>
-          <Card style={{ padding: 20, textAlign: "center", border: "2px solid rgba(59,130,246,0.3)" }}>
-            <div style={{ color: "#64748b", fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Total Technicians</div>
-            <div style={{ fontSize: 32, fontWeight: 900, color: "#3b82f6" }}>{total}</div>
-          </Card>
-          <Card style={{ padding: 20, textAlign: "center", border: "2px solid rgba(34,197,94,0.3)" }}>
-            <div style={{ color: "#64748b", fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Present Today</div>
-            <div style={{ fontSize: 32, fontWeight: 900, color: "#22c55e" }}>{present}</div>
-          </Card>
-          <Card style={{ padding: 20, textAlign: "center", border: "2px solid rgba(239,68,68,0.3)" }}>
-            <div style={{ color: "#64748b", fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Absent Today</div>
-            <div style={{ fontSize: 32, fontWeight: 900, color: "#ef4444" }}>{absent}</div>
-          </Card>
+      <PageHeader title="Attendance Reporting" subtitle="View and filter staff attendance records" />
+      
+      <Card style={{ padding: 20, marginBottom: 20 }}>
+        <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 8 }}>
+            {["day", "month", "year"].map((m) => (
+              <button key={m} onClick={() => setFilterMode(m)} style={pillButton(filterMode === m)}>
+                {m.charAt(0).toUpperCase() + m.slice(1)}
+              </button>
+            ))}
+          </div>
+
+          {filterMode === "day" && (
+            <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} style={INPUT_STYLE} />
+          )}
+
+          {filterMode === "month" && (
+            <div style={{ display: "flex", gap: 8 }}>
+              <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} style={INPUT_STYLE}>
+                {Array.from({ length: 12 }, (_, i) => (
+                  <option key={i + 1} value={i + 1}>{new Date(2000, i).toLocaleString('default', { month: 'long' })}</option>
+                ))}
+              </select>
+              <input type="number" value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} style={{ ...INPUT_STYLE, width: 80 }} />
+            </div>
+          )}
+
+          {filterMode === "year" && (
+            <input type="number" value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} style={{ ...INPUT_STYLE, width: 100 }} />
+          )}
         </div>
+      </Card>
+
+      <DataCard loading={loading} error={error} empty={!attendanceList.length} emptyText="No attendance records found for this period.">
         <TableWrapper
-          headers={["Technician", "Status", "Login", "Logout", "Duration"]}
-          rows={attendanceList.map((user) => {
-            const isPresent = user.status === "present";
+          headers={["Technician", "Role", "Date", "Status", "Login", "Logout", "Work Hours"]}
+          rows={attendanceList.map((record, idx) => {
+            const isPresent = record.status === "present";
             return (
-              <tr key={user.technicianId || user.email} style={{ borderBottom: "1px solid #f8fafc" }}>
+              <tr key={record.userId + record.date + idx} style={{ borderBottom: "1px solid #f8fafc" }}>
                 <td style={TD_STYLE}>
-                  <div style={{ fontWeight: 700, color: "#0f172a" }}>{user.name || "Unknown"}</div>
-                  <div style={{ fontSize: 12, color: "#64748b" }}>{user.email}</div>
+                  <div style={{ fontWeight: 700, color: "#0f172a" }}>{record.name}</div>
                 </td>
+                <td style={TD_STYLE}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>{record.role}</div>
+                </td>
+                <td style={TD_STYLE}>{record.date}</td>
                 <td style={TD_STYLE}>
                   <span style={{ padding: "4px 10px", borderRadius: 99, fontSize: 11, fontWeight: 700, background: isPresent ? "#dcfce7" : "#fee2e2", color: isPresent ? "#15803d" : "#b91c1c" }}>
-                    {isPresent ? "PRESENT" : "ABSENT"}
+                    {record.status.toUpperCase()}
                   </span>
                 </td>
-                <td style={TD_STYLE}>{user.loginTime ? new Date(user.loginTime).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }) : "N/A"}</td>
-                <td style={TD_STYLE}>{user.logoutTime ? new Date(user.logoutTime).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }) : "—"}</td>
-                <td style={TD_STYLE}>{user.workingHours ? `${user.workingHours} hrs` : "—"}</td>
+                <td style={TD_STYLE}>{record.loginTime ? new Date(record.loginTime).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+                <td style={TD_STYLE}>{record.logoutTime ? new Date(record.logoutTime).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+                <td style={TD_STYLE}>{record.workingHours} hrs</td>
               </tr>
             );
           })}

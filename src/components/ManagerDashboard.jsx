@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { Card, StatusBadge, SectionHeader, TableWrapper } from "./UI";
+import * as Icons from "./Icons";
 
 const STAT_META = [
-  { key: "totalRequests", label: "Total Requests", icon: "PL", color: "#6366f1", bg: "#eef2ff" },
-  { key: "pendingJobs", label: "Pending Jobs", icon: "PD", color: "#f59e0b", bg: "#fffbeb" },
-  { key: "inProgress", label: "In Progress", icon: "IP", color: "#06b6d4", bg: "#ecfeff" },
-  { key: "completedJobs", label: "Completed Jobs", icon: "DN", color: "#10b981", bg: "#ecfdf5" },
-  { key: "activeTechnicians", label: "Active Technicians", icon: "TM", color: "#8b5cf6", bg: "#f5f3ff" },
-  { key: "pendingRequests", label: "Approval Queue", icon: "RQ", color: "#f43f5e", bg: "#fff1f2" },
-  { key: "paymentApprovals", label: "Payment Queue", icon: "PY", color: "#0f766e", bg: "#ecfeff" },
+  { key: "totalLeads", label: "Total Leads", icon: <Icons.UsersIcon />, color: "#6366f1", bg: "#eef2ff" },
+  { key: "totalJobs", label: "Total Jobs", icon: <Icons.BriefcaseIcon />, color: "#3b82f6", bg: "#eff6ff" },
+  { key: "completedJobs", label: "Completed Jobs", icon: <Icons.GridIcon />, color: "#10b981", bg: "#ecfdf5" },
+  { key: "activeTechnicians", label: "Active Technicians", icon: <Icons.WrenchIcon />, color: "#8b5cf6", bg: "#f5f3ff" },
+  { key: "pendingRequests", label: "Approval Queue", icon: <Icons.BellIcon />, color: "#f43f5e", bg: "#fff1f2" },
+  { key: "paymentApprovals", label: "Payment Queue", icon: <Icons.CreditCardIcon />, color: "#0f766e", bg: "#ecfeff" },
 ];
 
 export function DashboardPage({ onNavigate }) {
@@ -56,19 +56,19 @@ export function DashboardPage({ onNavigate }) {
 
   return (
     <div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 14, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 14, marginBottom: 20 }}>
         {STAT_META.map((item) => (
-          <Card key={item.key} style={{ padding: 18 }}>
+          <Card key={item.key} style={{ padding: 18, border: "1px solid #e2e8f0" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <div style={{ width: 38, height: 38, borderRadius: 11, background: item.bg, color: item.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800 }}>
+              <div style={{ width: 38, height: 38, borderRadius: 11, background: item.bg, color: item.color, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 {item.icon}
               </div>
-              <span style={{ fontSize: 11, fontWeight: 700, color: item.color }}>{item.label.split(" ")[0]}</span>
+              <div style={{ padding: "4px 8px", borderRadius: 8, background: "#f8fafc", fontSize: 10, fontWeight: 700, color: "#64748b" }}>LIVE</div>
             </div>
             <div style={{ fontSize: 26, fontWeight: 800, color: "#0f172a", marginBottom: 2 }}>
               {loading ? "..." : summary[item.key] ?? 0}
             </div>
-            <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 500 }}>{item.label}</div>
+            <div style={{ fontSize: 13, color: "#475569", fontWeight: 700 }}>{item.label}</div>
           </Card>
         ))}
       </div>
@@ -111,9 +111,9 @@ export function DashboardPage({ onNavigate }) {
               <tr key={job.id} style={{ borderBottom: "1px solid #f8fafc" }}>
                 <td style={TD_STYLE}>
                   <div style={{ fontWeight: 700, color: "#0f172a" }}>{job.customerName || "Client"}</div>
-                  <div style={{ fontSize: 12, color: "#64748b" }}>{job.address}</div>
+                  <div style={{ fontSize: 12, color: "#64748b" }}>{job.location}</div>
                 </td>
-                <td style={TD_STYLE}>{job.serviceName}</td>
+                <td style={TD_STYLE}>{job.title}</td>
                 <td style={TD_STYLE}>{job.technicianName || "Unassigned"}</td>
                 <td style={TD_STYLE}><StatusBadge status={job.status} /></td>
                 <td style={TD_STYLE}>{formatDate(job.createdAt)}</td>

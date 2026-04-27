@@ -36,7 +36,8 @@ export const AuthProvider = ({ children }) => {
       body: JSON.stringify({ email, password }),
     });
     if (res.ok) {
-      await checkUser();
+      const data = await res.json();
+      setUser(data.user);
       router.push('/');
       return true;
     }

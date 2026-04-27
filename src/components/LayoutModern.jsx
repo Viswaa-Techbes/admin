@@ -4,8 +4,8 @@ import { Avatar } from "./UI";
 
 export const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: <GridIcon /> },
-  { id: "customers", label: "Customers", icon: <UsersIcon /> },
-  { id: "technicians", label: "Technicians", icon: <HardHatIcon /> },
+  { id: "customers", label: "Leads", icon: <UsersIcon /> },
+  { id: "technicians", label: "User Management", icon: <HardHatIcon /> },
   { id: "jobs", label: "Service Requests", icon: <BriefcaseIcon /> },
   { id: "requests", label: "Completion Requests", icon: <BellIcon /> },
   { id: "reviews", label: "Technician Reviews", icon: <ChartIcon /> },
@@ -68,8 +68,8 @@ export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLo
 export function TopNavbar({ page, notifCount, user, onLogout }) {
   const titles = {
     dashboard: "Dashboard",
-    customers: "Customers",
-    technicians: "Technicians",
+    customers: "Leads",
+    technicians: "User Management",
     jobs: "Service Requests",
     requests: "Completion Requests",
     reviews: "Technician Reviews",

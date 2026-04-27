@@ -7,7 +7,7 @@ const UserSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
-  role: { type: String, enum: ['admin', 'user'], default: 'user' },
+  role: { type: String, enum: ['admin', 'manager', 'technician', 'client'], default: 'technician' },
 }, { timestamps: true });
 
 const User = mongoose.models.User || mongoose.model('User', UserSchema);
@@ -20,7 +20,7 @@ async function setup() {
     });
     console.log('Connected to DB');
 
-    const email = 'admin@techbes.co.in';
+    const email = 'lohith@techbes.co.in';
     const password = 'admin*#123';
     const hashedPassword = await bcrypt.hash(password, 10);
 
