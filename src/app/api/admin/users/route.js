@@ -1,14 +1,10 @@
 import { NextResponse } from 'next/server';
 import { fetchBackend, getAuthToken } from '@/lib/backendApi';
 
-export async function PATCH(req, { params }) {
+export async function GET(req) {
   try {
-    const { taskId } = await params;
-    const body = await req.json();
-    const { response, payload } = await fetchBackend(`/admin/completion-requests/${taskId}`, {
-      method: 'PATCH',
+    const { response, payload } = await fetchBackend('/admin/users', {
       token: getAuthToken(req),
-      body,
     });
 
     return NextResponse.json(payload, { status: response.status });

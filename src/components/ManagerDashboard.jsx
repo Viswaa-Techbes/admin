@@ -7,8 +7,8 @@ const STAT_META = [
   { key: "totalJobs", label: "Total Jobs", icon: <Icons.BriefcaseIcon />, color: "#3b82f6", bg: "#eff6ff" },
   { key: "completedJobs", label: "Completed Jobs", icon: <Icons.GridIcon />, color: "#10b981", bg: "#ecfdf5" },
   { key: "activeTechnicians", label: "Active Technicians", icon: <Icons.WrenchIcon />, color: "#8b5cf6", bg: "#f5f3ff" },
-  { key: "pendingRequests", label: "Approval Queue", icon: <Icons.BellIcon />, color: "#f43f5e", bg: "#fff1f2" },
-  { key: "paymentApprovals", label: "Payment Queue", icon: <Icons.CreditCardIcon />, color: "#0f766e", bg: "#ecfeff" },
+  { key: "approvalQueue", label: "Approval Queue", icon: <Icons.BellIcon />, color: "#f43f5e", bg: "#fff1f2" },
+  { key: "paymentQueue", label: "Payment Queue", icon: <Icons.CreditCardIcon />, color: "#0f766e", bg: "#ecfeff" },
 ];
 
 export function DashboardPage({ onNavigate }) {
@@ -22,7 +22,7 @@ export function DashboardPage({ onNavigate }) {
     async function loadDashboard() {
       try {
         setLoading(true);
-        const res = await fetch("/api/admin/dashboard");
+        const res = await fetch("/api/v2/admin/dashboard");
         const payload = await res.json();
         if (!res.ok) {
           throw new Error(payload.message || "Failed to load dashboard");
