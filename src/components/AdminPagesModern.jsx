@@ -371,13 +371,13 @@ export function JobsPage() {
 }
 
 export function RequestsPage() {
-  const { data: requests, loading, error, refresh } = useApiData("/api/admin/completion-requests");
+  const { data: requests, loading, error, refresh } = useApiData("/api/v2/admin/completion-requests");
   const [busyId, setBusyId] = useState("");
 
   async function updateRequest(taskId, action) {
     try {
       setBusyId(taskId);
-      const res = await fetch(`/api/admin/completion-requests/${taskId}`, {
+      const res = await fetch(`/api/v2/admin/completion-requests/${taskId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),
@@ -521,7 +521,54 @@ export function AttendancePage() {
 }
 
 export function ServicesPage() { return <PlaceholderPage title="Services" />; }
-export function PaymentsPage() { return <PlaceholderPage title="Payments" />; }
+export function PaymentsPage() {
+  const { data: requests, loading, error, refresh } = useApiData("/api/v2/admin/payment-requests");
+  const [busyId, setBusyId] = useState("");
+
+  async function updateRequest(jobId, action) {
+    try {
+      setBusyId(jobId);
+      const res = await fetch(`/api/v2/admin/payment-requests/${jobId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      if (!res.ok) throw new Error("Failed to update payment request");
+      await refresh();
+    } finally {
+      setBusyId("");
+    }
+  }
+
+  return (
+    <div>
+      <PageHeader title="Payment Verification" subtitle={`${requests.length} payments awaiting confirmation`} />
+      <DataCard loading={loading} error={error} empty={!requests.length} emptyText="No pending payment verifications.">
+        <TableWrapper
+          headers={["Customer", "Service", "Technician", "Amount", "Status", "Actions"]}
+          rows={requests.map((request) => (
+            <tr key={request.id} style={{ borderBottom: "1px solid #f8fafc" }}>
+              <td style={TD_STYLE}>
+                <div style={{ fontWeight: 700, color: "#0f172a" }}>{request.customerName}</div>
+                <div style={{ fontSize: 11, color: "#94a3b8" }}>{request.customerPhone}</div>
+              </td>
+              <td style={TD_STYLE}>{request.serviceName}</td>
+              <td style={TD_STYLE}>{request.technicianName}</td>
+              <td style={TD_STYLE}><div style={{ fontWeight: 700, color: "#0f172a" }}>₹{request.amount}</div></td>
+              <td style={TD_STYLE}><StatusBadge status={request.paymentStatus} /></td>
+              <td style={TD_STYLE}>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button disabled={busyId === request.id} onClick={() => updateRequest(request.id, "approve")} style={approveButton}>Approve</button>
+                  <button disabled={busyId === request.id} onClick={() => updateRequest(request.id, "reject")} style={rejectButton}>Reject</button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        />
+      </DataCard>
+    </div>
+  );
+}
 export function NotificationsPage() { return <PlaceholderPage title="Notifications" />; }
 export function ReportsPage() { return <PlaceholderPage title="Reports" />; }
 export function SettingsPage() { return <PlaceholderPage title="Settings" />; }
