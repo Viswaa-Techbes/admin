@@ -378,11 +378,14 @@ export function RequestsPage() {
     try {
       setBusyId(taskId);
       const res = await fetch(`/api/v2/admin/completion-requests/${taskId}`, {
-        method: "PATCH",
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),
       });
-      if (!res.ok) throw new Error("Failed to update request");
+      if (!res.ok) {
+        const payload = await res.json();
+        throw new Error(payload.message || "Failed to update request");
+      }
       await refresh();
     } finally {
       setBusyId("");
@@ -529,11 +532,14 @@ export function PaymentsPage() {
     try {
       setBusyId(jobId);
       const res = await fetch(`/api/v2/admin/payment-requests/${jobId}`, {
-        method: "PATCH",
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),
       });
-      if (!res.ok) throw new Error("Failed to update payment request");
+      if (!res.ok) {
+        const payload = await res.json();
+        throw new Error(payload.message || "Failed to update payment request");
+      }
       await refresh();
     } finally {
       setBusyId("");
