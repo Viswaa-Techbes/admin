@@ -226,7 +226,7 @@ export function TechniciansPage() {
   async function handleDelete(id) {
     if (!window.confirm("Are you sure you want to delete this user?")) return;
     try {
-      const res = await fetch(`/api/v2/admin/users/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/v2/admin/users/${id}`, { method: "DELETE", credentials: "include" });
       if (!res.ok) throw new Error("Failed to delete user");
       await refreshUsers();
     } catch (err) {
@@ -658,6 +658,7 @@ export function ServiceRequestsPage() {
       setAssignError("");
       const res = await fetch(`/api/v2/admin/bookings/${assignModal.id}/assign`, {
         method: "PUT",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ technicianId: selectedTech }),
       });
