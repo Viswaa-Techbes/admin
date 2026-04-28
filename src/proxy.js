@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { verifyToken } from './lib/auth';
 
-export async function middleware(req) {
+export async function proxy(req) {
   const token = req.cookies.get('auth-token')?.value;
   const path = req.nextUrl.pathname;
 

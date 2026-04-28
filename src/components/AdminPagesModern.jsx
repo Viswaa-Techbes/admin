@@ -10,10 +10,13 @@ function useApiData(url, initial = []) {
   async function load() {
     try {
       setLoading(true);
-      const res = await fetch(url);
-      const payload = await res.json();
-      if (!res.ok) throw new Error(payload.message || "Failed to load data");
-      setData(payload.data || []);
+      const res = await fetch(url, { credentials: "include" });
+      let payload;
+      try { payload = await res.json(); } catch { payload = {}; }
+      if (!res.ok) {
+        throw new Error(payload.message || `Request failed (${res.status})`);
+      }
+      setData(payload.data ?? payload ?? []);
       setError("");
     } catch (err) {
       setError(err.message);
@@ -22,9 +25,7 @@ function useApiData(url, initial = []) {
     }
   }
 
-  useEffect(() => {
-    load();
-  }, [url]);
+  useEffect(() => { load(); }, [url]);
 
   return { data, setData, loading, error, refresh: load };
 }
@@ -50,6 +51,7 @@ export function CustomersPage() {
       const method = editingId ? "PUT" : "POST";
       const res = await fetch(url, {
         method,
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
@@ -193,6 +195,7 @@ export function TechniciansPage() {
       
       const res = await fetch(url, {
         method,
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
@@ -309,12 +312,14 @@ export function JobsPage() {
     try {
       setSaving(true);
       setFormError("");
-      const res = await fetch("/api/admin/jobs", { // Using standard jobs creation
+      const res = await fetch("/api/v2/admin/jobs", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      if (!res.ok) throw new Error("Failed to create job");
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.message || "Failed to create job");
       await refreshJobs();
       setShowForm(false);
       setForm({ title: "", customerName: "", customerPhone: "", location: "", technicianId: "", price: "", description: "" });
