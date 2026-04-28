@@ -597,6 +597,201 @@ export function AttendancePage() {
   );
 }
 
+export function ServiceRequestsPage() {
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [assignModal, setAssignModal] = useState(null); // booking object or null
+  const [technicians, setTechnicians] = useState([]);
+  const [selectedTech, setSelectedTech] = useState("");
+  const [assigning, setAssigning] = useState(false);
+  const [assignError, setAssignError] = useState("");
+
+  async function loadBookings() {
+    try {
+      setLoading(true);
+      const url = statusFilter === "all" ? "/api/v2/admin/bookings" : `/api/v2/admin/bookings?status=${statusFilter}`;
+      const res = await fetch(url);
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.message || "Failed to load bookings");
+      setBookings(payload.data || []);
+      setError("");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { loadBookings(); }, [statusFilter]);
+
+  // Poll every 5 seconds for real-time updates
+  useEffect(() => {
+    const interval = setInterval(loadBookings, 5000);
+    return () => clearInterval(interval);
+  }, [statusFilter]);
+
+  async function loadTechnicians() {
+    if (technicians.length > 0) return;
+    const res = await fetch("/api/v2/admin/users");
+    const payload = await res.json();
+    if (res.ok) setTechnicians((payload.data || []).filter(u => u.role === "technician"));
+  }
+
+  function openAssign(booking) {
+    setAssignModal(booking);
+    setSelectedTech(booking.technicianId || "");
+    setAssignError("");
+    loadTechnicians();
+  }
+
+  async function handleAssign() {
+    if (!selectedTech) { setAssignError("Please select a technician"); return; }
+    try {
+      setAssigning(true);
+      setAssignError("");
+      const res = await fetch(`/api/v2/admin/bookings/${assignModal.id}/assign`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ technicianId: selectedTech }),
+      });
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.message || "Assignment failed");
+      setAssignModal(null);
+      await loadBookings();
+    } catch (err) {
+      setAssignError(err.message);
+    } finally {
+      setAssigning(false);
+    }
+  }
+
+  const STATUS_COLORS = {
+    pending: { bg: "#fef9c3", color: "#854d0e" },
+    assigned: { bg: "#dbeafe", color: "#1d4ed8" },
+    in_progress: { bg: "#fce7f3", color: "#9d174d" },
+    started: { bg: "#fce7f3", color: "#9d174d" },
+    completed: { bg: "#dcfce7", color: "#15803d" },
+    cancelled: { bg: "#fee2e2", color: "#b91c1c" },
+  };
+
+  function StatusChip({ status }) {
+    const style = STATUS_COLORS[status] || { bg: "#f1f5f9", color: "#475569" };
+    return (
+      <span style={{ padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 700, textTransform: "uppercase", background: style.bg, color: style.color }}>
+        {status?.replace(/_/g, " ")}
+      </span>
+    );
+  }
+
+  const statusOptions = ["all", "pending", "assigned", "in_progress", "completed"];
+
+  return (
+    <div>
+      <PageHeader
+        title="Service Requests"
+        subtitle={`${bookings.length} booking${bookings.length !== 1 ? "s" : ""} · auto-refreshes every 5s`}
+        actions={
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {statusOptions.map(s => (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: 99,
+                  border: "1px solid",
+                  borderColor: statusFilter === s ? "#6366f1" : "#e2e8f0",
+                  background: statusFilter === s ? "#6366f1" : "#fff",
+                  color: statusFilter === s ? "#fff" : "#64748b",
+                  fontWeight: 700,
+                  fontSize: 12,
+                  cursor: "pointer",
+                  textTransform: "capitalize",
+                }}
+              >
+                {s === "all" ? "All" : s.replace(/_/g, " ")}
+              </button>
+            ))}
+          </div>
+        }
+      />
+
+      {/* Assign Modal */}
+      {assignModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
+          <div style={{ background: "#fff", borderRadius: 20, padding: 28, width: "100%", maxWidth: 420, boxShadow: "0 25px 50px rgba(0,0,0,0.25)" }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: "#0f172a", marginBottom: 4 }}>Assign Technician</div>
+            <div style={{ fontSize: 13, color: "#64748b", marginBottom: 20 }}>
+              {assignModal.serviceName} · {assignModal.date || "Date TBD"} {assignModal.timeSlot || ""}
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: "#475569", display: "block", marginBottom: 6 }}>Select Technician</label>
+              <select
+                value={selectedTech}
+                onChange={e => setSelectedTech(e.target.value)}
+                style={{ width: "100%", padding: "10px 12px", borderRadius: 12, border: "1px solid #cbd5e1", fontSize: 13, outline: "none" }}
+              >
+                <option value="">-- Choose Technician --</option>
+                {technicians.map(t => (
+                  <option key={t._id || t.id} value={t._id || t.id}>{t.name} {t.specialty ? `· ${t.specialty}` : ""}</option>
+                ))}
+              </select>
+            </div>
+
+            {assignError && <div style={{ color: "#dc2626", fontSize: 12, marginBottom: 12 }}>{assignError}</div>}
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={() => setAssignModal(null)} style={{ padding: "9px 18px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#64748b", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
+              <button disabled={assigning} onClick={handleAssign} style={{ padding: "9px 18px", borderRadius: 10, border: "none", background: "#4f46e5", color: "#fff", fontWeight: 700, cursor: "pointer" }}>
+                {assigning ? "Assigning..." : "Assign Technician"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <DataCard loading={loading} error={error} empty={!bookings.length} emptyText="No service requests found.">
+        <TableWrapper
+          headers={["Customer", "Service", "Date & Time", "Status", "Technician", "Actions"]}
+          rows={bookings.map(booking => (
+            <tr key={booking.id} style={{ borderBottom: "1px solid #f8fafc" }}>
+              <td style={TD_STYLE}>
+                <div style={{ fontWeight: 700, color: "#0f172a" }}>{booking.customerName}</div>
+                {booking.customerPhone && <div style={{ fontSize: 11, color: "#94a3b8" }}>{booking.customerPhone}</div>}
+              </td>
+              <td style={TD_STYLE}>
+                <div style={{ fontWeight: 600, color: "#0f172a" }}>{booking.serviceName}</div>
+                {booking.address && <div style={{ fontSize: 11, color: "#94a3b8" }}>{booking.address}</div>}
+              </td>
+              <td style={TD_STYLE}>
+                <div style={{ fontWeight: 600 }}>{booking.date || "TBD"}</div>
+                <div style={{ fontSize: 11, color: "#94a3b8" }}>{booking.timeSlot || ""}</div>
+              </td>
+              <td style={TD_STYLE}><StatusChip status={booking.status} /></td>
+              <td style={TD_STYLE}>
+                {booking.technicianName
+                  ? <span style={{ color: "#15803d", fontWeight: 600, fontSize: 12 }}>✓ {booking.technicianName}</span>
+                  : <span style={{ color: "#94a3b8", fontSize: 12 }}>Unassigned</span>}
+              </td>
+              <td style={TD_STYLE}>
+                <button
+                  onClick={() => openAssign(booking)}
+                  style={{ padding: "6px 14px", borderRadius: 10, border: "none", background: booking.technicianName ? "#f1f5f9" : "#4f46e5", color: booking.technicianName ? "#64748b" : "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
+                >
+                  {booking.technicianName ? "Reassign" : "Assign Technician"}
+                </button>
+              </td>
+            </tr>
+          ))}
+        />
+      </DataCard>
+    </div>
+  );
+}
+
 export function ServicesPage() { return <PlaceholderPage title="Services" />; }
 export function PaymentsPage() {
   const { data: requests, loading, error, refresh } = useApiData("/api/v2/admin/payment-requests");

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar, TopNavbar } from "../components/LayoutModern";
 import { DashboardPage } from "../components/ManagerDashboard";
-import { CustomersPage, TechniciansPage, JobsPage, RequestsPage, ReviewsPage, ServicesPage, PaymentsPage, TrackingPage, NotificationsPage, ReportsPage, SettingsPage, AttendancePage } from "../components/AdminPagesModern";
+import { CustomersPage, TechniciansPage, JobsPage, RequestsPage, ReviewsPage, ServicesPage, ServiceRequestsPage, PaymentsPage, TrackingPage, NotificationsPage, ReportsPage, SettingsPage, AttendancePage } from "../components/AdminPagesModern";
 import { useAuth } from "../contexts/AuthContext";
 // ─── ROOT APP ─────────────────────────────────────────────────────────────────
 
@@ -24,6 +24,7 @@ export default function TechbesDashboard() {
     customers: <CustomersPage />,
     technicians: <TechniciansPage />,
     jobs: <JobsPage />,
+    "service-requests": <ServiceRequestsPage />,
     requests: <RequestsPage />,
     reviews: <ReviewsPage />,
     services: <ServicesPage />,
