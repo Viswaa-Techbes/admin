@@ -6,7 +6,8 @@ const API_BASE_URL =
   'https://technician-app.onrender.com';
 
 export function getBackendUrl(path) {
-  return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+  const baseUrl = API_BASE_URL.replace(/\/$/, '');
+  return `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
 export function getAuthToken(req) {
