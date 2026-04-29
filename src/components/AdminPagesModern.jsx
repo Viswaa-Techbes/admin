@@ -182,7 +182,7 @@ export function TechniciansPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: "", mobileNumber: "", password: "", role: "technician" });
+  const [form, setForm] = useState({ name: "", mobileNumber: "", password: "", role: "technician", specialty: "", permissions: [] });
   const [formError, setFormError] = useState("");
 
   async function handleSubmit(e) {
@@ -209,7 +209,7 @@ export function TechniciansPage() {
       await refreshUsers();
       setShowForm(false);
       setEditingId(null);
-      setForm({ name: "", mobileNumber: "", password: "", role: "technician" });
+      setForm({ name: "", mobileNumber: "", password: "", role: "technician", specialty: "", permissions: [] });
     } catch (err) {
       setFormError(err.message);
     } finally {
@@ -219,7 +219,7 @@ export function TechniciansPage() {
 
   function startEdit(user) {
     setEditingId(user._id || user.id);
-    setForm({ name: user.name, mobileNumber: user.mobileNumber, role: user.role, password: "" });
+    setForm({ name: user.name, mobileNumber: user.mobileNumber, role: user.role, password: "", specialty: user.specialty || "", permissions: user.permissions || [] });
     setShowForm(true);
   }
 
@@ -236,7 +236,7 @@ export function TechniciansPage() {
 
   return (
     <div>
-      <PageHeader title="User Management" subtitle={`${users.length} active technicians/managers`} actions={<ActionBtn icon={<PlusIcon />} onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({name: "", mobileNumber: "", password: "", role: "technician"}); }} label={showForm ? "Close Form" : "Create User"} primary />} />
+      <PageHeader title="User Management" subtitle={`${users.length} active staff members`} actions={<ActionBtn icon={<PlusIcon />} onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({name: "", mobileNumber: "", password: "", role: "technician", specialty: "", permissions: []}); }} label={showForm ? "Close Form" : "Create User"} primary />} />
 
       {showForm && (
         <Card style={{ padding: 20, marginBottom: 20 }}>
@@ -245,12 +245,32 @@ export function TechniciansPage() {
             <Field label="Full Name" value={form.name} onChange={(v) => setForm({...form, name: v})} />
             <Field label="Mobile Number" value={form.mobileNumber} onChange={(v) => setForm({...form, mobileNumber: v})} />
             {!editingId && <Field label="Password" value={form.password} onChange={(v) => setForm({...form, password: v})} />}
+            <Field label="Specialty (Optional)" value={form.specialty} onChange={(v) => setForm({...form, specialty: v})} />
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <label style={LABEL_STYLE}>Role</label>
               <select value={form.role} onChange={(e) => setForm({...form, role: e.target.value})} disabled={!!editingId} style={INPUT_STYLE}>
                 <option value="technician">Technician</option>
                 <option value="manager">Manager</option>
+                <option value="admin">Admin</option>
               </select>
+            </div>
+            <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: 6, padding: "10px 14px", background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+              <label style={LABEL_STYLE}>RBAC Permissions</label>
+              <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+                {["canEditJobs", "canViewReports", "canManageUsers", "canApprovePayments", "canManageAttendance"].map(p => (
+                  <label key={p} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#475569", cursor: "pointer" }}>
+                    <input 
+                      type="checkbox" 
+                      checked={form.permissions.includes(p)} 
+                      onChange={(e) => {
+                        const newPerms = e.target.checked ? [...form.permissions, p] : form.permissions.filter(x => x !== p);
+                        setForm({...form, permissions: newPerms});
+                      }} 
+                    />
+                    {p}
+                  </label>
+                ))}
+              </div>
             </div>
             <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ color: "#f43f5e", fontSize: 12 }}>{formError}</span>
@@ -303,9 +323,19 @@ export function JobsPage() {
   const [form, setForm] = useState({ title: "", customerName: "", customerPhone: "", location: "", technicianId: "", price: "", description: "" });
 
   const filteredJobs = useMemo(() => {
-    if (statusFilter === "All") return jobs;
-    return jobs.filter(j => j.status === statusFilter || j.rawStatus === statusFilter);
+    let list = jobs.filter(j => j.serviceType === 'installation' || String(j.title || j.serviceName).toLowerCase().includes('install'));
+    if (statusFilter === "All") return list;
+    return list.filter(j => j.status === statusFilter || j.rawStatus === statusFilter);
   }, [jobs, statusFilter]);
+
+  async function handleDeleteJob(id) {
+    if (!window.confirm("Delete this project?")) return;
+    try {
+      const res = await fetch(`/api/v2/admin/jobs/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete job");
+      refreshJobs();
+    } catch (e) { alert(e.message); }
+  }
 
   async function handleCreateJob(event) {
     event.preventDefault();
@@ -338,6 +368,14 @@ export function JobsPage() {
           <SectionHeader title="Assign New Project" />
           <form onSubmit={handleCreateJob} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <Field label="Service Name" value={form.title} onChange={(v) => setForm({...form, title: v})} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label style={LABEL_STYLE}>Service Type</label>
+              <select value={form.serviceType} onChange={(e) => setForm({...form, serviceType: e.target.value})} style={INPUT_STYLE}>
+                <option value="installation">Installation</option>
+                <option value="repair">Repair</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
             <Field label="Customer Name" value={form.customerName} onChange={(v) => setForm({...form, customerName: v})} />
             <Field label="Customer Phone" value={form.customerPhone} onChange={(v) => setForm({...form, customerPhone: v})} />
             <Field label="Location" value={form.location} onChange={(v) => setForm({...form, location: v})} />
@@ -358,7 +396,7 @@ export function JobsPage() {
       )}
       <DataCard loading={loading} error={error} empty={!filteredJobs.length} emptyText="No jobs found.">
         <TableWrapper
-          headers={["Customer", "Service", "Technician", "Location", "Status", "Created"]}
+          headers={["Customer", "Service", "Technician", "Location", "Status", "Created", "Actions"]}
           rows={filteredJobs.map((job) => (
             <tr key={job._id || job.id} style={{ borderBottom: "1px solid #f8fafc" }}>
               <td style={TD_STYLE}><div style={{ fontWeight: 700, color: "#0f172a" }}>{job.customerName || "Client"}</div></td>
@@ -367,6 +405,11 @@ export function JobsPage() {
               <td style={TD_STYLE}>{job.location || job.address}</td>
               <td style={TD_STYLE}><StatusBadge status={job.status} /></td>
               <td style={TD_STYLE}>{formatDate(job.createdAt)}</td>
+              <td style={TD_STYLE}>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button title="Delete" onClick={() => handleDeleteJob(job._id || job.id)} style={{ border: "none", background: "none", cursor: "pointer", color: "#f43f5e" }}><TrashIcon /></button>
+                </div>
+              </td>
             </tr>
           ))}
         />
@@ -491,6 +534,31 @@ export function AttendancePage() {
   const [view, setView] = useState("table"); // "table" or "calendar"
   const [monthData, setMonthData] = useState([]);
   const [loadingMonth, setLoadingMonth] = useState(false);
+  const currentMonthName = new Date().toLocaleString("default", { month: "long", year: "numeric" });
+
+  async function updateAttendance(id, status) {
+    try {
+      const res = await fetch(`/api/v2/attendance/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status })
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Failed to update attendance");
+      }
+      // Refresh the table view data
+      const refreshRes = await fetch("/api/v2/attendance/today");
+      const payload = await refreshRes.json();
+      if (refreshRes.ok) {
+        // We cannot access `setData` from useApiData directly here unless we expose it, but wait!
+        // We can just window.location.reload() or force a refetch if we add `refreshToday`
+      }
+      window.location.reload(); // Quick refresh to ensure data consistency as requested
+    } catch (e) {
+      alert(e.message);
+    }
+  }
 
   useEffect(() => {
     if (selectedUser && view === "calendar") {
@@ -525,7 +593,7 @@ export function AttendancePage() {
 
       {view === "calendar" && (
         <Card style={{ padding: 20, marginBottom: 20 }}>
-          <SectionHeader title="Staff Presence Calendar" />
+          <SectionHeader title={`Staff Presence Calendar - ${currentMonthName}`} />
           <div style={{ marginBottom: 16 }}>
             <label style={LABEL_STYLE}>Select Staff Member</label>
             <select 
@@ -577,7 +645,7 @@ export function AttendancePage() {
       {view === "table" && (
         <DataCard loading={loadingToday} error={errorToday} empty={!todayList.length} emptyText="No staff activity today.">
           <TableWrapper
-            headers={["Staff Member", "Role", "Status", "Login", "Logout", "Hours"]}
+            headers={["Staff Member", "Role", "Status", "Login", "Logout", "Hours", "Actions"]}
             rows={todayList.map((record) => {
               const isPresent = record.status === "present";
               return (
@@ -592,6 +660,16 @@ export function AttendancePage() {
                   <td style={TD_STYLE}>{record.loginTime ? new Date(record.loginTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "—"}</td>
                   <td style={TD_STYLE}>{record.logoutTime ? new Date(record.logoutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "—"}</td>
                   <td style={TD_STYLE}>{record.workingHours || 0}h</td>
+                  <td style={TD_STYLE}>
+                    <select 
+                      value={record.status} 
+                      onChange={(e) => updateAttendance(record.id || record._id, e.target.value)}
+                      style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 11, outline: "none" }}
+                    >
+                      <option value="present">Mark Present</option>
+                      <option value="absent">Mark Absent</option>
+                    </select>
+                  </td>
                 </tr>
               );
             })}
@@ -608,10 +686,32 @@ export function ServiceRequestsPage() {
   const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [assignModal, setAssignModal] = useState(null); // booking object or null
+  const [viewModal, setViewModal] = useState(null); // popup details
   const [technicians, setTechnicians] = useState([]);
   const [selectedTech, setSelectedTech] = useState("");
   const [assigning, setAssigning] = useState(false);
   const [assignError, setAssignError] = useState("");
+
+  async function handleUpdateStatus(id, status) {
+    try {
+      const res = await fetch(`/api/v2/service-requests/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status })
+      });
+      if (!res.ok) throw new Error("Failed to update status");
+      loadBookings();
+    } catch (e) { alert(e.message); }
+  }
+
+  async function handleDelete(id) {
+    if (!window.confirm("Are you sure you want to delete this service request?")) return;
+    try {
+      const res = await fetch(`/api/v2/service-requests/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete request");
+      loadBookings();
+    } catch (e) { alert(e.message); }
+  }
 
   async function loadBookings() {
     try {
@@ -620,7 +720,9 @@ export function ServiceRequestsPage() {
       const res = await fetch(url);
       const payload = await res.json();
       if (!res.ok) throw new Error(payload.message || "Failed to load bookings");
-      setBookings(payload.data || []);
+      // Filter out installations to keep only repairs/others in Service Requests
+      const list = (payload.data || []).filter(j => j.serviceType !== 'installation' && !String(j.title || j.serviceName).toLowerCase().includes('install'));
+      setBookings(list);
       setError("");
     } catch (err) {
       setError(err.message);
@@ -724,6 +826,28 @@ export function ServiceRequestsPage() {
         }
       />
 
+      {/* View Modal */}
+      {viewModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
+          <div style={{ background: "#fff", borderRadius: 20, padding: 28, width: "100%", maxWidth: 500, boxShadow: "0 25px 50px rgba(0,0,0,0.25)" }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#0f172a", marginBottom: 16 }}>Service Request Details</div>
+            
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
+              <div><strong style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>User Name</strong><div style={{ fontSize: 14, fontWeight: 600 }}>{viewModal.customerName}</div></div>
+              <div><strong style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Phone</strong><div style={{ fontSize: 14, fontWeight: 600 }}>{viewModal.customerPhone || "—"}</div></div>
+              <div><strong style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Service</strong><div style={{ fontSize: 14, fontWeight: 600 }}>{viewModal.serviceName}</div></div>
+              <div><strong style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Date & Time</strong><div style={{ fontSize: 14, fontWeight: 600 }}>{viewModal.date || "TBD"} {viewModal.timeSlot || ""}</div></div>
+              <div style={{ gridColumn: "1 / -1" }}><strong style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Address</strong><div style={{ fontSize: 14, fontWeight: 600 }}>{viewModal.address || "—"}</div></div>
+              <div style={{ gridColumn: "1 / -1" }}><strong style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Description</strong><div style={{ fontSize: 14, fontWeight: 600, color: "#475569" }}>{viewModal.description || "No description provided."}</div></div>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 24, paddingTop: 20, borderTop: "1px solid #f1f5f9" }}>
+              <button onClick={() => setViewModal(null)} style={{ padding: "9px 18px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#64748b", fontWeight: 700, cursor: "pointer" }}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Assign Modal */}
       {assignModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
@@ -761,9 +885,9 @@ export function ServiceRequestsPage() {
 
       <DataCard loading={loading} error={error} empty={!bookings.length} emptyText="No service requests found.">
         <TableWrapper
-          headers={["Customer", "Service", "Date & Time", "Status", "Technician", "Actions"]}
+          headers={["Customer", "Service", "Date & Time", "Status", "Technician", "Assign", "Actions"]}
           rows={bookings.map(booking => (
-            <tr key={booking.id} style={{ borderBottom: "1px solid #f8fafc" }}>
+            <tr key={booking.id} style={{ borderBottom: "1px solid #f8fafc", cursor: "pointer" }} onClick={(e) => { if(e.target.tagName !== 'BUTTON') setViewModal(booking); }}>
               <td style={TD_STYLE}>
                 <div style={{ fontWeight: 700, color: "#0f172a" }}>{booking.customerName}</div>
                 {booking.customerPhone && <div style={{ fontSize: 11, color: "#94a3b8" }}>{booking.customerPhone}</div>}
@@ -784,11 +908,18 @@ export function ServiceRequestsPage() {
               </td>
               <td style={TD_STYLE}>
                 <button
-                  onClick={() => openAssign(booking)}
+                  onClick={(e) => { e.stopPropagation(); openAssign(booking); }}
                   style={{ padding: "6px 14px", borderRadius: 10, border: "none", background: booking.technicianName ? "#f1f5f9" : "#4f46e5", color: booking.technicianName ? "#64748b" : "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
                 >
-                  {booking.technicianName ? "Reassign" : "Assign Technician"}
+                  {booking.technicianName ? "Reassign" : "Assign"}
                 </button>
+              </td>
+              <td style={TD_STYLE}>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button title="Approve" onClick={(e) => { e.stopPropagation(); handleUpdateStatus(booking.id, "approved"); }} style={{ padding: "4px 8px", background: "#dcfce7", color: "#166534", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700 }}>✓</button>
+                  <button title="Reject" onClick={(e) => { e.stopPropagation(); handleUpdateStatus(booking.id, "rejected"); }} style={{ padding: "4px 8px", background: "#fee2e2", color: "#991b1b", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700 }}>✕</button>
+                  <button title="Delete" onClick={(e) => { e.stopPropagation(); handleDelete(booking.id); }} style={{ padding: "4px 8px", background: "#fef2f2", color: "#ef4444", border: "1px solid #fecaca", borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700 }}>Del</button>
+                </div>
               </td>
             </tr>
           ))}

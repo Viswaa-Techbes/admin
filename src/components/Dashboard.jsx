@@ -5,19 +5,20 @@ import { TREND_DATA, MONTHLY_TREND, SERVICE_DIST, TECH_PERF, JOBS, ACTIVITIES } 
 // ─── STAT CARDS ──────────────────────────────────────────────────────────────
 
 const STATS = [
-  { label: "Total Requests", value: "1,284", trend: "+12%", up: true, icon: "📋", gradient: "linear-gradient(135deg,#6366f1,#818cf8)", light: "#eef2ff", iconColor: "#6366f1" },
-  { label: "Pending Jobs", value: "87", trend: "+5%", up: false, icon: "⏳", gradient: "linear-gradient(135deg,#f59e0b,#fbbf24)", light: "#fffbeb", iconColor: "#f59e0b" },
-  { label: "In Progress", value: "43", trend: "−2", up: false, icon: "🔄", gradient: "linear-gradient(135deg,#06b6d4,#22d3ee)", light: "#ecfeff", iconColor: "#06b6d4" },
-  { label: "Completed Jobs", value: "1,154", trend: "+18%", up: true, icon: "✅", gradient: "linear-gradient(135deg,#10b981,#34d399)", light: "#ecfdf5", iconColor: "#10b981" },
-  { label: "Active Technicians", value: "28", trend: "+3", up: true, icon: "👷", gradient: "linear-gradient(135deg,#8b5cf6,#a78bfa)", light: "#f5f3ff", iconColor: "#8b5cf6" },
-  { label: "Today Revenue", value: "₹48,200", trend: "+22%", up: true, icon: "💰", gradient: "linear-gradient(135deg,#f43f5e,#fb7185)", light: "#fff1f2", iconColor: "#f43f5e" },
+  { label: "Total Requests", value: "1,284", trend: "+12%", up: true, icon: "📋", gradient: "linear-gradient(135deg,#6366f1,#818cf8)", light: "#eef2ff", iconColor: "#6366f1", target: "service-requests" },
+  { label: "Pending Jobs", value: "87", trend: "+5%", up: false, icon: "⏳", gradient: "linear-gradient(135deg,#f59e0b,#fbbf24)", light: "#fffbeb", iconColor: "#f59e0b", target: "jobs" },
+  { label: "In Progress", value: "43", trend: "−2", up: false, icon: "🔄", gradient: "linear-gradient(135deg,#06b6d4,#22d3ee)", light: "#ecfeff", iconColor: "#06b6d4", target: "jobs" },
+  { label: "Members Management", value: "1,154", trend: "+18%", up: true, icon: "👥", gradient: "linear-gradient(135deg,#10b981,#34d399)", light: "#ecfdf5", iconColor: "#10b981", target: "members" },
+  { label: "Active Technicians", value: "28", trend: "+3", up: true, icon: "👷", gradient: "linear-gradient(135deg,#8b5cf6,#a78bfa)", light: "#f5f3ff", iconColor: "#8b5cf6", target: "technicians" },
+  { label: "Today Revenue", value: "₹48,200", trend: "+22%", up: true, icon: "💰", gradient: "linear-gradient(135deg,#f43f5e,#fb7185)", light: "#fff1f2", iconColor: "#f43f5e", target: "payments" },
 ];
 
-export function StatCards() {
+export function StatCards({ onNavigate }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 14, marginBottom: 20 }}>
       {STATS.map((s, i) => (
-        <Card key={i} style={{ padding: "18px" }}>
+        <div key={i} onClick={() => onNavigate && s.target ? onNavigate(s.target) : null} style={{ cursor: "pointer", transition: "transform 0.2s" }} onMouseEnter={e => e.currentTarget.style.transform="translateY(-4px)"} onMouseLeave={e => e.currentTarget.style.transform="none"}>
+        <Card style={{ padding: "18px", height: "100%" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
             <div style={{
               width: 38, height: 38, borderRadius: 11,
@@ -36,6 +37,7 @@ export function StatCards() {
             <div style={{ height: "100%", width: `${60 + i * 5}%`, background: s.gradient, borderRadius: 99 }} />
           </div>
         </Card>
+        </div>
       ))}
     </div>
   );
@@ -71,7 +73,7 @@ export function ActivityPanel() {
 
 // ─── DASHBOARD PAGE ───────────────────────────────────────────────────────────
 
-export function DashboardPage() {
+export function DashboardPage({ onNavigate }) {
   const [period, setPeriod] = useState("weekly");
   const chartData = period === "weekly" ? TREND_DATA : MONTHLY_TREND;
   const xKey = period === "weekly" ? "day" : "month";
@@ -91,7 +93,7 @@ export function DashboardPage() {
   return (
     <div>
       {/* Stat Cards */}
-      <StatCards />
+      <StatCards onNavigate={onNavigate} />
 
       {/* Charts Row */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 300px", gap: 16, marginBottom: 16 }}>

@@ -19,9 +19,31 @@ export default function TechbesDashboard() {
     }
   }, [loading, router, user]);
 
+  // Security: Auto logout after 3 minutes (180,000 ms) of inactivity
+  useEffect(() => {
+    if (!user) return;
+    let timeout;
+    const resetTimer = () => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        logout();
+      }, 180000);
+    };
+    
+    window.addEventListener("mousemove", resetTimer);
+    window.addEventListener("keypress", resetTimer);
+    resetTimer(); // init
+
+    return () => {
+      clearTimeout(timeout);
+      window.removeEventListener("mousemove", resetTimer);
+      window.removeEventListener("keypress", resetTimer);
+    };
+  }, [user, logout]);
+
   const pages = {
     dashboard: <DashboardPage onNavigate={setActivePage} />,
-    customers: <CustomersPage />,
+    members: <CustomersPage />,
     technicians: <TechniciansPage />,
     jobs: <JobsPage />,
     "service-requests": <ServiceRequestsPage />,

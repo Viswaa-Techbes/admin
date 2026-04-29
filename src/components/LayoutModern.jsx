@@ -4,7 +4,7 @@ import { Avatar } from "./UI";
 
 export const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: <GridIcon /> },
-  { id: "customers", label: "Leads", icon: <UsersIcon /> },
+  { id: "members", label: "Members Management", icon: <UsersIcon /> },
   { id: "technicians", label: "User Management", icon: <HardHatIcon /> },
   { id: "jobs", label: "All Jobs", icon: <BriefcaseIcon /> },
   { id: "service-requests", label: "Service Requests", icon: <BellIcon />, badge: null },
@@ -69,7 +69,7 @@ export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLo
 export function TopNavbar({ page, notifCount, user, onLogout }) {
   const titles = {
     dashboard: "Dashboard",
-    customers: "Leads",
+    members: "Members Management",
     technicians: "User Management",
     jobs: "All Jobs",
     "service-requests": "Service Requests",
