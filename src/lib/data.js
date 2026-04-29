@@ -111,6 +111,8 @@ export const NOTIFICATIONS = [
 
 export const STATUS_BADGE = {
   "Pending": { bg: "rgba(245,158,11,0.12)", color: "#f59e0b", dot: "#f59e0b" },
+  "Not Visited": { bg: "rgba(100,116,139,0.12)", color: "#64748b", dot: "#64748b" },
+  "Site Visited": { bg: "rgba(6,182,212,0.12)", color: "#0891b2", dot: "#06b6d4" },
   "Pending Approval": { bg: "rgba(139,92,246,0.12)", color: "#8b5cf6", dot: "#8b5cf6" },
   "Approval Pending": { bg: "rgba(139,92,246,0.12)", color: "#8b5cf6", dot: "#8b5cf6" },
   "Assigned": { bg: "rgba(99,102,241,0.12)", color: "#818cf8", dot: "#6366f1" },

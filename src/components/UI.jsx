@@ -4,7 +4,10 @@ import { STATUS_BADGE } from "../lib/data";
 // ─── REUSABLE COMPONENTS ──────────────────────────────────────────────────────
 
 export function StatusBadge({ status }) {
-  const s = STATUS_BADGE[status] || STATUS_BADGE["Pending"];
+  const label = String(status || "Pending")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+  const s = STATUS_BADGE[status] || STATUS_BADGE[label] || STATUS_BADGE["Pending"];
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 5,
@@ -12,7 +15,7 @@ export function StatusBadge({ status }) {
       background: s.bg, color: s.color
     }}>
       <span style={{ width: 5, height: 5, borderRadius: "50%", background: s.dot, display: "inline-block" }} />
-      {status}
+      {label}
     </span>
   );
 }
@@ -41,11 +44,11 @@ export function Card({ children, style = {} }) {
   );
 }
 
-export function SectionHeader({ title, action }) {
+export function SectionHeader({ title, action, onAction }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
       <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#1e293b", letterSpacing: "-.02em" }}>{title}</h3>
-      {action && <button style={BTN_GHOST}>{action}</button>}
+      {action && <button type="button" onClick={onAction} style={BTN_GHOST}>{action}</button>}
     </div>
   );
 }

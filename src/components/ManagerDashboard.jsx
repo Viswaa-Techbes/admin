@@ -3,12 +3,12 @@ import { Card, StatusBadge, SectionHeader, TableWrapper } from "./UI";
 import * as Icons from "./Icons";
 
 const STAT_META = [
-  { key: "totalLeads", label: "Total Leads", icon: <Icons.UsersIcon />, color: "#6366f1", bg: "#eef2ff" },
-  { key: "totalJobs", label: "Total Jobs", icon: <Icons.BriefcaseIcon />, color: "#3b82f6", bg: "#eff6ff" },
-  { key: "completedJobs", label: "Completed Jobs", icon: <Icons.GridIcon />, color: "#10b981", bg: "#ecfdf5" },
-  { key: "activeTechnicians", label: "Active Technicians", icon: <Icons.WrenchIcon />, color: "#8b5cf6", bg: "#f5f3ff" },
-  { key: "approvalQueue", label: "Approval Queue", icon: <Icons.BellIcon />, color: "#f43f5e", bg: "#fff1f2" },
-  { key: "paymentQueue", label: "Payment Queue", icon: <Icons.CreditCardIcon />, color: "#0f766e", bg: "#ecfeff" },
+  { key: "totalLeads", label: "Total Leads", icon: <Icons.UsersIcon />, color: "#6366f1", bg: "#eef2ff", target: "members" },
+  { key: "totalJobs", label: "Total Jobs", icon: <Icons.BriefcaseIcon />, color: "#3b82f6", bg: "#eff6ff", target: "jobs" },
+  { key: "completedJobs", label: "Completed Jobs", icon: <Icons.GridIcon />, color: "#10b981", bg: "#ecfdf5", target: "jobs" },
+  { key: "activeTechnicians", label: "Active Technicians", icon: <Icons.WrenchIcon />, color: "#8b5cf6", bg: "#f5f3ff", target: "tracking" },
+  { key: "approvalQueue", label: "Approval Queue", icon: <Icons.BellIcon />, color: "#f43f5e", bg: "#fff1f2", target: "requests" },
+  { key: "paymentQueue", label: "Payment Queue", icon: <Icons.CreditCardIcon />, color: "#0f766e", bg: "#ecfeff", target: "payments" },
 ];
 
 export function DashboardPage({ onNavigate }) {
@@ -58,7 +58,13 @@ export function DashboardPage({ onNavigate }) {
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 14, marginBottom: 20 }}>
         {STAT_META.map((item) => (
-          <Card key={item.key} style={{ padding: 18, border: "1px solid #e2e8f0" }}>
+          <button
+            key={item.key}
+            type="button"
+            onClick={() => onNavigate?.(item.target)}
+            style={{ display: "block", width: "100%", border: "none", background: "transparent", padding: 0, cursor: "pointer", textAlign: "left" }}
+          >
+          <Card style={{ padding: 18, border: "1px solid #e2e8f0" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
               <div style={{ width: 38, height: 38, borderRadius: 11, background: item.bg, color: item.color, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 {item.icon}
@@ -70,6 +76,7 @@ export function DashboardPage({ onNavigate }) {
             </div>
             <div style={{ fontSize: 13, color: "#475569", fontWeight: 700 }}>{item.label}</div>
           </Card>
+          </button>
         ))}
       </div>
 
@@ -87,16 +94,16 @@ export function DashboardPage({ onNavigate }) {
         </Card>
 
         <Card style={{ padding: 20 }}>
-          <SectionHeader title="Live Tracking Snapshot" action="Tracking" />
+          <SectionHeader title="Live Tracking Snapshot" action="Tracking" onAction={() => onNavigate?.("tracking")} />
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {(liveTechnicians.length ? liveTechnicians : [{ id: "empty", name: "No technicians online", status: "Offline", specialty: "Waiting for field updates" }]).slice(0, 5).map((tech) => (
-              <div key={tech.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", borderRadius: 14, background: "#f8fafc", border: "1px solid #e2e8f0" }}>
+              <button key={tech.id} type="button" onClick={() => onNavigate?.("tracking")} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", borderRadius: 14, background: "#f8fafc", border: "1px solid #e2e8f0", cursor: "pointer", textAlign: "left" }}>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>{tech.name}</div>
                   <div style={{ fontSize: 12, color: "#64748b" }}>{tech.specialty || tech.email || "Technician"}</div>
                 </div>
                 <StatusBadge status={tech.status} />
-              </div>
+              </button>
             ))}
           </div>
         </Card>
@@ -104,11 +111,11 @@ export function DashboardPage({ onNavigate }) {
 
       <div style={{ display: "grid", gridTemplateColumns: "1.25fr 1fr", gap: 16 }}>
         <Card style={{ padding: 20 }}>
-          <SectionHeader title="Recent Service Requests" action="Jobs" />
+          <SectionHeader title="Recent Service Requests" action="Jobs" onAction={() => onNavigate?.("jobs")} />
           <TableWrapper
             headers={["Customer", "Service", "Technician", "Status", "Created"]}
             rows={recentJobs.map((job) => (
-              <tr key={job.id} style={{ borderBottom: "1px solid #f8fafc" }}>
+              <tr key={job.id} onClick={() => onNavigate?.("jobs")} style={{ borderBottom: "1px solid #f8fafc", cursor: "pointer" }}>
                 <td style={TD_STYLE}>
                   <div style={{ fontWeight: 700, color: "#0f172a" }}>{job.customerName || "Client"}</div>
                   <div style={{ fontSize: 12, color: "#64748b" }}>{job.location}</div>
@@ -124,17 +131,17 @@ export function DashboardPage({ onNavigate }) {
         </Card>
 
         <Card style={{ padding: 20 }}>
-          <SectionHeader title="Recent Reviews" action="Reviews" />
+          <SectionHeader title="Recent Reviews" action="Reviews" onAction={() => onNavigate?.("reviews")} />
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {recentReviews.length ? recentReviews.slice(0, 5).map((review) => (
-              <div key={review.id} style={{ padding: "14px 16px", borderRadius: 14, background: "#fff7ed", border: "1px solid #fed7aa" }}>
+              <button key={review.id} type="button" onClick={() => onNavigate?.("reviews")} style={{ padding: "14px 16px", borderRadius: 14, background: "#fff7ed", border: "1px solid #fed7aa", cursor: "pointer", textAlign: "left" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#9a3412" }}>{review.technicianName}</div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "#ea580c" }}>{review.rating}/5</div>
                 </div>
                 <div style={{ fontSize: 12, color: "#7c2d12", marginBottom: 4 }}>{review.comment || "No written feedback"}</div>
                 <div style={{ fontSize: 11, color: "#9a3412" }}>{review.clientName || "Anonymous"} • {formatDate(review.createdAt)}</div>
-              </div>
+              </button>
             )) : <EmptyText text="No review activity yet." />}
           </div>
         </Card>

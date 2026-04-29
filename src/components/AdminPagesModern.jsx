@@ -320,7 +320,23 @@ export function JobsPage() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
-  const [form, setForm] = useState({ title: "", customerName: "", customerPhone: "", location: "", technicianId: "", price: "", description: "" });
+  const [form, setForm] = useState({ title: "", serviceType: "installation", customerName: "", customerPhone: "", location: "", technicianId: "", price: "", description: "" });
+  const [statusSavingId, setStatusSavingId] = useState("");
+
+  const jobStatusOptions = [
+    "pending",
+    "not_visited",
+    "site_visited",
+    "assigned",
+    "in_progress",
+    "started",
+    "work_uploaded",
+    "completion_requested",
+    "approved_by_manager",
+    "payment_pending",
+    "payment_done",
+    "completed",
+  ];
 
   const filteredJobs = useMemo(() => {
     let list = jobs.filter(j => j.serviceType === 'installation' || String(j.title || j.serviceName).toLowerCase().includes('install'));
@@ -335,6 +351,25 @@ export function JobsPage() {
       if (!res.ok) throw new Error("Failed to delete job");
       refreshJobs();
     } catch (e) { alert(e.message); }
+  }
+
+  async function handleChangeJobStatus(id, status) {
+    try {
+      setStatusSavingId(id);
+      const res = await fetch(`/api/v2/admin/jobs/${id}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload.message || "Failed to update job status");
+      await refreshJobs();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setStatusSavingId("");
+    }
   }
 
   async function handleCreateJob(event) {
@@ -352,7 +387,7 @@ export function JobsPage() {
       if (!res.ok) throw new Error(payload.message || "Failed to create job");
       await refreshJobs();
       setShowForm(false);
-      setForm({ title: "", customerName: "", customerPhone: "", location: "", technicianId: "", price: "", description: "" });
+      setForm({ title: "", serviceType: "installation", customerName: "", customerPhone: "", location: "", technicianId: "", price: "", description: "" });
     } catch (err) {
       setFormError(err.message);
     } finally {
@@ -403,7 +438,21 @@ export function JobsPage() {
               <td style={TD_STYLE}>{job.title || job.serviceName}</td>
               <td style={TD_STYLE}>{job.assignedTechnician?.name || "Unassigned"}</td>
               <td style={TD_STYLE}>{job.location || job.address}</td>
-              <td style={TD_STYLE}><StatusBadge status={job.status} /></td>
+              <td style={TD_STYLE}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <StatusBadge status={job.status} />
+                  <select
+                    value={job.status || "pending"}
+                    disabled={statusSavingId === (job._id || job.id)}
+                    onChange={(e) => handleChangeJobStatus(job._id || job.id, e.target.value)}
+                    style={{ padding: "5px 8px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 11, outline: "none", background: "#fff", color: "#334155" }}
+                  >
+                    {jobStatusOptions.map(status => (
+                      <option key={status} value={status}>{status.replace(/_/g, " ")}</option>
+                    ))}
+                  </select>
+                </div>
+              </td>
               <td style={TD_STYLE}>{formatDate(job.createdAt)}</td>
               <td style={TD_STYLE}>
                 <div style={{ display: "flex", gap: 8 }}>
@@ -527,7 +576,7 @@ export function TrackingPage() {
 }
 
 export function AttendancePage() {
-  const { data: todayList, loading: loadingToday, error: errorToday } = useApiData("/api/v2/attendance/today");
+  const { data: todayList, loading: loadingToday, error: errorToday, refresh: refreshToday } = useApiData("/api/v2/attendance/today");
   const { data: users } = useApiData("/api/v2/admin/users");
   
   const [selectedUser, setSelectedUser] = useState(null);
@@ -536,8 +585,11 @@ export function AttendancePage() {
   const [loadingMonth, setLoadingMonth] = useState(false);
   const currentMonthName = new Date().toLocaleString("default", { month: "long", year: "numeric" });
 
-  async function updateAttendance(id, status) {
+  async function updateAttendance(record, status) {
+    if (record.status === status) return;
+
     try {
+      const id = record.id || record._id;
       const res = await fetch(`/api/v2/attendance/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -547,14 +599,7 @@ export function AttendancePage() {
         const err = await res.json();
         throw new Error(err.message || "Failed to update attendance");
       }
-      // Refresh the table view data
-      const refreshRes = await fetch("/api/v2/attendance/today");
-      const payload = await refreshRes.json();
-      if (refreshRes.ok) {
-        // We cannot access `setData` from useApiData directly here unless we expose it, but wait!
-        // We can just window.location.reload() or force a refetch if we add `refreshToday`
-      }
-      window.location.reload(); // Quick refresh to ensure data consistency as requested
+      await refreshToday();
     } catch (e) {
       alert(e.message);
     }
@@ -663,7 +708,7 @@ export function AttendancePage() {
                   <td style={TD_STYLE}>
                     <select 
                       value={record.status} 
-                      onChange={(e) => updateAttendance(record.id || record._id, e.target.value)}
+                      onChange={(e) => updateAttendance(record, e.target.value)}
                       style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 11, outline: "none" }}
                     >
                       <option value="present">Mark Present</option>
