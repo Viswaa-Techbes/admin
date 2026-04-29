@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { PlusIcon, EditIcon, TrashIcon } from "./Icons";
 import { PageHeader, SearchFilter, Card, TableWrapper, Avatar, StatusBadge, ActionBtn, StarRating, SectionHeader } from "./UI";
 
@@ -692,9 +692,27 @@ export function ServiceRequestsPage() {
   const [assigning, setAssigning] = useState(false);
   const [assignError, setAssignError] = useState("");
 
+  const loadBookings = useCallback(async ({ showLoading = false } = {}) => {
+    try {
+      if (showLoading) setLoading(true);
+      const url = statusFilter === "all" ? "/api/v2/admin/bookings" : `/api/v2/admin/bookings?status=${statusFilter}`;
+      const res = await fetch(url, { cache: "no-store" });
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.message || "Failed to load bookings");
+      // Filter out installations to keep only repairs/others in Service Requests
+      const list = (payload.data || []).filter(j => j.serviceType !== 'installation' && !String(j.title || j.serviceName).toLowerCase().includes('install'));
+      setBookings(list);
+      setError("");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      if (showLoading) setLoading(false);
+    }
+  }, [statusFilter]);
+
   async function handleUpdateStatus(id, status) {
     try {
-      const res = await fetch(`/api/v2/service-requests/${id}`, {
+      const res = await fetch(`/api/v2/admin/service-requests/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status })
@@ -707,37 +725,19 @@ export function ServiceRequestsPage() {
   async function handleDelete(id) {
     if (!window.confirm("Are you sure you want to delete this service request?")) return;
     try {
-      const res = await fetch(`/api/v2/service-requests/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/v2/admin/service-requests/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to delete request");
       loadBookings();
     } catch (e) { alert(e.message); }
   }
 
-  async function loadBookings() {
-    try {
-      setLoading(true);
-      const url = statusFilter === "all" ? "/api/v2/admin/bookings" : `/api/v2/admin/bookings?status=${statusFilter}`;
-      const res = await fetch(url);
-      const payload = await res.json();
-      if (!res.ok) throw new Error(payload.message || "Failed to load bookings");
-      // Filter out installations to keep only repairs/others in Service Requests
-      const list = (payload.data || []).filter(j => j.serviceType !== 'installation' && !String(j.title || j.serviceName).toLowerCase().includes('install'));
-      setBookings(list);
-      setError("");
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => { loadBookings(); }, [statusFilter]);
+  useEffect(() => { loadBookings({ showLoading: true }); }, [loadBookings]);
 
   // Poll every 5 seconds for real-time updates
   useEffect(() => {
     const interval = setInterval(loadBookings, 5000);
     return () => clearInterval(interval);
-  }, [statusFilter]);
+  }, [loadBookings]);
 
   async function loadTechnicians() {
     if (technicians.length > 0) return;

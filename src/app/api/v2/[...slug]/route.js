@@ -52,6 +52,23 @@ export async function PUT(req, { params }) {
   }
 }
 
+export async function PATCH(req, { params }) {
+  const { slug } = await params;
+  const path = '/' + slug.join('/');
+  const body = await req.json();
+
+  try {
+    const { response, payload } = await fetchBackend('/api/v2' + path, {
+      method: 'PATCH',
+      token: getAuthToken(req),
+      body,
+    });
+    return NextResponse.json(payload, { status: response.status });
+  } catch (err) {
+    return NextResponse.json({ success: false, message: err.message }, { status: 500 });
+  }
+}
+
 export async function DELETE(req, { params }) {
   const { slug } = await params;
   const path = '/' + slug.join('/');
