@@ -50,9 +50,9 @@ export function SectionHeader({ title, action }) {
   );
 }
 
-export function ActionBtn({ icon, label, primary }) {
+export function ActionBtn({ icon, label, primary, onClick }) {
   return (
-    <button style={{
+    <button onClick={onClick} type="button" style={{
       display: "inline-flex", alignItems: "center", gap: 8,
       padding: "9px 18px", borderRadius: 12, border: "none",
       background: primary ? "linear-gradient(135deg,#6366f1,#4f46e5)" : "#f8fafc",
