@@ -853,10 +853,20 @@ export function ServiceRequestsPage() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
           <div style={{ background: "#fff", borderRadius: 20, padding: 28, width: "100%", maxWidth: 420, boxShadow: "0 25px 50px rgba(0,0,0,0.25)" }}>
             <div style={{ fontSize: 17, fontWeight: 800, color: "#0f172a", marginBottom: 4 }}>Assign Technician</div>
-            <div style={{ fontSize: 13, color: "#64748b", marginBottom: 20 }}>
-              {assignModal.serviceName} · {assignModal.date || "Date TBD"} {assignModal.timeSlot || ""}
+            <div style={{ fontSize: 13, color: "#64748b", marginBottom: 12 }}>
+              <p style={{ margin: "0 0 6px 0" }}><strong style={{ color: "#334155" }}>Service:</strong> {assignModal.serviceName}</p>
+              <p style={{ margin: "0 0 6px 0" }}><strong style={{ color: "#334155" }}>Date:</strong> {assignModal.date || "Date TBD"} {assignModal.timeSlot || ""}</p>
+              
+              <p style={{ margin: "8px 0 4px 0" }}><strong style={{ color: "#334155" }}>Description:</strong></p>
+              <div style={{
+                background: "#f5f5f5",
+                padding: "10px",
+                borderRadius: "8px",
+                color: "#475569"
+              }}>
+                {assignModal.description || "No description provided"}
+              </div>
             </div>
-
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 12, fontWeight: 700, color: "#475569", display: "block", marginBottom: 6 }}>Select Technician</label>
               <select
