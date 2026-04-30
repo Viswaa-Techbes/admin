@@ -470,6 +470,8 @@ export function JobsPage() {
 export function RequestsPage() {
   const { data: requests, loading, error, refresh } = useApiData("/api/v2/admin/completion-requests");
   const [busyId, setBusyId] = useState("");
+  const [expandedId, setExpandedId] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
 
   async function updateRequest(taskId, action) {
     try {
@@ -493,24 +495,125 @@ export function RequestsPage() {
     <div>
       <PageHeader title="Completion Requests" subtitle={`${requests.length} requests awaiting approval`} />
       <DataCard loading={loading} error={error} empty={!requests.length} emptyText="No pending approval requests.">
-        <TableWrapper
-          headers={["Customer", "Service", "Technician", "Submitted", "Actions"]}
-          rows={requests.map((request) => (
-            <tr key={request.id} style={{ borderBottom: "1px solid #f8fafc" }}>
-              <td style={TD_STYLE}>{request.customerName}</td>
-              <td style={TD_STYLE}>{request.title || request.serviceName}</td>
-              <td style={TD_STYLE}>{request.technicianName}</td>
-              <td style={TD_STYLE}>{formatDate(request.updatedAt)}</td>
-              <td style={TD_STYLE}>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button disabled={busyId === request.id} onClick={() => updateRequest(request.id, "approve")} style={approveButton}>Approve</button>
-                  <button disabled={busyId === request.id} onClick={() => updateRequest(request.id, "reject")} style={rejectButton}>Reject</button>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(400px, 1fr))", gap: 16 }}>
+          {requests.map((request) => (
+            <Card key={request.id} style={{ padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", marginBottom: 4 }}>{request.customerName}</div>
+                <div style={{ fontSize: 12, color: "#64748b", marginBottom: 2 }}>{request.serviceName}</div>
+                <div style={{ fontSize: 11, color: "#94a3b8" }}>Technician: {request.technicianName || "—"}</div>
+                <div style={{ fontSize: 11, color: "#94a3b8" }}>Submitted: {formatDate(request.updatedAt)}</div>
+                {request.price && <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600 }}>Price: ₹{request.price}</div>}
+              </div>
+
+              {request.attachments && request.attachments.length > 0 && (
+                <div>
+                  <button
+                    onClick={() => setExpandedId(expandedId === request.id ? null : request.id)}
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      borderRadius: 10,
+                      border: "1px solid #e2e8f0",
+                      background: expandedId === request.id ? "#eef2ff" : "#f8fafc",
+                      color: expandedId === request.id ? "#6366f1" : "#475569",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      transition: "all .2s"
+                    }}
+                  >
+                    {expandedId === request.id ? "▼" : "▶"} Images ({request.attachments.length})
+                  </button>
+                  {expandedId === request.id && (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginTop: 10 }}>
+                      {request.attachments.map((url, idx) => (
+                        <div
+                          key={idx}
+                          onClick={() => setSelectedImage(url)}
+                          style={{
+                            width: "100%",
+                            aspectRatio: "1",
+                            borderRadius: 10,
+                            background: "#f1f5f9",
+                            overflow: "hidden",
+                            cursor: "pointer",
+                            border: "1px solid #e2e8f0",
+                            transition: "all .2s"
+                          }}
+                        >
+                          <img
+                            src={url}
+                            alt={`Work image ${idx + 1}`}
+                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                            onError={(e) => e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%23e2e8f0' width='100' height='100'/%3E%3Ctext x='50' y='50' textAnchor='middle' dy='.3em' fill='%2394a3b8' fontSize='12'%3EImage%3C/text%3E%3C/svg%3E"}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </td>
-            </tr>
+              )}
+
+              <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                <button
+                  disabled={busyId === request.id}
+                  onClick={() => updateRequest(request.id, "approve")}
+                  style={{ ...approveButton, flex: 1, margin: 0 }}
+                >
+                  Approve
+                </button>
+                <button
+                  disabled={busyId === request.id}
+                  onClick={() => updateRequest(request.id, "reject")}
+                  style={{ ...rejectButton, flex: 1, margin: 0 }}
+                >
+                  Reject
+                </button>
+              </div>
+            </Card>
           ))}
-        />
+        </div>
       </DataCard>
+
+      {selectedImage && (
+        <div
+          onClick={() => setSelectedImage(null)}
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.9)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: 20
+          }}
+        >
+          <div style={{ position: "relative", maxWidth: "90vw", maxHeight: "90vh" }}>
+            <img src={selectedImage} alt="Full view" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+            <button
+              onClick={() => setSelectedImage(null)}
+              style={{
+                position: "absolute",
+                top: -30,
+                right: 0,
+                background: "none",
+                border: "none",
+                color: "#fff",
+                fontSize: 28,
+                cursor: "pointer",
+                fontWeight: 300
+              }}
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
