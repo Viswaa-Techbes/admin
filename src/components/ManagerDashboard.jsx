@@ -4,8 +4,8 @@ import * as Icons from "./Icons";
 
 const STAT_META = [
   { key: "totalLeads", label: "Total Leads", icon: <Icons.UsersIcon />, color: "#6366f1", bg: "#eef2ff", target: "members" },
-  { key: "totalJobs", label: "Total Jobs", icon: <Icons.BriefcaseIcon />, color: "#3b82f6", bg: "#eff6ff", target: "jobs" },
-  { key: "completedJobs", label: "Completed Jobs", icon: <Icons.GridIcon />, color: "#10b981", bg: "#ecfdf5", target: "jobs" },
+  { key: "totalJobs", label: "Total Projects", icon: <Icons.BriefcaseIcon />, color: "#3b82f6", bg: "#eff6ff", target: "jobs" },
+  { key: "completedJobs", label: "Completed Projects", icon: <Icons.GridIcon />, color: "#10b981", bg: "#ecfdf5", target: "jobs" },
   { key: "activeTechnicians", label: "Active Technicians", icon: <Icons.WrenchIcon />, color: "#8b5cf6", bg: "#f5f3ff", target: "tracking" },
   { key: "approvalQueue", label: "Approval Queue", icon: <Icons.BellIcon />, color: "#f43f5e", bg: "#fff1f2", target: "requests" },
   { key: "paymentQueue", label: "Payment Queue", icon: <Icons.CreditCardIcon />, color: "#0f766e", bg: "#ecfeff", target: "payments" },
@@ -86,7 +86,7 @@ export function DashboardPage({ onNavigate }) {
         <Card style={{ padding: 20 }}>
           <SectionHeader title="Manager Actions" />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-            <ActionCard title="Completion Requests" subtitle={`${pendingRequests.length} jobs are waiting for approval`} color="#8b5cf6" onClick={() => onNavigate?.("requests")} />
+            <ActionCard title="Completion Requests" subtitle={`${pendingRequests.length} projects are waiting for approval`} color="#8b5cf6" onClick={() => onNavigate?.("requests")} />
             <ActionCard title="Assign New Project" subtitle="Create and dispatch a service request" color="#1d4ed8" onClick={() => onNavigate?.("jobs")} />
             <ActionCard title="Payment Requests" subtitle={`${data?.paymentRequests?.length || 0} payments are waiting for confirmation`} color="#0f766e" onClick={() => onNavigate?.("payments")} />
             <ActionCard title="Technician Reviews" subtitle={`${recentReviews.length} latest feedback entries`} color="#f59e0b" onClick={() => onNavigate?.("reviews")} />
@@ -111,7 +111,7 @@ export function DashboardPage({ onNavigate }) {
 
       <div style={{ display: "grid", gridTemplateColumns: "1.25fr 1fr", gap: 16 }}>
         <Card style={{ padding: 20 }}>
-          <SectionHeader title="Recent Service Requests" action="Jobs" onAction={() => onNavigate?.("jobs")} />
+          <SectionHeader title="Recent Service Requests" action="Projects" onAction={() => onNavigate?.("jobs")} />
           <TableWrapper
             headers={["Customer", "Service", "Technician", "Status", "Created"]}
             rows={recentJobs.map((job) => (

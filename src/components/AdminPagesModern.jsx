@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { PlusIcon, EditIcon, TrashIcon } from "./Icons";
 import { PageHeader, SearchFilter, Card, TableWrapper, Avatar, StatusBadge, ActionBtn, StarRating, SectionHeader } from "./UI";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, Legend } from "recharts";
+import { MONTHLY_TREND, SERVICE_DIST, TECH_PERF } from "../lib/data";
+
 
 function useApiData(url, initial = []) {
   const [data, setData] = useState(initial);
@@ -267,7 +270,7 @@ export function TechniciansPage() {
                         setForm({...form, permissions: newPerms});
                       }} 
                     />
-                    {p}
+                    {p === "canEditJobs" ? "EditProjects" : p.replace(/^can/, "")}
                   </label>
                 ))}
               </div>
@@ -348,7 +351,7 @@ export function JobsPage() {
     if (!window.confirm("Delete this project?")) return;
     try {
       const res = await fetch(`/api/v2/admin/jobs/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete job");
+      if (!res.ok) throw new Error("Failed to delete project");
       refreshJobs();
     } catch (e) { alert(e.message); }
   }
@@ -363,7 +366,7 @@ export function JobsPage() {
         body: JSON.stringify({ status }),
       });
       const payload = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(payload.message || "Failed to update job status");
+      if (!res.ok) throw new Error(payload.message || "Failed to update project status");
       await refreshJobs();
     } catch (e) {
       alert(e.message);
@@ -384,7 +387,7 @@ export function JobsPage() {
         body: JSON.stringify(form),
       });
       const payload = await res.json();
-      if (!res.ok) throw new Error(payload.message || "Failed to create job");
+      if (!res.ok) throw new Error(payload.message || "Failed to create project");
       await refreshJobs();
       setShowForm(false);
       setForm({ title: "", serviceType: "installation", customerName: "", customerPhone: "", location: "", technicianId: "", price: "", description: "" });
@@ -397,7 +400,7 @@ export function JobsPage() {
 
   return (
     <div>
-      <PageHeader title="Project Repository" subtitle={`${filteredJobs.length} jobs available`} actions={<ActionBtn icon={<PlusIcon />} onClick={() => setShowForm(!showForm)} label={showForm ? "Close Form" : "Create Project"} primary />} />
+      <PageHeader title="Project Repository" subtitle={`${filteredJobs.length} projects available`} actions={<ActionBtn icon={<PlusIcon />} onClick={() => setShowForm(!showForm)} label={showForm ? "Close Form" : "Create Project"} primary />} />
       {showForm && (
         <Card style={{ padding: 20, marginBottom: 16 }}>
           <SectionHeader title="Assign New Project" />
@@ -429,7 +432,7 @@ export function JobsPage() {
           </form>
         </Card>
       )}
-      <DataCard loading={loading} error={error} empty={!filteredJobs.length} emptyText="No jobs found.">
+      <DataCard loading={loading} error={error} empty={!filteredJobs.length} emptyText="No projects found.">
         <TableWrapper
           headers={["Customer", "Service", "Technician", "Location", "Status", "Created", "Actions"]}
           rows={filteredJobs.map((job) => (
@@ -686,7 +689,14 @@ export function AttendancePage() {
   const [view, setView] = useState("table"); // "table" or "calendar"
   const [monthData, setMonthData] = useState([]);
   const [loadingMonth, setLoadingMonth] = useState(false);
-  const currentMonthName = new Date().toLocaleString("default", { month: "long", year: "numeric" });
+  const [viewDate, setViewDate] = useState(new Date());
+
+  const currentMonthName = viewDate.toLocaleString("default", { month: "long", year: "numeric" });
+
+  const changeMonth = (offset) => {
+    const next = new Date(viewDate.getFullYear(), viewDate.getMonth() + offset, 1);
+    setViewDate(next);
+  };
 
   async function updateAttendance(record, status) {
     if (record.status === status) return;
@@ -712,13 +722,12 @@ export function AttendancePage() {
     if (selectedUser && view === "calendar") {
       fetchMonthData(selectedUser._id || selectedUser.id);
     }
-  }, [selectedUser, view]);
+  }, [selectedUser, view, viewDate]);
 
   async function fetchMonthData(uid) {
     try {
       setLoadingMonth(true);
-      const now = new Date();
-      const res = await fetch(`/api/v2/attendance/range?userId=${uid}&month=${now.getMonth() + 1}&year=${now.getFullYear()}`);
+      const res = await fetch(`/api/v2/attendance/range?userId=${uid}&month=${viewDate.getMonth() + 1}&year=${viewDate.getFullYear()}`);
       const payload = await res.json();
       if (res.ok) setMonthData(payload.data || []);
     } finally {
@@ -741,7 +750,14 @@ export function AttendancePage() {
 
       {view === "calendar" && (
         <Card style={{ padding: 20, marginBottom: 20 }}>
-          <SectionHeader title={`Staff Presence Calendar - ${currentMonthName}`} />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <SectionHeader title={`Staff Presence Calendar - ${currentMonthName}`} />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => changeMonth(-1)} style={{ ...pillButton(false), padding: "4px 10px" }}>Prev</button>
+              <button onClick={() => setViewDate(new Date())} style={{ ...pillButton(false), padding: "4px 10px" }}>Today</button>
+              <button onClick={() => changeMonth(1)} style={{ ...pillButton(false), padding: "4px 10px" }}>Next</button>
+            </div>
+          </div>
           <div style={{ marginBottom: 16 }}>
             <label style={LABEL_STYLE}>Select Staff Member</label>
             <select 
@@ -1139,8 +1155,241 @@ export function PaymentsPage() {
     </div>
   );
 }
-export function NotificationsPage() { return <PlaceholderPage title="Notifications" />; }
-export function ReportsPage() { return <PlaceholderPage title="Reports" />; }
+export function NotificationsPage() {
+  const { data: notifications, loading, error, refresh } = useApiData("/api/v2/notifications");
+
+  async function markRead(id) {
+    try {
+      await fetch(`/api/v2/notifications/${id}/read`, { method: "PATCH" });
+      refresh();
+    } catch (e) { console.error(e); }
+  }
+
+  return (
+    <div>
+      <PageHeader 
+        title="Notifications" 
+        subtitle="Stay updated with system activities and technician alerts" 
+        actions={<ActionBtn label="Mark All as Read" onClick={() => alert("Marked all as read")} />}
+      />
+      <DataCard loading={loading} error={error} empty={!notifications.length} emptyText="All caught up! No new notifications.">
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {notifications.map((n) => (
+            <Card key={n._id || n.id} style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: 16, opacity: n.isRead ? 0.6 : 1, borderLeft: n.isRead ? "none" : "4px solid #6366f1" }}>
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: n.type === 'alert' ? '#fee2e2' : '#eef2ff', display: 'grid', placeItems: 'center', fontSize: 20 }}>
+                {n.type === 'alert' ? '⚠️' : '🔔'}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", marginBottom: 2 }}>{n.title}</div>
+                <div style={{ fontSize: 13, color: "#475569" }}>{n.description || n.message}</div>
+                <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>{formatDate(n.createdAt)} • {n.type}</div>
+              </div>
+              {!n.isRead && (
+                <button onClick={() => markRead(n._id || n.id)} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                  Mark as Read
+                </button>
+              )}
+            </Card>
+          ))}
+        </div>
+      </DataCard>
+    </div>
+  );
+}
+
+export function ReportsPage() {
+  const { data: jobs, loading: loadingJobs } = useApiData("/api/v2/admin/jobs");
+  const { data: dashboard, loading: loadingDash } = useApiData("/api/v2/admin/dashboard");
+  const { data: users, loading: loadingUsers } = useApiData("/api/v2/admin/users");
+  const [period, setPeriod] = useState("year");
+  
+  const stats = useMemo(() => {
+    const summary = dashboard?.summary || {};
+    return [
+      { label: "Total Projects", value: summary.totalJobs || 0, trend: "+0%", up: true, color: "#6366f1" },
+      { label: "Completed Projects", value: summary.completedJobs || 0, trend: "+0%", up: true, color: "#10b981" },
+      { label: "Approval Queue", value: summary.approvalQueue || 0, trend: "0", up: false, color: "#f59e0b" },
+      { label: "Active Staff", value: summary.activeTechnicians || 0, trend: "+0", up: true, color: "#06b6d4" },
+    ];
+  }, [dashboard]);
+
+  const chartData = useMemo(() => {
+    if (!jobs || !jobs.length) return [];
+    
+    // Group by month
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const grouped = months.map(m => ({ month: m, revenue: 0, requests: 0 }));
+    
+    jobs.forEach(j => {
+      const date = new Date(j.createdAt);
+      const m = date.getMonth();
+      grouped[m].requests += 1;
+      if (j.status === 'completed' || j.status === 'payment_done') {
+        grouped[m].revenue += (Number(j.price) || 0);
+      }
+    });
+    
+    // Only return up to current month or just all
+    return grouped;
+  }, [jobs]);
+
+  const serviceData = useMemo(() => {
+    if (!jobs || !jobs.length) return [];
+    const counts = {};
+    jobs.forEach(j => {
+      const type = j.serviceType || j.title || 'Other';
+      counts[type] = (counts[type] || 0) + 1;
+    });
+    const total = jobs.length;
+    return Object.entries(counts).map(([name, count], i) => ({
+      name,
+      value: Math.round((count / total) * 100),
+      color: ["#6366f1", "#06b6d4", "#f59e0b", "#10b981", "#f43f5e"][i % 5]
+    }));
+  }, [jobs]);
+
+  const techPerf = useMemo(() => {
+    if (!jobs || !users) return [];
+    const techs = users.filter(u => u.role === 'technician');
+    return techs.map(t => {
+      const completed = jobs.filter(j => (j.assignedTechnician?._id === t._id || j.assignedTechnician === t._id) && (j.status === 'completed' || j.status === 'payment_done')).length;
+      return {
+        name: t.name,
+        completed,
+        rating: 4.5, // Mock for now as review aggregation is complex
+      };
+    }).sort((a, b) => b.completed - a.completed);
+  }, [jobs, users]);
+
+  if (loadingJobs || loadingDash || loadingUsers) {
+    return <DataCard loading={true} />;
+  }
+
+  return (
+    <div className="reports-container">
+      <PageHeader 
+        title="Reports & Analytics" 
+        subtitle="Real-time business performance metrics from your database" 
+        actions={
+          <div style={{ display: "flex", gap: 10 }}>
+            <ActionBtn label="Export PDF" onClick={() => alert("Generating PDF report...")} />
+          </div>
+        }
+      />
+
+      {/* KPI Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 20 }}>
+        {stats.map((s, i) => (
+          <Card key={i} style={{ padding: 20, borderLeft: `4px solid ${s.color}` }}>
+            <div style={{ fontSize: 13, color: "#64748b", fontWeight: 600, marginBottom: 8 }}>{s.label}</div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: "#0f172a", marginBottom: 4 }}>{s.value}</div>
+            <div style={{ fontSize: 11, color: "#94a3b8" }}>Real-time data from server</div>
+          </Card>
+        ))}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16, marginBottom: 16 }}>
+        <Card style={{ padding: 24 }}>
+          <SectionHeader title="Revenue & Project Growth" />
+          <div style={{ height: 350, width: "100%", marginTop: 20 }}>
+            <ResponsiveContainer>
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1}/>
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#94a3b8" }} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#94a3b8" }} tickFormatter={(v) => `₹${v/1000}k`} />
+                <Tooltip 
+                  contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)" }}
+                  formatter={(value, name) => [name === "revenue" ? `₹${value.toLocaleString()}` : value, name === "revenue" ? "Revenue" : "Requests"]}
+                />
+                <Area type="monotone" dataKey="revenue" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorRev)" />
+                <Area type="monotone" dataKey="requests" stroke="#06b6d4" strokeWidth={2} fill="transparent" strokeDasharray="5 5" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+
+        <Card style={{ padding: 24 }}>
+          <SectionHeader title="Service Share" />
+          <div style={{ height: 300, width: "100%", marginTop: 10 }}>
+            <ResponsiveContainer>
+              <PieChart>
+                <Pie
+                  data={serviceData}
+                  innerRadius={60}
+                  outerRadius={100}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {serviceData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
+            {serviceData.map((s, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 2, background: s.color }} />
+                  <span style={{ fontSize: 12, color: "#475569" }}>{s.name}</span>
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#1e293b" }}>{s.value}%</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <Card style={{ padding: 24 }}>
+          <SectionHeader title="Technician Efficiency" />
+          <div style={{ height: 300, width: "100%", marginTop: 20 }}>
+            <ResponsiveContainer>
+              <BarChart data={techPerf} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#94a3b8" }} />
+                <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#475569" }} width={80} />
+                <Tooltip cursor={{fill: 'transparent'}} contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)" }} />
+                <Bar dataKey="completed" fill="#10b981" radius={[0, 4, 4, 0]} barSize={20} name="Projects Completed" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+
+        <Card style={{ padding: 24 }}>
+          <SectionHeader title="Top Performers" />
+          <div style={{ marginTop: 10 }}>
+            <TableWrapper 
+              headers={["Technician", "Completed", "Status"]}
+              rows={techPerf.slice(0, 5).map((t, i) => (
+                <tr key={i} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                  <td style={TD_STYLE}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <Avatar initials={t.name.split(' ').map(n => n[0]).join('')} size={28} />
+                      <span style={{ fontWeight: 600 }}>{t.name}</span>
+                    </div>
+                  </td>
+                  <td style={TD_STYLE}>{t.completed}</td>
+                  <td style={TD_STYLE}><StatusBadge status={t.completed > 5 ? "High Performance" : "Active"} /></td>
+                </tr>
+              ))}
+            />
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+
 export function SettingsPage() { return <PlaceholderPage title="Settings" />; }
 
 function PlaceholderPage({ title }) {

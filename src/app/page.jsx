@@ -84,7 +84,7 @@ export default function TechbesDashboard() {
       <div style={{ display: "flex", height: "100vh", background: "#f1f5f9", fontFamily: "'Geist', 'DM Sans', system-ui, sans-serif" }}>
         <Sidebar active={activePage} setActive={setActivePage} collapsed={collapsed} setCollapsed={setCollapsed} user={user} onLogout={logout} />
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          <TopNavbar page={activePage} notifCount={3} user={user} onLogout={logout} />
+          <TopNavbar page={activePage} notifCount={0} user={user} onLogout={logout} />
           <main style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
             {pages[activePage]}
           </main>

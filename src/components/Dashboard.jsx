@@ -6,7 +6,7 @@ import { TREND_DATA, MONTHLY_TREND, SERVICE_DIST, TECH_PERF, JOBS, ACTIVITIES } 
 
 const STATS = [
   { label: "Total Requests", value: "1,284", trend: "+12%", up: true, icon: "📋", gradient: "linear-gradient(135deg,#6366f1,#818cf8)", light: "#eef2ff", iconColor: "#6366f1", target: "service-requests" },
-  { label: "Pending Jobs", value: "87", trend: "+5%", up: false, icon: "⏳", gradient: "linear-gradient(135deg,#f59e0b,#fbbf24)", light: "#fffbeb", iconColor: "#f59e0b", target: "jobs" },
+  { label: "Pending Projects", value: "87", trend: "+5%", up: false, icon: "⏳", gradient: "linear-gradient(135deg,#f59e0b,#fbbf24)", light: "#fffbeb", iconColor: "#f59e0b", target: "jobs" },
   { label: "In Progress", value: "43", trend: "−2", up: false, icon: "🔄", gradient: "linear-gradient(135deg,#06b6d4,#22d3ee)", light: "#ecfeff", iconColor: "#06b6d4", target: "jobs" },
   { label: "Members Management", value: "1,154", trend: "+18%", up: true, icon: "👥", gradient: "linear-gradient(135deg,#10b981,#34d399)", light: "#ecfdf5", iconColor: "#10b981", target: "members" },
   { label: "Active Technicians", value: "28", trend: "+3", up: true, icon: "👷", gradient: "linear-gradient(135deg,#8b5cf6,#a78bfa)", light: "#f5f3ff", iconColor: "#8b5cf6", target: "technicians" },
@@ -142,7 +142,7 @@ export function DashboardPage({ onNavigate }) {
         <Card style={{ padding: "20px" }}>
           <div style={{ marginBottom: 20 }}>
             <h3 style={{ margin: "0 0 3px", fontSize: 14, fontWeight: 700, color: "#0f172a" }}>Technician Performance</h3>
-            <p style={{ margin: 0, fontSize: 12, color: "#94a3b8" }}>Jobs completed this month</p>
+            <p style={{ margin: 0, fontSize: 12, color: "#94a3b8" }}>Projects completed this month</p>
           </div>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={TECH_PERF} barSize={18}>
@@ -189,9 +189,9 @@ export function DashboardPage({ onNavigate }) {
 
         {/* Jobs Table */}
         <Card style={{ padding: "20px" }}>
-          <SectionHeader title="Recent Service Requests" action="View All Jobs →" />
+          <SectionHeader title="Recent Service Requests" action="View All Projects →" />
           <TableWrapper
-            headers={["Job ID", "Customer", "Service", "Technician", "Status", "Date", "Action"]}
+            headers={["Project ID", "Customer", "Service", "Technician", "Status", "Date", "Action"]}
             rows={JOBS.map((j, i) => (
               <tr key={i} style={{ borderBottom: "1px solid #f8fafc", transition: "background .1s" }}>
                 <td style={{ padding: "11px 14px", fontSize: 12.5, fontWeight: 700, color: "#6366f1", fontFamily: "monospace" }}>{j.id}</td>
