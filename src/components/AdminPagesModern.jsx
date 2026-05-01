@@ -314,7 +314,7 @@ export function TechniciansPage() {
   );
 }
 
-export function JobsPage() {
+export function ProjectsPage() {
   const { data: jobs, loading, error, refresh: refreshJobs } = useApiData("/api/v2/admin/jobs");
   const { data: users } = useApiData("/api/v2/admin/users");
   const technicians = useMemo(() => users.filter(u => u.role === 'technician'), [users]);

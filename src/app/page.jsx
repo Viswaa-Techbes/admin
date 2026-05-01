@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { Sidebar, TopNavbar } from "../components/LayoutModern";
+import { DashboardPage } from "../components/ManagerDashboard";
 import { 
-  DashboardPage, 
   CustomersPage, 
   TechniciansPage, 
   ProjectsPage, 
@@ -20,9 +20,16 @@ import {
 } from "../components/AdminPagesModern";
 
 export default function AdminDashboard() {
+  const [mounted, setMounted] = useState(false);
   const [activePage, setActivePage] = useState("dashboard");
   const [collapsed, setCollapsed] = useState(false);
   const [user, setUser] = useState({ name: "Admin", role: "admin" });
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
 
   const logout = () => {
     // Basic logout logic
