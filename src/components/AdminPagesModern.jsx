@@ -255,7 +255,7 @@ export function TechniciansPage() {
             <Field label="Specialty (Optional)" value={form.specialty} onChange={(v) => setForm({...form, specialty: v})} />
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <label style={LABEL_STYLE}>Role</label>
-              <select value={form.role} onChange={(e) => setForm({...form, role: e.target.value})} disabled={!!editingId} style={INPUT_STYLE}>
+              <select value={form.role} onChange={(e) => setForm({...form, role: e.target.value})} style={INPUT_STYLE}>
                 <option value="technician">Technician</option>
                 <option value="manager">Manager</option>
                 <option value="admin">Admin</option>
