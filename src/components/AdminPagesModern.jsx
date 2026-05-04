@@ -770,8 +770,8 @@ export function AttendancePage() {
     if (record.status === status) return;
 
     try {
-      const id = record.id || record._id;
-      const res = await fetch(`/api/v2/attendance/${id}`, {
+      const uid = record.userId || record._id;
+      const res = await fetch(`/api/v2/attendance/${uid}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status, date })
@@ -858,7 +858,7 @@ export function AttendancePage() {
                       if (!isFuture) {
                         const newStatus = day.status === 'present' ? 'absent' : 'present';
                         // Use a dummy record object for the calendar toggle
-                        updateAttendance({ id: `absent-${selectedUser._id || selectedUser.id}`, status: day.status }, newStatus, day.date);
+                        updateAttendance({ userId: selectedUser._id || selectedUser.id, status: day.status }, newStatus, day.date);
                       }
                     }}
                     style={{ 
