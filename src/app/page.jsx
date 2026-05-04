@@ -26,10 +26,30 @@ export default function AdminDashboard() {
   const [user, setUser] = useState({ name: "Admin", role: "admin" });
 
   useEffect(() => {
-    setMounted(true);
+    async function checkAuth() {
+      try {
+        const res = await fetch("/api/auth/me");
+        if (res.status === 401) {
+          window.location.href = "/login";
+          return;
+        }
+        const payload = await res.json();
+        if (payload.user) {
+          setUser(payload.user);
+        }
+        setMounted(true);
+      } catch (err) {
+        window.location.href = "/login";
+      }
+    }
+    checkAuth();
   }, []);
 
-  if (!mounted) return null;
+  if (!mounted) return (
+    <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9", color: "#64748b" }}>
+      Loading techbes dashboard...
+    </div>
+  );
 
   const logout = () => {
     // Basic logout logic

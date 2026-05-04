@@ -1,8 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from 'next/dynamic';
+import { io } from 'socket.io-client';
 import { PlusIcon, EditIcon, TrashIcon } from "./Icons";
 import { PageHeader, SearchFilter, Card, TableWrapper, Avatar, StatusBadge, ActionBtn, StarRating, SectionHeader } from "./UI";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, Legend } from "recharts";
 import { MONTHLY_TREND, SERVICE_DIST, TECH_PERF } from "../lib/data";
+
+const LiveMap = dynamic(() => import('./LiveMap'), { ssr: false });
 
 
 function useApiData(url, initial = []) {
@@ -647,36 +651,88 @@ export function ReviewsPage() {
 }
 
 export function TrackingPage() {
-  const { data: technicians, loading, error } = useApiData("/api/v2/admin/tracking");
+  const { data: initialTechnicians, loading, error, setData: setTechnicians } = useApiData("/api/v2/admin/tracking");
+  
+  useEffect(() => {
+    const socket = io(process.env.NEXT_PUBLIC_API_BASE_URL || '', { 
+      path: '/socket.io',
+      transports: ['websocket', 'polling']
+    });
+
+    socket.on('technicianLocationUpdate', (data) => {
+      console.log('Socket update received:', data);
+      setTechnicians(prev => prev.map(tech => 
+        tech.technicianId === data.technicianId 
+          ? { ...tech, lat: data.lat, lng: data.lng, isOnline: data.isOnline ?? tech.isOnline, lastUpdate: new Date() }
+          : tech
+      ));
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [setTechnicians]);
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>Initializing real-time tracking...</div>;
+  if (error) return <div style={{ padding: 40, textAlign: 'center', color: '#ef4444' }}>Error: {error}</div>;
+
   return (
-    <div>
-      <PageHeader title="Live Tracking" subtitle="Real-time technician monitoring" />
-      <DataCard loading={loading} error={error} empty={!technicians.length} emptyText="No tracking data.">
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16 }}>
-          <Card style={{ minHeight: 460, padding: 24, background: "#0f172a" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 14 }}>
-              {technicians.map((tech) => (
-                <div key={tech.technicianId} style={{ padding: 14, borderRadius: 14, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                  <div style={{ color: "#fff", fontWeight: 700 }}>{tech.name}</div>
-                  <div style={{ color: "#94a3b8", fontSize: 12 }}>{tech.lat.toFixed(4)}, {tech.lng.toFixed(4)}</div>
-                  <div style={{ color: tech.isOnline ? "#4ade80" : "#94a3b8", fontSize: 11 }}>{tech.isOnline ? "Online" : "Offline"}</div>
-                </div>
-              ))}
-            </div>
-          </Card>
-          <Card style={{ padding: 20 }}>
-            <SectionHeader title="Staff List" />
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {technicians.map((tech) => (
-                <div key={tech.technicianId} style={{ display: "flex", justifyContent: "space-between", padding: 12, borderRadius: 12, background: "#f8fafc" }}>
-                  <div style={{ fontSize: 13, fontWeight: 700 }}>{tech.name}</div>
-                  <StatusBadge status={tech.isOnline ? "Available" : "Offline"} />
-                </div>
-              ))}
-            </div>
-          </Card>
+    <div style={{ height: "calc(100vh - 140px)", display: "flex", flexDirection: "column", gap: 20 }}>
+      <PageHeader 
+        title="Fleet Live View" 
+        subtitle="Real-time geographic distribution of field technicians" 
+        actions={<div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f0fdf4', padding: '6px 12px', borderRadius: 20, border: '1px solid #bbf7d0' }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }}></div>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#166534' }}>Live System Active</span>
+        </div>}
+      />
+      
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20, flex: 1, minHeight: 0 }}>
+        <div style={{ position: "relative", height: "100%", borderRadius: 24, overflow: "hidden", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)", border: "1px solid #e2e8f0" }}>
+          <LiveMap technicians={initialTechnicians} />
+          
+          {/* Overlay Stats */}
+          <div style={{ position: "absolute", bottom: 20, left: 20, zIndex: 1000, display: "flex", gap: 10 }}>
+             <div style={{ background: "rgba(15, 23, 42, 0.9)", padding: "12px 16px", borderRadius: 16, color: "#fff", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Total Fleet</div>
+                <div style={{ fontSize: 20, fontWeight: 900 }}>{initialTechnicians.length}</div>
+             </div>
+             <div style={{ background: "rgba(15, 23, 42, 0.9)", padding: "12px 16px", borderRadius: 16, color: "#fff", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Active Now</div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: "#4ade80" }}>{initialTechnicians.filter(t => t.isOnline).length}</div>
+             </div>
+          </div>
         </div>
-      </DataCard>
+
+        <Card style={{ display: "flex", flexDirection: "column", padding: 0 }}>
+          <div style={{ padding: "20px 20px 10px" }}>
+            <SectionHeader title="Staff Monitor" />
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", padding: "0 20px 20px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {initialTechnicians.map((tech) => (
+                <div key={tech.technicianId} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 14, borderRadius: 16, background: tech.isOnline ? "#f8fafc" : "#fff", border: tech.isOnline ? "1px solid #e2e8f0" : "1px solid #f1f5f9", transition: "all 0.3s ease" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ position: 'relative' }}>
+                        <Avatar initials={tech.name.charAt(0)} size={36} gradient={tech.isOnline ? "linear-gradient(135deg,#6366f1,#4f46e5)" : "linear-gradient(135deg,#94a3b8,#64748b)"} />
+                        {tech.isOnline && <div style={{ position: 'absolute', bottom: -2, right: -2, width: 12, height: 12, borderRadius: '50%', background: '#10b981', border: '2px solid #fff' }}></div>}
+                    </div>
+                    <div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>{tech.name}</div>
+                        <div style={{ fontSize: 11, color: "#64748b" }}>{tech.specialty || "General Tech"}</div>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: tech.isOnline ? "#10b981" : "#94a3b8", textTransform: "uppercase" }}>{tech.isOnline ? "Online" : "Offline"}</div>
+                    <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4, fontFamily: 'monospace' }}>{tech.lat.toFixed(3)}, {tech.lng.toFixed(3)}</div>
+                  </div>
+                </div>
+              ))}
+              {initialTechnicians.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8', fontSize: 13 }}>No technicians registered yet.</div>}
+            </div>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }
