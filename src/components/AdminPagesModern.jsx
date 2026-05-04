@@ -766,7 +766,7 @@ export function AttendancePage() {
     setViewDate(next);
   };
 
-  async function updateAttendance(record, status) {
+  async function updateAttendance(record, status, date = null) {
     if (record.status === status) return;
 
     try {
@@ -774,13 +774,16 @@ export function AttendancePage() {
       const res = await fetch(`/api/v2/attendance/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status })
+        body: JSON.stringify({ status, date })
       });
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.message || "Failed to update attendance");
       }
       await refreshToday();
+      if (selectedUser) {
+        fetchMonthData(selectedUser._id || selectedUser.id);
+      }
     } catch (e) {
       alert(e.message);
     }
@@ -845,28 +848,45 @@ export function AttendancePage() {
               {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => (
                 <div key={d} style={{ textAlign: "center", fontSize: 12, fontWeight: 800, color: "#64748b", padding: 8 }}>{d}</div>
               ))}
-              {monthData.map((day) => (
-                <div 
-                  key={day.date} 
-                  style={{ 
-                    height: 80, 
-                    borderRadius: 12, 
-                    padding: 8,
-                    background: day.status === "present" ? "#dcfce7" : "#fee2e2",
-                    border: `1px solid ${day.status === "present" ? "#86efac" : "#fecaca"}`,
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "space-between"
-                  }}
-                >
-                  <div style={{ fontSize: 13, fontWeight: 800, color: day.status === "present" ? "#166534" : "#991b1b" }}>
-                    {new Date(day.date).getDate()}
+              {monthData.map((day) => {
+                const isToday = day.date === new Date().toISOString().split('T')[0];
+                const isFuture = day.status === 'none';
+                return (
+                  <div 
+                    key={day.date} 
+                    onClick={() => {
+                      if (!isFuture) {
+                        const newStatus = day.status === 'present' ? 'absent' : 'present';
+                        // Use a dummy record object for the calendar toggle
+                        updateAttendance({ id: `absent-${selectedUser._id || selectedUser.id}`, status: day.status }, newStatus, day.date);
+                      }
+                    }}
+                    style={{ 
+                      height: 80, 
+                      borderRadius: 12, 
+                      padding: 8,
+                      background: day.status === "present" ? "#dcfce7" : (day.status === "absent" ? "#fee2e2" : "#f8fafc"),
+                      border: isToday ? "2px solid #6366f1" : `1px solid ${day.status === "present" ? "#86efac" : (day.status === "absent" ? "#fecaca" : "#e2e8f0")}`,
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "space-between",
+                      cursor: isFuture ? "default" : "pointer",
+                      opacity: isFuture ? 0.6 : 1,
+                      boxShadow: isToday ? "0 0 10px rgba(99, 102, 241, 0.2)" : "none"
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: day.status === "present" ? "#166534" : (day.status === "absent" ? "#991b1b" : "#94a3b8") }}>
+                        {new Date(day.date).getDate()}
+                      </div>
+                      {isToday && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#6366f1' }} />}
+                    </div>
+                    <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: day.status === "present" ? "#15803d" : (day.status === "absent" ? "#b91c1c" : "#94a3b8") }}>
+                      {day.status === 'none' ? '—' : day.status}
+                    </div>
                   </div>
-                  <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: day.status === "present" ? "#15803d" : "#b91c1c" }}>
-                    {day.status}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div style={{ textAlign: "center", padding: 40, color: "#94a3b8" }}>Select a staff member to view their attendance calendar.</div>
