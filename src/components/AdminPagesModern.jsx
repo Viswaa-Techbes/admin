@@ -663,7 +663,13 @@ export function TrackingPage() {
       console.log('Socket update received:', data);
       setTechnicians(prev => prev.map(tech => 
         tech.technicianId === data.technicianId 
-          ? { ...tech, lat: data.lat, lng: data.lng, isOnline: data.isOnline ?? tech.isOnline, lastUpdate: new Date() }
+          ? { 
+              ...tech, 
+              lat: data.lat ?? tech.lat, 
+              lng: data.lng ?? tech.lng, 
+              isOnline: data.isOnline ?? tech.isOnline, 
+              lastUpdate: new Date() 
+            }
           : tech
       ));
     });
@@ -742,10 +748,16 @@ export function AttendancePage() {
   const { data: users } = useApiData("/api/v2/admin/users");
   
   const [selectedUser, setSelectedUser] = useState(null);
-  const [view, setView] = useState("table"); // "table" or "calendar"
+  const [view, setView] = useState("table"); 
   const [monthData, setMonthData] = useState([]);
   const [loadingMonth, setLoadingMonth] = useState(false);
   const [viewDate, setViewDate] = useState(new Date());
+
+  // Auto-refresh today's attendance every 15 seconds
+  useEffect(() => {
+    const timer = setInterval(refreshToday, 15000);
+    return () => clearInterval(timer);
+  }, [refreshToday]);
 
   const currentMonthName = viewDate.toLocaleString("default", { month: "long", year: "numeric" });
 
@@ -1161,10 +1173,38 @@ export function ServiceRequestsPage() {
 
 export function ServicesPage() { return <PlaceholderPage title="Services" />; }
 export function PaymentsPage() {
-  const { data: requests, loading, error, refresh } = useApiData("/api/v2/admin/payment-requests");
+  const { data: requests, loading, error, refresh } = useApiData("/api/v2/payment/requests");
+  const { data: verifications, loading: vLoading, refresh: vRefresh } = useApiData("/api/v2/admin/payment-requests");
   const [busyId, setBusyId] = useState("");
 
-  async function updateRequest(jobId, action) {
+  // Auto-refresh every 10 seconds
+  useEffect(() => {
+    const timer = setInterval(() => {
+      refresh();
+      vRefresh();
+    }, 10000);
+    return () => clearInterval(timer);
+  }, [refresh, vRefresh]);
+
+  async function approveRequest(jobId) {
+    try {
+      setBusyId(jobId);
+      const res = await fetch("/api/v2/payment/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId }),
+      });
+      if (!res.ok) throw new Error("Failed to approve request");
+      await refresh();
+      alert("Payment request approved! User can now pay via Razorpay/QR.");
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setBusyId("");
+    }
+  }
+
+  async function verifyPayment(jobId, action) {
     try {
       setBusyId(jobId);
       const res = await fetch(`/api/v2/admin/payment-requests/${jobId}`, {
@@ -1172,11 +1212,10 @@ export function PaymentsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),
       });
-      if (!res.ok) {
-        const payload = await res.json();
-        throw new Error(payload.message || "Failed to update payment request");
-      }
-      await refresh();
+      if (!res.ok) throw new Error("Failed to verify payment");
+      await vRefresh();
+    } catch (e) {
+      alert(e.message);
     } finally {
       setBusyId("");
     }
@@ -1184,30 +1223,58 @@ export function PaymentsPage() {
 
   return (
     <div>
-      <PageHeader title="Payment Verification" subtitle={`${requests.length} payments awaiting confirmation`} />
-      <DataCard loading={loading} error={error} empty={!requests.length} emptyText="No pending payment verifications.">
-        <TableWrapper
-          headers={["Customer", "Service", "Technician", "Amount", "Status", "Actions"]}
-          rows={requests.map((request) => (
-            <tr key={request.id} style={{ borderBottom: "1px solid #f8fafc" }}>
-              <td style={TD_STYLE}>
-                <div style={{ fontWeight: 700, color: "#0f172a" }}>{request.customerName}</div>
-                <div style={{ fontSize: 11, color: "#94a3b8" }}>{request.customerPhone}</div>
-              </td>
-              <td style={TD_STYLE}>{request.serviceName}</td>
-              <td style={TD_STYLE}>{request.technicianName}</td>
-              <td style={TD_STYLE}><div style={{ fontWeight: 700, color: "#0f172a" }}>₹{request.amount}</div></td>
-              <td style={TD_STYLE}><StatusBadge status={request.paymentStatus} /></td>
-              <td style={TD_STYLE}>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button disabled={busyId === request.id} onClick={() => updateRequest(request.id, "approve")} style={approveButton}>Approve</button>
-                  <button disabled={busyId === request.id} onClick={() => updateRequest(request.id, "reject")} style={rejectButton}>Reject</button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        />
-      </DataCard>
+      <PageHeader title="Payments & Collections" subtitle="Manage technician requests and user payments" />
+      
+      <Card style={{ padding: 24, marginBottom: 24 }}>
+        <SectionHeader title="Technician Payment Requests" />
+        <p style={{ fontSize: 13, color: "#64748b", marginBottom: 20 }}>Awaiting your approval to generate payment links for users.</p>
+        <DataCard loading={loading} error={error} empty={!requests.length} emptyText="No new payment requests from technicians.">
+          <TableWrapper
+            headers={["Technician", "Customer", "Amount", "Description", "Action"]}
+            rows={requests.map((req) => (
+              <tr key={req.id} style={{ borderBottom: "1px solid #f8fafc" }}>
+                <td style={TD_STYLE}><strong>{req.assignedTechnician?.name || "N/A"}</strong></td>
+                <td style={TD_STYLE}>{req.customerName}</td>
+                <td style={TD_STYLE}><div style={{ fontWeight: 800, color: "#1e293b" }}>₹{req.amount}</div></td>
+                <td style={TD_STYLE}><div style={{ fontSize: 12, color: "#64748b" }}>{req.paymentDescription || "Work completed"}</div></td>
+                <td style={TD_STYLE}>
+                  <button 
+                    disabled={busyId === req.id} 
+                    onClick={() => approveRequest(req.id)} 
+                    style={{ ...approveButton, background: "#10b981" }}
+                  >
+                    {busyId === req.id ? "..." : "Approve & Link"}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          />
+        </DataCard>
+      </Card>
+
+      <Card style={{ padding: 24 }}>
+        <SectionHeader title="Manual Payment Verifications" />
+        <p style={{ fontSize: 13, color: "#64748b", marginBottom: 20 }}>Payments that need manual confirmation (Offline/Bank Transfer).</p>
+        <DataCard loading={vLoading} empty={!verifications.length} emptyText="No manual verifications pending.">
+          <TableWrapper
+            headers={["Customer", "Technician", "Amount", "Status", "Actions"]}
+            rows={verifications.map((v) => (
+              <tr key={v.id} style={{ borderBottom: "1px solid #f8fafc" }}>
+                <td style={TD_STYLE}><strong>{v.customerName}</strong></td>
+                <td style={TD_STYLE}>{v.technicianName}</td>
+                <td style={TD_STYLE}>₹{v.amount}</td>
+                <td style={TD_STYLE}><StatusBadge status={v.paymentStatus} /></td>
+                <td style={TD_STYLE}>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button disabled={busyId === v.id} onClick={() => verifyPayment(v.id, "approve")} style={approveButton}>Confirm</button>
+                    <button disabled={busyId === v.id} onClick={() => verifyPayment(v.id, "reject")} style={rejectButton}>Reject</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          />
+        </DataCard>
+      </Card>
     </div>
   );
 }
