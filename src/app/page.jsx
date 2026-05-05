@@ -15,9 +15,9 @@ import {
   TrackingPage,
   AttendancePage,
   NotificationsPage,
-  ReportsPage,
   SettingsPage
 } from "../components/AdminPagesModern";
+import { AnalyticsPage } from "../components/AnalyticsPage";
 
 export default function AdminDashboard() {
   const [mounted, setMounted] = useState(false);
@@ -70,7 +70,7 @@ export default function AdminDashboard() {
     tracking: <TrackingPage />,
     attendance: <AttendancePage />,
     notifications: <NotificationsPage />,
-    reports: <ReportsPage />,
+    reports: <AnalyticsPage />,
     settings: <SettingsPage />,
   };
 
