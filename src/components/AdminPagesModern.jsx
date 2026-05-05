@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from 'next/dynamic';
 import { io } from 'socket.io-client';
-import { PlusIcon, EditIcon, TrashIcon } from "./Icons";
+import { PlusIcon, EditIcon, TrashIcon, KeyIcon } from "./Icons";
 import { PageHeader, SearchFilter, Card, TableWrapper, Avatar, StatusBadge, ActionBtn, StarRating, SectionHeader } from "./UI";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, Legend } from "recharts";
 import { MONTHLY_TREND, SERVICE_DIST, TECH_PERF } from "../lib/data";
@@ -191,6 +191,36 @@ export function TechniciansPage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ name: "", mobileNumber: "", password: "", role: "technician", specialty: "", permissions: [] });
   const [formError, setFormError] = useState("");
+  const [passwordChangeId, setPasswordChangeId] = useState(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [updatingPassword, setUpdatingPassword] = useState(false);
+
+  async function handlePasswordUpdate(e) {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 6) {
+      alert("Password must be at least 6 characters");
+      return;
+    }
+    try {
+      setUpdatingPassword(true);
+      const res = await fetch(`/api/v2/admin/users/${passwordChangeId}/password`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPassword }),
+      });
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.message || "Failed to update password");
+      
+      alert("Password updated successfully");
+      setPasswordChangeId(null);
+      setNewPassword("");
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setUpdatingPassword(false);
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -305,10 +335,30 @@ export function TechniciansPage() {
               <td style={TD_STYLE}>{u.specialty || "—"}</td>
               <td style={TD_STYLE}><StatusBadge status={u.status} /></td>
               <td style={TD_STYLE}>
-                <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <button title="Change Password" onClick={() => { setPasswordChangeId(u._id || u.id); setNewPassword(""); }} style={{ border: "none", background: "none", cursor: "pointer", color: "#f59e0b" }}><KeyIcon /></button>
                   <button title="Edit" onClick={() => startEdit(u)} style={{ border: "none", background: "none", cursor: "pointer", color: "#64748b" }}><EditIcon /></button>
                   <button title="Delete" onClick={() => handleDelete(u._id || u.id)} style={{ border: "none", background: "none", cursor: "pointer", color: "#f43f5e" }}><TrashIcon /></button>
                 </div>
+                {passwordChangeId === (u._id || u.id) && (
+                  <div style={{ position: "absolute", right: 20, background: "#fff", border: "1px solid #e2e8f0", padding: 12, borderRadius: 12, boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", zIndex: 10 }}>
+                    <form onSubmit={handlePasswordUpdate} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b" }}>NEW PASSWORD</div>
+                      <input 
+                        type="text" 
+                        value={newPassword} 
+                        onChange={(e) => setNewPassword(e.target.value)} 
+                        placeholder="Min 6 chars" 
+                        autoFocus
+                        style={{ ...INPUT_STYLE, padding: "6px 10px", width: 140 }} 
+                      />
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button type="submit" disabled={updatingPassword} style={{ ...primaryButton, padding: "4px 8px", fontSize: 11 }}>{updatingPassword ? "..." : "Save"}</button>
+                        <button type="button" onClick={() => setPasswordChangeId(null)} style={{ border: "none", background: "#f1f5f9", color: "#475569", padding: "4px 8px", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>Cancel</button>
+                      </div>
+                    </form>
+                  </div>
+                )}
               </td>
             </tr>
           ))}
