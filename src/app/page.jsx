@@ -15,7 +15,8 @@ import {
   TrackingPage,
   AttendancePage,
   NotificationsPage,
-  SettingsPage
+  SettingsPage,
+  CareersPage
 } from "../components/AdminPagesModern";
 import { AnalyticsPage } from "../components/AnalyticsPage";
 
@@ -71,6 +72,7 @@ export default function AdminDashboard() {
     attendance: <AttendancePage />,
     notifications: <NotificationsPage />,
     reports: <AnalyticsPage />,
+    careers: <CareersPage />,
     settings: <SettingsPage />,
   };
 

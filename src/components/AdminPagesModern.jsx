@@ -186,6 +186,7 @@ function leadRow(lead, index, onDelete, onEdit) {
 
 export function TechniciansPage() {
   const { data: users, loading, error, refresh: refreshUsers } = useApiData("/api/v2/admin/users");
+  const [activeTab, setActiveTab] = useState("member"); // 'member' or 'web_user'
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -194,6 +195,10 @@ export function TechniciansPage() {
   const [passwordChangeId, setPasswordChangeId] = useState(null);
   const [newPassword, setNewPassword] = useState("");
   const [updatingPassword, setUpdatingPassword] = useState(false);
+
+  const filteredUsers = useMemo(() => {
+    return users.filter(u => (u.userType || 'member') === activeTab);
+  }, [users, activeTab]);
 
   async function handlePasswordUpdate(e) {
     e.preventDefault();
@@ -234,13 +239,13 @@ export function TechniciansPage() {
         method,
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, userType: 'member' }), // Admin creates members
       });
       const payload = await res.json();
       if (!res.ok) throw new Error(payload.message || "Failed to save user");
       
       if (!editingId) {
-        alert(`User created! Credentials:\nMobile: ${payload.data.mobileNumber}\nPassword: ${payload.data.password}`);
+        alert(`Member created! Credentials:\nMobile: ${payload.data.mobileNumber}\nPassword: ${payload.data.password}`);
       }
       
       await refreshUsers();
@@ -273,11 +278,39 @@ export function TechniciansPage() {
 
   return (
     <div>
-      <PageHeader title="User Management" subtitle={`${users.length} active staff members`} actions={<ActionBtn icon={<PlusIcon />} onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({name: "", mobileNumber: "", password: "", role: "technician", specialty: "", permissions: []}); }} label={showForm ? "Close Form" : "Create User"} primary />} />
+      <PageHeader 
+        title="User Classification" 
+        subtitle={`${filteredUsers.length} ${activeTab === 'member' ? 'members' : 'web users'} found`} 
+        actions={activeTab === 'member' && <ActionBtn icon={<PlusIcon />} onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({name: "", mobileNumber: "", password: "", role: "technician", specialty: "", permissions: []}); }} label={showForm ? "Close Form" : "Create Member"} primary />} 
+      />
+
+      {/* Classification Tabs */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 24, padding: 4, background: "#e2e8f0", borderRadius: 12, width: "fit-content" }}>
+        {["member", "web_user"].map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            style={{
+              padding: "8px 20px",
+              borderRadius: 10,
+              border: "none",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+              transition: "all 0.2s",
+              background: activeTab === tab ? "#fff" : "transparent",
+              color: activeTab === tab ? "#1e293b" : "#64748b",
+              boxShadow: activeTab === tab ? "0 4px 6px -1px rgba(0,0,0,0.1)" : "none"
+            }}
+          >
+            {tab === "member" ? "Members (Staff)" : "Web Users (App)"}
+          </button>
+        ))}
+      </div>
 
       {showForm && (
         <Card style={{ padding: 20, marginBottom: 20 }}>
-          <SectionHeader title={editingId ? "Edit Staff Account" : "Register New Staff Account"} />
+          <SectionHeader title={editingId ? "Edit Staff Account" : "Register New Staff Member"} />
           <form onSubmit={handleSubmit} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <Field label="Full Name" value={form.name} onChange={(v) => setForm({...form, name: v})} />
             <Field label="Mobile Number" value={form.mobileNumber} onChange={(v) => setForm({...form, mobileNumber: v})} />
@@ -289,6 +322,7 @@ export function TechniciansPage() {
                 <option value="technician">Technician</option>
                 <option value="manager">Manager</option>
                 <option value="admin">Admin</option>
+                <option value="client">Client (App User)</option>
               </select>
             </div>
             <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: 6, padding: "10px 14px", background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0" }}>
@@ -317,10 +351,10 @@ export function TechniciansPage() {
         </Card>
       )}
 
-      <DataCard loading={loading} error={error} empty={!users.length} emptyText="No users found.">
+      <DataCard loading={loading} error={error} empty={!filteredUsers.length} emptyText={`No ${activeTab === 'member' ? 'members' : 'web users'} found.`}>
         <TableWrapper
-          headers={["Staff Member", "Role", "Specialty / Info", "Status", "Actions"]}
-          rows={users.map((u) => (
+          headers={["User", "Role", "Type", "Status", "Actions"]}
+          rows={filteredUsers.map((u) => (
             <tr key={u._id || u.id} style={{ borderBottom: "1px solid #f8fafc" }}>
               <td style={TD_STYLE}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -332,12 +366,12 @@ export function TechniciansPage() {
                 </div>
               </td>
               <td style={TD_STYLE}><span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: u.role === "manager" ? "#6366f1" : "#64748b" }}>{u.role}</span></td>
-              <td style={TD_STYLE}>{u.specialty || "—"}</td>
+              <td style={TD_STYLE}><span style={{ fontSize: 11, fontWeight: 700, color: (u.userType || 'member') === 'member' ? '#0ea5e9' : '#f59e0b' }}>{(u.userType || 'member').replace('_', ' ').toUpperCase()}</span></td>
               <td style={TD_STYLE}><StatusBadge status={u.status} /></td>
               <td style={TD_STYLE}>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <button title="Change Password" onClick={() => { setPasswordChangeId(u._id || u.id); setNewPassword(""); }} style={{ border: "none", background: "none", cursor: "pointer", color: "#f59e0b" }}><KeyIcon /></button>
-                  <button title="Edit" onClick={() => startEdit(u)} style={{ border: "none", background: "none", cursor: "pointer", color: "#64748b" }}><EditIcon /></button>
+                  {activeTab === 'member' && <button title="Edit" onClick={() => startEdit(u)} style={{ border: "none", background: "none", cursor: "pointer", color: "#64748b" }}><EditIcon /></button>}
                   <button title="Delete" onClick={() => handleDelete(u._id || u.id)} style={{ border: "none", background: "none", cursor: "pointer", color: "#f43f5e" }}><TrashIcon /></button>
                 </div>
                 {passwordChangeId === (u._id || u.id) && (
@@ -1626,3 +1660,85 @@ const primaryButton = { border: "none", borderRadius: 12, background: "#4f46e5",
 const approveButton = { border: "none", borderRadius: 10, background: "#dcfce7", color: "#15803d", fontWeight: 700, padding: "8px 12px", cursor: "pointer" };
 const rejectButton = { border: "none", borderRadius: 10, background: "#fee2e2", color: "#b91c1c", fontWeight: 700, padding: "8px 12px", cursor: "pointer" };
 const pillButton = (active) => ({ padding: "6px 14px", borderRadius: 99, background: active ? "#6366f1" : "#fff", color: active ? "#fff" : "#64748b", fontWeight: 700, cursor: "pointer" });
+export function CareersPage() {
+  const { data: apps, loading, error, refresh } = useApiData("/api/v2/careers");
+  const [busyId, setBusyId] = useState("");
+
+  async function updateStatus(id, status) {
+    try {
+      setBusyId(id);
+      const res = await fetch(`/api/v2/careers/${id}/status`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error("Failed to update status");
+      await refresh();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setBusyId("");
+    }
+  }
+
+  const rows = apps.map((app) => (
+    <tr key={app._id || app.id} style={{ borderBottom: "1px solid #f8fafc" }}>
+      <td style={TD_STYLE}>
+        <div style={{ fontWeight: 700, color: "#0f172a" }}>{app.name}</div>
+        <div style={{ fontSize: 11, color: "#64748b" }}>{app.email}</div>
+      </td>
+      <td style={TD_STYLE}>
+        <div style={{ fontWeight: 600 }}>{app.roleApplied}</div>
+        <div style={{ fontSize: 11, color: "#94a3b8" }}>{app.experience} Exp</div>
+      </td>
+      <td style={TD_STYLE}>
+        <a 
+          href={app.resumeUrl} 
+          target="_blank" 
+          rel="noreferrer"
+          style={{ display: "flex", alignItems: "center", gap: 6, color: "#6366f1", fontSize: 12, fontWeight: 700, textDecoration: "none" }}
+        >
+          <EyeIcon /> View Resume
+        </a>
+      </td>
+      <td style={TD_STYLE}><StatusBadge status={app.status} /></td>
+      <td style={TD_STYLE}>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button 
+            disabled={busyId === app.id}
+            onClick={() => updateStatus(app._id || app.id, "shortlisted")}
+            style={{ ...primaryButton, padding: "6px 12px", fontSize: 11, background: "#6366f1" }}
+          >
+            Shortlist
+          </button>
+          <button 
+            disabled={busyId === app.id}
+            onClick={() => updateStatus(app._id || app.id, "hired")}
+            style={{ ...approveButton, padding: "6px 12px", fontSize: 11 }}
+          >
+            Hire
+          </button>
+          <button 
+            disabled={busyId === app.id}
+            onClick={() => updateStatus(app._id || app.id, "rejected")}
+            style={{ ...rejectButton, padding: "6px 12px", fontSize: 11 }}
+          >
+            Reject
+          </button>
+        </div>
+      </td>
+    </tr>
+  ));
+
+  return (
+    <div>
+      <PageHeader title="Career Applicants" subtitle={`${apps.length} total applications`} />
+      <DataCard loading={loading} error={error} empty={!apps.length} emptyText="No applicants yet.">
+        <TableWrapper headers={["Applicant", "Role & Experience", "Resume", "Status", "Actions"]} rows={rows} />
+      </DataCard>
+    </div>
+  );
+}
+
+// ... styles and utils ...
