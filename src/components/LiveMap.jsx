@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -14,9 +14,22 @@ const DefaultIcon = L.icon({
 
 L.Marker.prototype.options.icon = DefaultIcon;
 
-function ChangeView({ center, zoom }) {
+// Only sets the view once when map is created or when first technician is found
+function MapAutoCenter({ techs }) {
   const map = useMap();
-  map.setView(center, zoom);
+  const hasCentered = useRef(false);
+
+  useEffect(() => {
+    if (!hasCentered.current && techs.length > 0) {
+      const activeTechs = techs.filter(t => t.lat !== 0 && t.lng !== 0);
+      if (activeTechs.length > 0) {
+        const bounds = L.latLngBounds(activeTechs.map(t => [t.lat, t.lng]));
+        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
+        hasCentered.current = true;
+      }
+    }
+  }, [techs, map]);
+
   return null;
 }
 
@@ -27,51 +40,74 @@ export default function LiveMap({ technicians }) {
     setIsClient(true);
   }, []);
 
-  if (!isClient) return <div style={{ height: '100%', background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>Loading Map...</div>;
+  if (!isClient) return (
+    <div style={{ height: '100%', background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+      <div className="flex flex-col items-center gap-4">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white"></div>
+        <span>Initializing Fleet Map...</span>
+      </div>
+    </div>
+  );
 
   const defaultCenter = [20.5937, 78.9629]; // Center of India
-  
-  // Find a center based on technicians if available
-  const activeTechs = technicians.filter(t => t.lat !== 0 && t.lng !== 0);
-  const center = activeTechs.length > 0 
-    ? [activeTechs[0].lat, activeTechs[0].lng] 
-    : defaultCenter;
+  const activeTechs = (technicians || []).filter(t => t.lat !== 0 && t.lng !== 0);
 
   return (
     <div style={{ height: '100%', width: '100%', borderRadius: '16px', overflow: 'hidden' }}>
       <MapContainer 
-        center={center} 
-        zoom={activeTechs.length > 0 ? 12 : 5} 
+        center={defaultCenter} 
+        zoom={5} 
         style={{ height: '100%', width: '100%' }}
+        zoomControl={false}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         />
+        
         {activeTechs.map((tech) => (
           <Marker 
-            key={tech.technicianId} 
+            key={tech.technicianId || tech.id} 
             position={[tech.lat, tech.lng]}
             icon={L.divIcon({
                 className: 'custom-div-icon',
-                html: `<div style="background-color: ${tech.isOnline ? '#4ade80' : '#94a3b8'}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.5);"></div>`,
-                iconSize: [12, 12],
-                iconAnchor: [6, 6]
+                html: `
+                  <div style="position: relative;">
+                    <div style="background-color: ${tech.isOnline ? '#22c55e' : '#64748b'}; width: 14px; height: 14px; border-radius: 50%; border: 3px solid white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2), 0 2px 4px -1px rgba(0,0,0,0.06); animation: ${tech.isOnline ? 'pulse 2s infinite' : 'none'};"></div>
+                    ${tech.isOnline ? '<div style="position: absolute; top: 0; left: 0; width: 14px; height: 14px; border-radius: 50%; background-color: #22c55e; opacity: 0.4; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>' : ''}
+                  </div>
+                  <style>
+                    @keyframes pulse {
+                      0%, 100% { transform: scale(1); }
+                      50% { transform: scale(1.1); }
+                    }
+                    @keyframes ping {
+                      75%, 100% { transform: scale(3); opacity: 0; }
+                    }
+                  </style>
+                `,
+                iconSize: [14, 14],
+                iconAnchor: [7, 7]
             })}
           >
             <Popup>
-              <div style={{ padding: '5px' }}>
-                <strong style={{ display: 'block', fontSize: '14px' }}>{tech.name}</strong>
-                <span style={{ fontSize: '12px', color: '#64748b' }}>{tech.specialty || 'Technician'}</span>
-                <div style={{ marginTop: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: tech.isOnline ? '#4ade80' : '#94a3b8' }}></div>
-                  <span style={{ fontSize: '11px' }}>{tech.isOnline ? 'Online' : 'Offline'}</span>
+              <div style={{ padding: '8px', minWidth: '150px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: tech.isOnline ? '#22c55e' : '#64748b' }}></div>
+                  <strong style={{ fontSize: '14px', color: '#0f172a' }}>{tech.name}</strong>
+                </div>
+                <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>
+                  <span style={{ fontWeight: 600 }}>Role:</span> {tech.role || 'Technician'}
+                </div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                  Last Update: {tech.lastUpdate ? new Date(tech.lastUpdate).toLocaleTimeString() : 'Recently'}
                 </div>
               </div>
             </Popup>
           </Marker>
         ))}
-        {activeTechs.length > 0 && <ChangeView center={center} zoom={12} />}
+        
+        <MapAutoCenter techs={activeTechs} />
       </MapContainer>
     </div>
   );
