@@ -189,3 +189,46 @@ export const BTN_GHOST = {
   background: "none", border: "none", color: "#6366f1",
   fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: "4px 0"
 };
+
+// ─── Modal + Toast System ───────────────────────────────────────────────────
+import { createContext, useContext, useState, useEffect } from 'react';
+export function Modal({ open, onClose, title, children }) {
+  if (!open) return null;
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(2,6,23,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
+      <div style={{ background: '#fff', borderRadius: 12, width: 'min(900px, 96%)', maxHeight: '90vh', overflow: 'auto', padding: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <h3 style={{ margin: 0 }}>{title}</h3>
+          <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer' }}>✕</button>
+        </div>
+        <div>{children}</div>
+      </div>
+    </div>
+  );
+}
+
+const ToastContext = createContext(null);
+export function ToastProvider({ children }) {
+  const [toasts, setToasts] = useState([]);
+  function show(message, opts = {}) {
+    const id = Math.random().toString(36).slice(2, 9);
+    setToasts((t) => [...t, { id, message, ...opts }]);
+    if (!opts.sticky) setTimeout(() => setToasts((t) => t.filter(x => x.id !== id)), opts.duration || 3500);
+  }
+  return (
+    <ToastContext.Provider value={{ show }}>
+      {children}
+      <div style={{ position: 'fixed', right: 20, bottom: 20, zIndex: 3000, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {toasts.map(t => (
+          <div key={t.id} style={{ background: '#0f172a', color: '#fff', padding: '10px 14px', borderRadius: 10, boxShadow: '0 6px 18px rgba(2,6,23,0.4)' }}>{t.message}</div>
+        ))}
+      </div>
+    </ToastContext.Provider>
+  );
+}
+
+export function useToast() {
+  const ctx = useContext(ToastContext);
+  if (!ctx) throw new Error('useToast must be used inside ToastProvider');
+  return ctx.show;
+}

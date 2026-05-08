@@ -2,7 +2,10 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from 'next/dynamic';
 import { io } from 'socket.io-client';
 import { PlusIcon, EditIcon, TrashIcon, KeyIcon } from "./Icons";
-import { PageHeader, SearchFilter, Card, TableWrapper, Avatar, StatusBadge, ActionBtn, StarRating, SectionHeader } from "./UI";
+import { PageHeader, SearchFilter, Card, TableWrapper, Avatar, StatusBadge, ActionBtn, StarRating, SectionHeader, useToast, Modal } from "./UI";
+import AllApplicationsPage from './admission/AllApplicationsPage';
+import AdmissionStudentProfilesPage from './admission/StudentProfilesPage';
+import AdmissionPaymentStatusPage from './admission/PaymentStatusPage';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, Legend } from "recharts";
 import { MONTHLY_TREND, SERVICE_DIST, TECH_PERF } from "../lib/data";
 
@@ -398,6 +401,510 @@ export function TechniciansPage() {
           ))}
         />
       </DataCard>
+    </div>
+  );
+}
+
+// ─── Admissions / Course Management Pages ───────────────────────────────────
+
+export function AdmissionsPage({ selectedId, onSelect }) {
+  if (selectedId) {
+    return <AdmissionDetail id={selectedId} onBack={() => onSelect && onSelect(null)} />;
+  }
+
+  return <AllApplicationsPage onView={onSelect} />;
+}
+
+function AdmissionDetail({ id, onBack }) {
+  const [item, setItem] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [activity, setActivity] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [assignmentHistory, setAssignmentHistory] = useState([]);
+  const [loadingActivity, setLoadingActivity] = useState(false);
+  const [noteText, setNoteText] = useState('');
+  const [docUrl, setDocUrl] = useState('');
+  const [docType, setDocType] = useState('aadhaar');
+  const [assignCourse, setAssignCourse] = useState('');
+  const [assignInternship, setAssignInternship] = useState('');
+  const showToast = useToast();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState('');
+
+  function openConfirm(action, message) {
+    setConfirmAction({ action, message });
+    setConfirmOpen(true);
+  }
+
+  async function load() {
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/v2/admission/${id}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to load application');
+      const payload = await res.json();
+      setItem(payload.data || payload);
+      setError('');
+    } catch (e) {
+      setError(e.message);
+    } finally { setLoading(false); }
+  }
+
+  useEffect(() => { load(); }, [id]);
+
+  useEffect(() => {
+    let active = true;
+    async function loadExtras() {
+      try {
+        setLoadingActivity(true);
+        // fetch activity stream (if backend provides)
+        const [aRes, pRes, asRes] = await Promise.all([
+          fetch(`/api/v2/admission/${id}/activity`, { credentials: 'include' }).catch(() => null),
+          fetch(`/api/v2/admission/${id}/payments`, { credentials: 'include' }).catch(() => null),
+          fetch(`/api/v2/admission/${id}/assignment/history`, { credentials: 'include' }).catch(() => null),
+        ]);
+        if (!active) return;
+        if (aRes && aRes.ok) { const j = await aRes.json().catch(() => ({})); setActivity(j.data || j || []); }
+        if (pRes && pRes.ok) { const j = await pRes.json().catch(() => ({})); setPayments(j.data || j || []); }
+        if (asRes && asRes.ok) { const j = await asRes.json().catch(() => ({})); setAssignmentHistory(j.data || j || []); }
+      } catch (e) {
+        // ignore — extras are best-effort
+      } finally { if (active) setLoadingActivity(false); }
+    }
+    loadExtras();
+    return () => { active = false; };
+  }, [id]);
+
+  if (loading) return <div>Loading application...</div>;
+  if (error) return <div style={{ color: '#b91c1c' }}>{error}</div>;
+  if (!item) return <div>Application not found.</div>;
+
+  async function updateStatus(status) {
+    try {
+      const res = await fetch(`/api/v2/admission/${id}/status`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ admissionStatus: status }) });
+      if (!res.ok) throw new Error('Failed to update status');
+      await load();
+      showToast('Status updated');
+    } catch (e) { showToast(e.message || 'Failed', { duration: 4000 }); }
+  }
+
+  async function addNote() {
+    try {
+      const res = await fetch(`/api/v2/admission/${id}`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ internalNote: noteText }) });
+      if (!res.ok) throw new Error('Failed to add note');
+      setNoteText('');
+      await load();
+      showToast('Note added');
+    } catch (e) { showToast(e.message || 'Failed', { duration: 4000 }); }
+  }
+
+  async function uploadDocument() {
+    try {
+      const res = await fetch(`/api/v2/admission/${id}/documents`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ documentType: docType, fileUrl: docUrl }) });
+      if (!res.ok) throw new Error('Failed to upload document');
+      setDocUrl(''); setDocType('aadhaar');
+      await load();
+      showToast('Document uploaded');
+    } catch (e) { showToast(e.message || 'Failed', { duration: 4000 }); }
+  }
+
+  async function upsertPayment(e) {
+    e.preventDefault();
+    try {
+      const form = new FormData(e.target);
+      const payload = {
+        totalFees: Number(form.get('totalFees') || 0),
+        paidAmount: Number(form.get('paidAmount') || 0),
+        pendingAmount: Number(form.get('pendingAmount') || 0),
+        paymentStatus: form.get('paymentStatus') || 'pending',
+        adminNote: form.get('adminNote') || ''
+      };
+      const res = await fetch(`/api/v2/admission/${id}/payment`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      if (!res.ok) throw new Error('Failed to update payment');
+        await load();
+        showToast('Payment updated');
+    } catch (e) { alert(e.message); }
+  }
+
+  async function assign() {
+    try {
+      const res = await fetch(`/api/v2/admission/${id}/assignment`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignedCourse: assignCourse, assignedInternship: assignInternship }) });
+      if (!res.ok) throw new Error('Failed to assign');
+      await load();
+      alert('Assignment updated');
+    } catch (e) { alert(e.message); }
+  }
+
+  return (
+    <div>
+      <div style={{ position: 'sticky', top: 0, zIndex: 30, background: '#fff', padding: 12, boxShadow: '0 2px 8px rgba(2,6,23,0.06)', marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button onClick={onBack} style={{ marginRight: 8 }}>← Back</button>
+            <Avatar initials={(item.fullName||'?').charAt(0).toUpperCase()} size={64} />
+            <div>
+              <h2 style={{ margin: 0 }}>{item.fullName}</h2>
+              <div style={{ color: '#64748b' }}>{item.email} • {item.phone}</div>
+              <div style={{ marginTop: 6, color: '#94a3b8' }}>Application ID: {item._id || item.id}</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button style={approveButton} onClick={() => openConfirm('approved', `Approve application for ${item.fullName}?`)}>Approve</button>
+              <button style={rejectButton} onClick={() => openConfirm('rejected', `Reject application for ${item.fullName}?`)}>Reject</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 420px', gap: 16 }}>
+        <div>
+          <Card style={{ padding: 16, marginBottom: 16 }}>
+            <SectionHeader title="Personal Details" />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div><strong>Full Name</strong><div style={{ color: '#64748b' }}>{item.fullName}</div></div>
+              <div><strong>DOB</strong><div style={{ color: '#64748b' }}>{item.dateOfBirth ? new Date(item.dateOfBirth).toLocaleDateString() : '—'}</div></div>
+              <div><strong>Gender</strong><div style={{ color: '#64748b' }}>{item.gender || '—'}</div></div>
+              <div><strong>Aadhaar</strong><div style={{ color: '#64748b' }}>{item.aadhaarNumber || '—'}</div></div>
+              <div style={{ gridColumn: '1 / -1' }}><strong>Address</strong><div style={{ color: '#64748b' }}>{item.address}</div></div>
+            </div>
+          </Card>
+
+          <Card style={{ padding: 16, marginBottom: 16 }}>
+            <SectionHeader title="Parent / Emergency" />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div><strong>Father</strong><div style={{ color: '#64748b' }}>{item.fatherName || '—'}</div></div>
+              <div><strong>Mother</strong><div style={{ color: '#64748b' }}>{item.motherName || '—'}</div></div>
+              <div><strong>Parent Mobile</strong><div style={{ color: '#64748b' }}>{item.parentMobile || '—'}</div></div>
+              <div><strong>Emergency</strong><div style={{ color: '#64748b' }}>{item.emergencyContact || '—'}</div></div>
+            </div>
+          </Card>
+
+          <Card style={{ padding: 16, marginBottom: 16 }}>
+            <SectionHeader title="Education" />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div><strong>Qualification</strong><div style={{ color: '#64748b' }}>{item.qualification}</div></div>
+              <div><strong>College</strong><div style={{ color: '#64748b' }}>{item.collegeName || '—'}</div></div>
+              <div><strong>Year</strong><div style={{ color: '#64748b' }}>{item.yearOfPassing || '—'}</div></div>
+              <div><strong>Skill Level</strong><div style={{ color: '#64748b' }}>{item.currentSkillLevel || '—'}</div></div>
+            </div>
+          </Card>
+
+          <Card style={{ padding: 16, marginBottom: 16 }}>
+            <SectionHeader title="Financial Details" />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div><strong>Financial Stability</strong><div style={{ color: '#64748b' }}>{item.financialStability}</div></div>
+              <div><strong>Monthly Income</strong><div style={{ color: '#64748b' }}>{item.monthlyFamilyIncome || '—'}</div></div>
+              <div><strong>EMI Support</strong><div style={{ color: '#64748b' }}>{item.emiSupportRequired ? 'Yes' : 'No'}</div></div>
+            </div>
+          </Card>
+
+          <Card style={{ padding: 16, marginBottom: 16 }}>
+            <SectionHeader title="Internal Notes" />
+            <div>
+              {(item.internalNotes || []).map((n, i) => (
+                <div key={i} style={{ padding: 8, borderBottom: '1px solid #eef2ff' }}>
+                  <div style={{ fontSize: 13 }}>{n.note}</div>
+                  <div style={{ fontSize: 12, color: '#64748b' }}>{n.addedAt ? new Date(n.addedAt).toLocaleString() : ''}</div>
+                </div>
+              ))}
+              <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+                <input value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Add internal note..." style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                <button onClick={addNote} style={primaryButton}>Add</button>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        <div>
+          <Card style={{ padding: 12, marginBottom: 16 }}>
+            <SectionHeader title="Quick Actions" />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button onClick={() => showToast('Message sent (placeholder)')} style={{ padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }}>Send Message</button>
+              <button onClick={() => showToast('Task created (placeholder)')} style={{ padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }}>Create Task</button>
+              <button onClick={() => showToast('Payment link sent (placeholder)')} style={{ padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }}>Send Payment Link</button>
+              <button onClick={() => { const data = JSON.stringify(item); const blob = new Blob([data], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `${item._id || 'profile'}.json`; a.click(); showToast('Exported profile'); }} style={{ padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }}>Export Profile</button>
+            </div>
+          </Card>
+
+          <Card style={{ padding: 16, marginBottom: 16 }}>
+            <SectionHeader title="Status & Timeline" />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <StatusBadge status={item.admissionStatus} />
+                <div style={{ color: '#64748b' }}>Applied: {formatDate(item.createdAt)}</div>
+                <div style={{ color: '#64748b' }}>Last updated: {formatDate(item.updatedAt)}</div>
+              </div>
+
+              {/* Status progression */}
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 }}>
+                {['applied','review','approved','enrolled','completed'].map((s, idx) => {
+                  const active = (item.admissionStatus || '').toLowerCase() === s || (['approved','enrolled','completed'].includes(item.admissionStatus) && s==='review' && item.admissionStatus!=='applied');
+                  return (
+                    <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 12, height: 12, borderRadius: 99, background: active ? '#6366f1' : '#e2e8f0' }} />
+                      <div style={{ fontSize: 12, color: active ? '#0f172a' : '#94a3b8' }}>{s.replace(/_/g,' ')}</div>
+                      {idx < 4 && <div style={{ width: 24, height: 2, background: '#e2e8f0', margin: '0 8px' }} />}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Timeline / activity feed */}
+              <div style={{ marginTop: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Activity</div>
+                {loadingActivity ? <div style={{ color: '#64748b' }}>Loading activity…</div> : null}
+                {!loadingActivity && (activity && activity.length) ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {activity.map((a, i) => (
+                      <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                        <div style={{ width: 8, height: 8, borderRadius: 99, background: '#06b6d4', marginTop: 6 }} />
+                        <div>
+                          <div style={{ fontSize: 13 }}>{a.message || a.type || JSON.stringify(a)}</div>
+                          <div style={{ fontSize: 12, color: '#94a3b8' }}>{a.timestamp ? new Date(a.timestamp).toLocaleString() : ''}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (!loadingActivity ? <div style={{ color: '#94a3b8' }}>No activity recorded.</div> : null)}
+              </div>
+            </div>
+          </Card>
+
+          <Card style={{ padding: 16, marginBottom: 16 }}>
+            <SectionHeader title="Assignment" />
+            <div style={{ display: 'grid', gap: 8 }}>
+              <div><strong>Assigned Course</strong><div style={{ color: '#64748b' }}>{item.assignedCourse || '—'}</div></div>
+              <div><strong>Assigned Internship</strong><div style={{ color: '#64748b' }}>{item.assignedInternship || '—'}</div></div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input value={assignCourse} onChange={(e) => setAssignCourse(e.target.value)} placeholder="Course code/name" style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                <input value={assignInternship} onChange={(e) => setAssignInternship(e.target.value)} placeholder="Internship" style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #e2e8f0' }} />
+              </div>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button onClick={assign} style={primaryButton}>Save Assignment</button>
+              </div>
+            </div>
+          </Card>
+
+          <Card style={{ padding: 16, marginBottom: 16 }}>
+            <SectionHeader title="Payment" />
+            <div>
+              <div style={{ marginBottom: 8 }}><strong>Total Fees:</strong> {item.payment ? `₹${item.payment.totalFees}` : '—'}</div>
+              <div style={{ marginBottom: 8 }}><strong>Paid:</strong> {item.payment ? `₹${item.payment.paidAmount}` : '—'}</div>
+              <div style={{ marginBottom: 8 }}><strong>Pending:</strong> {item.payment ? `₹${item.payment.pendingAmount}` : '—'}</div>
+              <form onSubmit={upsertPayment} style={{ display: 'grid', gap: 8 }}>
+                <input name="totalFees" placeholder="Total Fees" defaultValue={item.payment?.totalFees || ''} style={{ padding: '8px', borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                <input name="paidAmount" placeholder="Paid Amount" defaultValue={item.payment?.paidAmount || ''} style={{ padding: '8px', borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                <input name="pendingAmount" placeholder="Pending Amount" defaultValue={item.payment?.pendingAmount || ''} style={{ padding: '8px', borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                <select name="paymentStatus" defaultValue={item.paymentStatus || 'pending'} style={{ padding: '8px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                  <option value="paid">Paid</option>
+                  <option value="partially_paid">Partially Paid</option>
+                  <option value="pending">Pending</option>
+                </select>
+                <textarea name="adminNote" placeholder="Admin note (optional)" style={{ padding: '8px', borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                <button type="submit" style={primaryButton}>Update Payment</button>
+              </form>
+            </div>
+          </Card>
+
+          <Card style={{ padding: 16, marginBottom: 16 }}>
+            <SectionHeader title="Payment Ledger" />
+            <div style={{ display: 'grid', gap: 8 }}>
+              {payments && payments.length ? payments.map((p) => (
+                <div key={p._id || p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: 8, borderBottom: '1px solid #eef2ff' }}>
+                  <div>
+                    <div style={{ fontWeight: 700 }}>{p.amount ? `₹${p.amount}` : p.description || 'Payment'}</div>
+                    <div style={{ fontSize: 12, color: '#64748b' }}>{p.method || p.paymentMethod || ''}</div>
+                  </div>
+                  <div style={{ color: '#94a3b8' }}>{p.date ? new Date(p.date).toLocaleString() : (p.createdAt ? formatDate(p.createdAt) : '')}</div>
+                </div>
+              )) : <div style={{ color: '#94a3b8' }}>No payment ledger entries.</div>}
+            </div>
+          </Card>
+
+          <Card style={{ padding: 16, marginBottom: 16 }}>
+            <SectionHeader title="Assignment History" />
+            <div style={{ display: 'grid', gap: 8 }}>
+              {assignmentHistory && assignmentHistory.length ? assignmentHistory.map((a, i) => (
+                <div key={i} style={{ padding: 8, borderBottom: '1px solid #eef2ff' }}>
+                  <div style={{ fontWeight: 700 }}>{a.assignedTo || a.assignedCourse || 'Assigned'}</div>
+                  <div style={{ fontSize: 12, color: '#64748b' }}>{a.note || a.reason || ''}</div>
+                  <div style={{ fontSize: 12, color: '#94a3b8' }}>{a.date ? new Date(a.date).toLocaleString() : (a.at ? new Date(a.at).toLocaleString() : '')}</div>
+                </div>
+              )) : <div style={{ color: '#94a3b8' }}>No assignment history.</div>}
+            </div>
+          </Card>
+
+          <Card style={{ padding: 16 }}>
+            <SectionHeader title="Documents" />
+            <div style={{ display: 'grid', gap: 8 }}>
+              {(item.documents || []).map(d => (
+                <div key={d._id} style={{ display: 'flex', justifyContent: 'space-between', padding: 8, borderBottom: '1px solid #eef2ff' }}>
+                  <div>
+                    <div style={{ fontWeight: 700 }}>{d.documentType}</div>
+                    <div style={{ color: '#64748b' }}>{d.fileUrl}</div>
+                  </div>
+                  <div><button onClick={() => { setPreviewUrl(d.fileUrl); setPreviewOpen(true); }} style={{ border: 'none', background: 'none', color: '#6366f1', cursor: 'pointer' }}>Preview</button></div>
+                </div>
+              ))}
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <select value={docType} onChange={(e) => setDocType(e.target.value)} style={{ padding: 8, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                  <option value="aadhaar">Aadhaar</option>
+                  <option value="resume">Resume</option>
+                  <option value="certificate">Certificate</option>
+                  <option value="passport_photo">Passport Photo</option>
+                  <option value="other">Other</option>
+                </select>
+                <input value={docUrl} onChange={(e) => setDocUrl(e.target.value)} placeholder="File URL" style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                <button onClick={uploadDocument} style={primaryButton}>Upload</button>
+              </div>
+            </div>
+          </Card>
+
+          <Modal open={!!previewOpen} onClose={() => { setPreviewOpen(false); setPreviewUrl(''); }} title="Document Preview">
+            <div style={{ minHeight: 240 }}>
+              {previewUrl ? <iframe src={previewUrl} style={{ width: '100%', height: 480, border: 0 }} /> : <div>No preview available</div>}
+            </div>
+          </Modal>
+
+        </div>
+      </div>
+      <Modal open={confirmOpen} onClose={() => setConfirmOpen(false)} title={confirmAction?.message || 'Confirm'}>
+        <div style={{ marginBottom: 12 }}>{confirmAction?.message}</div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button onClick={() => setConfirmOpen(false)} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0' }}>Cancel</button>
+          <button onClick={async () => { setConfirmOpen(false); if (confirmAction) await updateStatus(confirmAction.action); }} style={primaryButton}>Confirm</button>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+export function StudentProfilesPage() {
+  return <AdmissionStudentProfilesPage />;
+}
+
+export function AdmissionPaymentsPage() {
+  return <AdmissionPaymentStatusPage />;
+}
+
+export function CourseAssignmentPage() {
+  return (
+    <div>
+      <PageHeader title="Course Assignment" subtitle="Assign students to courses" />
+      <Card>
+        <div style={{ padding: 16 }}>Course assignment UI (lists, assign controls) will render here.</div>
+      </Card>
+    </div>
+  );
+}
+
+export function InternshipAssignmentPage() {
+  return (
+    <div>
+      <PageHeader title="Internship Assignment" subtitle="Manage internship allocations" />
+      <Card>
+        <div style={{ padding: 16 }}>Internship assignment UI placeholder.</div>
+      </Card>
+    </div>
+  );
+}
+
+export function AdmissionAnalyticsPage() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      try {
+        setLoading(true);
+        const res = await fetch('/api/v2/admission?limit=1000', { credentials: 'include' });
+        if (!res.ok) throw new Error('Failed to load admissions');
+        const payload = await res.json();
+        if (!active) return;
+        setItems(payload.items || payload || []);
+      } catch (e) { if (active) setError(e.message || 'Failed'); }
+      finally { if (active) setLoading(false); }
+    }
+    load();
+    return () => { active = false; };
+  }, []);
+
+  const total = items.length;
+  const byStatus = items.reduce((acc, it) => { acc[it.admissionStatus||'unknown'] = (acc[it.admissionStatus||'unknown']||0)+1; return acc; }, {});
+  const byCourse = items.reduce((acc, it) => { const k = it.assignedCourse || it.programType || 'Unassigned'; acc[k] = (acc[k]||0)+1; return acc; }, {});
+  const revenue = items.reduce((acc, it) => { const p = it.payment || {}; acc.totalFees = (acc.totalFees||0) + (Number(p.totalFees) || 0); acc.paid = (acc.paid||0) + (Number(p.paidAmount) || 0); return acc; }, {});
+
+  const monthly = items.reduce((acc, it) => {
+    const m = it.createdAt ? new Date(it.createdAt) : null;
+    if (!m) return acc;
+    const key = `${m.getFullYear()}-${String(m.getMonth()+1).padStart(2,'0')}`;
+    acc[key] = (acc[key]||0) + 1;
+    return acc;
+  }, {});
+
+  const monthlyData = Object.entries(monthly).sort().map(([k,v]) => ({ month: k, value: v }));
+  const statusData = Object.entries(byStatus).map(([k,v]) => ({ name: k, value: v }));
+  const courseData = Object.entries(byCourse).map(([k,v]) => ({ name: k, value: v }));
+
+  return (
+    <div>
+      <PageHeader title="Admission Analytics" subtitle="Key admission metrics" />
+      {loading ? <Card style={{ padding: 20 }}>Loading analytics...</Card> : null}
+      {error ? <Card style={{ padding: 20, color: '#b91c1c' }}>{error}</Card> : null}
+      {!loading && !error && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <Card style={{ padding: 16 }}>
+            <div style={{ color: '#64748b' }}>Total applications</div>
+            <div style={{ fontSize: 26, fontWeight: 800 }}>{total}</div>
+            <div style={{ marginTop: 12 }}>Revenue: <strong>₹{revenue.totalFees || 0}</strong> (Paid ₹{revenue.paid || 0})</div>
+          </Card>
+
+          <Card style={{ padding: 16 }}>
+            <div style={{ height: 220 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={monthlyData}>
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+
+          <Card style={{ padding: 16 }}>
+            <div style={{ height: 240 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={statusData} dataKey="value" nameKey="name" innerRadius={40} outerRadius={80} fill="#8884d8">
+                    {statusData.map((entry, idx) => <Cell key={idx} fill={['#6366f1','#06b6d4','#f43f5e','#f59e0b'][idx % 4]} />)}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+
+          <Card style={{ padding: 16 }}>
+            <div style={{ height: 240 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={courseData} layout="vertical">
+                  <XAxis type="number" />
+                  <YAxis dataKey="name" type="category" />
+                  <Tooltip />
+                  <Bar dataKey="value" fill="#06b6d4" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

@@ -13,6 +13,7 @@ export const NAV_ITEMS = [
   { id: "tracking", label: "Live Tracking", icon: <MapPinIcon /> },
   { id: "notifications", label: "Notifications", icon: <BellIcon />, badge: 3 },
   { id: "reports", label: "Reports & Analytics", icon: <ChartIcon /> },
+  { id: "admissions", label: "Admission Management", icon: <UsersIcon /> },
   { id: "settings", label: "Settings", icon: <SettingsIcon /> },
 ];
 // ─── SIDEBAR ─────────────────────────────────────────────────────────────────
@@ -107,7 +108,8 @@ export function TopNavbar({ page, notifCount }) {
     requests: "Completion Requests", reviews: "Technician Reviews",
     services: "Services", payments: "Payments",
     tracking: "Live Tracking", notifications: "Notifications",
-    reports: "Reports & Analytics", settings: "Settings"
+    reports: "Reports & Analytics", admissions: "Admission Management",
+    settings: "Settings"
   };
   return (
     <header style={{

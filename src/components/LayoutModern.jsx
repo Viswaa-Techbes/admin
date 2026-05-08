@@ -16,6 +16,7 @@ export const NAV_ITEMS = [
   { id: "attendance", label: "Attendance", icon: <MapPinIcon /> },
   { id: "notifications", label: "Notifications", icon: <BellIcon /> },
   { id: "reports", label: "Reports & Analytics", icon: <ChartIcon /> },
+  { id: "admissions", label: "Admission Management", icon: <UsersIcon /> },
   { id: "careers", label: "Careers Management", icon: <BriefcaseIcon /> },
   { id: "settings", label: "Settings", icon: <SettingsIcon /> },
 ];
@@ -82,6 +83,7 @@ export function TopNavbar({ page, notifCount, user, onLogout }) {
     attendance: "Daily Attendance",
     notifications: "Notifications",
     reports: "Reports & Analytics",
+    admissions: "Admission Management",
     careers: "Careers Management",
     settings: "Settings",
   };

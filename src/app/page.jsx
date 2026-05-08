@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Sidebar, TopNavbar } from "../components/LayoutModern";
+import { ToastProvider } from "../components/UI";
 import { DashboardPage } from "../components/ManagerDashboard";
 import { 
   CustomersPage, 
@@ -18,12 +19,21 @@ import {
   SettingsPage,
   CareersPage
 } from "../components/AdminPagesModern";
+import {
+  AdmissionsPage,
+  StudentProfilesPage,
+  AdmissionPaymentsPage,
+  CourseAssignmentPage,
+  InternshipAssignmentPage,
+  AdmissionAnalyticsPage
+} from "../components/AdminPagesModern";
 import { AnalyticsPage } from "../components/AnalyticsPage";
 
 export default function AdminDashboard() {
   const [mounted, setMounted] = useState(false);
   const [activePage, setActivePage] = useState("dashboard");
   const [collapsed, setCollapsed] = useState(false);
+  const [selectedId, setSelectedId] = useState(null);
   const [user, setUser] = useState({ name: "Admin", role: "admin" });
 
   useEffect(() => {
@@ -44,6 +54,32 @@ export default function AdminDashboard() {
       }
     }
     checkAuth();
+  }, []);
+
+  useEffect(() => {
+    // initial sync with pathname (supports /admin/admissions and /admin/admissions/:id)
+    try {
+      const path = window.location.pathname || '';
+      if (path.startsWith('/admin/admissions')) {
+        const parts = path.split('/').filter(Boolean);
+        setActivePage('admissions');
+        setSelectedId(parts[2] || null);
+      } else if (path === '/admin/payments') setActivePage('payments');
+      else if (path === '/admin/analytics' || path === '/admin/reports') setActivePage('reports');
+    } catch (e) {}
+
+    const onPop = () => {
+      const path = window.location.pathname || '';
+      if (path.startsWith('/admin/admissions')) {
+        const parts = path.split('/').filter(Boolean);
+        setActivePage('admissions');
+        setSelectedId(parts[2] || null);
+      } else if (path === '/admin/payments') setActivePage('payments');
+      else if (path === '/admin/analytics' || path === '/admin/reports') setActivePage('reports');
+      else setActivePage('dashboard');
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
   }, []);
 
   if (!mounted) return (
@@ -68,6 +104,12 @@ export default function AdminDashboard() {
     reviews: <ReviewsPage />,
     services: <ServicesPage />,
     payments: <PaymentsPage />,
+    admissions: <AdmissionsPage selectedId={selectedId} onSelect={(id) => { setSelectedId(id); try { window.history.pushState({}, '', `/admin/admissions/${id}`); } catch(e){} }} />,
+    "student-profiles": <StudentProfilesPage />,
+    "admission-payments": <AdmissionPaymentsPage />,
+    "course-assignment": <CourseAssignmentPage />,
+    "internship-assignment": <InternshipAssignmentPage />,
+    "admission-analytics": <AdmissionAnalyticsPage />,
     tracking: <TrackingPage />,
     attendance: <AttendancePage />,
     notifications: <NotificationsPage />,
@@ -92,7 +134,12 @@ export default function AdminDashboard() {
       
       <Sidebar 
         active={activePage} 
-        setActive={setActivePage} 
+        setActive={(page) => {
+          setActivePage(page);
+          const mapping = { admissions: '/admin/admissions', payments: '/admin/payments', reports: '/admin/analytics' };
+          const newPath = mapping[page] || '/admin';
+          try { window.history.pushState({}, '', newPath); } catch (e) {}
+        }}
         collapsed={collapsed} 
         setCollapsed={setCollapsed} 
         user={user} 
@@ -100,6 +147,7 @@ export default function AdminDashboard() {
       />
       
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <ToastProvider>
         <TopNavbar 
           page={activePage} 
           notifCount={0} 
@@ -112,6 +160,7 @@ export default function AdminDashboard() {
             {pages[activePage] || pages.dashboard}
           </div>
         </main>
+        </ToastProvider>
       </div>
     </div>
   );
