@@ -16,30 +16,34 @@ import {
   TrackingPage,
   AttendancePage,
   NotificationsPage,
-  SettingsPage,
-  CareersPage
+  SettingsPage
 } from "../components/AdminPagesModern";
 import {
   AdmissionsPage,
   StudentProfilesPage,
   AdmissionPaymentsPage,
   CourseAssignmentPage,
-  InternshipAssignmentPage,
   AdmissionAnalyticsPage
 } from "../components/AdminPagesModern";
 import { AnalyticsPage } from "../components/AnalyticsPage";
 
 export default function AdminDashboard() {
   const [mounted, setMounted] = useState(false);
+  const [isWakingUp, setIsWakingUp] = useState(false);
   const [activePage, setActivePage] = useState("dashboard");
   const [collapsed, setCollapsed] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [user, setUser] = useState({ name: "Admin", role: "admin" });
 
   useEffect(() => {
+    let wakeTimeout = setTimeout(() => {
+      setIsWakingUp(true);
+    }, 4000);
+
     async function checkAuth() {
       try {
         const res = await fetch("/api/auth/me");
+        clearTimeout(wakeTimeout);
         if (res.status === 401) {
           window.location.href = "/login";
           return;
@@ -50,10 +54,12 @@ export default function AdminDashboard() {
         }
         setMounted(true);
       } catch (err) {
+        clearTimeout(wakeTimeout);
         window.location.href = "/login";
       }
     }
     checkAuth();
+    return () => clearTimeout(wakeTimeout);
   }, []);
 
   useEffect(() => {
@@ -83,8 +89,13 @@ export default function AdminDashboard() {
   }, []);
 
   if (!mounted) return (
-    <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f1f5f9", color: "#64748b" }}>
-      Loading techbes dashboard...
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#f1f5f9", color: "#64748b" }}>
+      <div style={{ fontSize: 16, fontWeight: 500 }}>Loading techbes dashboard...</div>
+      {isWakingUp && (
+        <div style={{ marginTop: 16, padding: "12px 20px", background: "#e0f2fe", color: "#0369a1", borderRadius: 8, fontSize: 13, textAlign: "center", maxWidth: 400, animation: "fadeIn 0.5s ease" }}>
+          <strong>Note:</strong> The backend server is hosted on a free Render instance and is currently waking up from sleep. This usually takes about 60-90 seconds. Please wait...
+        </div>
+      )}
     </div>
   );
 
@@ -108,13 +119,11 @@ export default function AdminDashboard() {
     "student-profiles": <StudentProfilesPage />,
     "admission-payments": <AdmissionPaymentsPage />,
     "course-assignment": <CourseAssignmentPage />,
-    "internship-assignment": <InternshipAssignmentPage />,
     "admission-analytics": <AdmissionAnalyticsPage />,
     tracking: <TrackingPage />,
     attendance: <AttendancePage />,
     notifications: <NotificationsPage />,
     reports: <AnalyticsPage />,
-    careers: <CareersPage />,
     settings: <SettingsPage />,
   };
 

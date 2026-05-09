@@ -812,29 +812,122 @@ export function AdmissionPaymentsPage() {
 }
 
 export function CourseAssignmentPage() {
-  return (
-    <div>
-      <PageHeader title="Course Assignment" subtitle="Assign students to courses" />
-      <Card>
-        <div style={{ padding: 16 }}>Course assignment UI (lists, assign controls) will render here.</div>
-      </Card>
-    </div>
-  );
-}
+  const { data: items, loading, error, refresh } = useApiData('/api/v2/admission?limit=1000');
+  const [courses, setCourses] = useState([]);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkCourse, setBulkCourse] = useState('');
+  const [assigning, setAssigning] = useState(false);
+  const showToast = useToast();
 
-export function InternshipAssignmentPage() {
+  useEffect(() => {
+    fetch('/api/v2/courses').then(r=>r.json()).then(d=>setCourses(d.data || d.courses || d || [])).catch(()=>{});
+  }, []);
+
+  const unassigned = items.filter(it => !it.assignedCourse && it.admissionStatus === 'approved');
+  const assigned = items.filter(it => it.assignedCourse);
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const handleBulkAssign = async () => {
+    if (!bulkCourse) return alert("Select a course");
+    if (!selectedIds.length) return alert("Select at least one student");
+    
+    setAssigning(true);
+    try {
+      for (const id of selectedIds) {
+        await fetch(`/api/v2/admission/${id}/assignment`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ assignedCourse: bulkCourse })
+        });
+      }
+      showToast(`Assigned ${selectedIds.length} students`);
+      setSelectedIds([]);
+      setBulkCourse('');
+      refresh();
+    } catch (e) {
+      alert("Error: " + e.message);
+    } finally {
+      setAssigning(false);
+    }
+  };
+
   return (
     <div>
-      <PageHeader title="Internship Assignment" subtitle="Manage internship allocations" />
-      <Card>
-        <div style={{ padding: 16 }}>Internship assignment UI placeholder.</div>
-      </Card>
+      <PageHeader 
+        title="Course Assignments" 
+        subtitle="Manage student course allocations and bulk assignments" 
+      />
+      
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 16 }}>
+        <div>
+          <Card style={{ padding: 20 }}>
+            <SectionHeader title={`Pending Assignments (${unassigned.length})`} />
+            <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center', background: '#f8fafc', padding: 12, borderRadius: 12 }}>
+               <span style={{fontWeight: 600, fontSize: 13}}>Bulk Actions:</span>
+               <select value={bulkCourse} onChange={e=>setBulkCourse(e.target.value)} style={{ padding: 8, borderRadius: 8, border: '1px solid #cbd5e1' }}>
+                 <option value="">-- Select Course --</option>
+                 {courses.map(c => <option key={c._id} value={c._id}>{c.title}</option>)}
+               </select>
+               <button onClick={handleBulkAssign} disabled={assigning || !selectedIds.length || !bulkCourse} style={{...primaryButton, opacity: (!selectedIds.length || !bulkCourse) ? 0.5 : 1}}>{assigning ? 'Assigning...' : 'Apply to Selected'}</button>
+            </div>
+            
+            <TableWrapper 
+              headers={["Select", "Student", "Status", "Applied For"]}
+              rows={unassigned.map(u => (
+                <tr key={u._id} style={{borderBottom: '1px solid #f1f5f9'}}>
+                  <td style={TD_STYLE}><input type="checkbox" checked={selectedIds.includes(u._id)} onChange={() => toggleSelect(u._id)} /></td>
+                  <td style={TD_STYLE}>
+                    <div style={{fontWeight: 700, color: '#0f172a'}}>{u.fullName}</div>
+                    <div style={{fontSize: 12, color: '#64748b'}}>{u.email}</div>
+                  </td>
+                  <td style={TD_STYLE}><StatusBadge status={u.admissionStatus} /></td>
+                  <td style={TD_STYLE}>{u.programType || '—'}</td>
+                </tr>
+              ))}
+            />
+            {unassigned.length === 0 && <div style={{padding: 20, textAlign: 'center', color: '#94a3b8'}}>No approved students pending assignment.</div>}
+          </Card>
+
+          <Card style={{ padding: 20, marginTop: 16 }}>
+            <SectionHeader title={`Assigned Students (${assigned.length})`} />
+            <TableWrapper 
+              headers={["Student", "Assigned Course", "Date Assigned"]}
+              rows={assigned.slice(0, 10).map(u => (
+                <tr key={u._id} style={{borderBottom: '1px solid #f1f5f9'}}>
+                  <td style={TD_STYLE}>
+                    <div style={{fontWeight: 700, color: '#0f172a'}}>{u.fullName}</div>
+                  </td>
+                  <td style={TD_STYLE}>
+                    <span style={{background: '#eef2ff', color: '#4f46e5', padding: '4px 8px', borderRadius: 6, fontSize: 12, fontWeight: 700}}>{u.assignedCourse}</span>
+                  </td>
+                  <td style={TD_STYLE}>{formatDate(u.updatedAt)}</td>
+                </tr>
+              ))}
+            />
+          </Card>
+        </div>
+
+        <div>
+          <Card style={{ padding: 20, position: 'sticky', top: 20 }}>
+            <SectionHeader title="Assignment Rules" />
+            <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.6 }}>
+              <p style={{marginBottom: 8}}>• Only <strong>Approved</strong> students appear in the pending list.</p>
+              <p style={{marginBottom: 8}}>• Bulk assign lets you quickly allocate a batch of students to a single course.</p>
+              <p>• Make sure payments are verified before assigning premium courses.</p>
+            </div>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
 
 export function AdmissionAnalyticsPage() {
   const [items, setItems] = useState([]);
+  const [visitorStats, setVisitorStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -843,11 +936,22 @@ export function AdmissionAnalyticsPage() {
     async function load() {
       try {
         setLoading(true);
-        const res = await fetch('/api/v2/admission?limit=1000', { credentials: 'include' });
-        if (!res.ok) throw new Error('Failed to load admissions');
-        const payload = await res.json();
+        const [admRes, visRes] = await Promise.all([
+          fetch('/api/v2/admission?limit=1000', { credentials: 'include' }),
+          fetch('/api/v2/analytics/visitors/dashboard', { credentials: 'include' }).catch(() => null)
+        ]);
+        if (!admRes.ok) throw new Error('Failed to load admissions');
+        const admPayload = await admRes.json();
+        
+        let visPayload = null;
+        if (visRes && visRes.ok) {
+           const parsed = await visRes.json();
+           visPayload = parsed.data || null;
+        }
+
         if (!active) return;
-        setItems(payload.items || payload || []);
+        setItems(admPayload.items || admPayload || []);
+        setVisitorStats(visPayload);
       } catch (e) { if (active) setError(e.message || 'Failed'); }
       finally { if (active) setLoading(false); }
     }
@@ -856,7 +960,9 @@ export function AdmissionAnalyticsPage() {
   }, []);
 
   const total = items.length;
-  const byStatus = items.reduce((acc, it) => { acc[it.admissionStatus||'unknown'] = (acc[it.admissionStatus||'unknown']||0)+1; return acc; }, {});
+  const approved = items.filter(it => it.admissionStatus === 'approved').length;
+  const rejected = items.filter(it => it.admissionStatus === 'rejected').length;
+  const pending = items.filter(it => it.admissionStatus === 'pending' || it.admissionStatus === 'review').length;
   const byCourse = items.reduce((acc, it) => { const k = it.assignedCourse || it.programType || 'Unassigned'; acc[k] = (acc[k]||0)+1; return acc; }, {});
   const revenue = items.reduce((acc, it) => { const p = it.payment || {}; acc.totalFees = (acc.totalFees||0) + (Number(p.totalFees) || 0); acc.paid = (acc.paid||0) + (Number(p.paidAmount) || 0); return acc; }, {});
 
@@ -869,34 +975,98 @@ export function AdmissionAnalyticsPage() {
   }, {});
 
   const monthlyData = Object.entries(monthly).sort().map(([k,v]) => ({ month: k, value: v }));
-  const statusData = Object.entries(byStatus).map(([k,v]) => ({ name: k, value: v }));
   const courseData = Object.entries(byCourse).map(([k,v]) => ({ name: k, value: v }));
 
   return (
     <div>
-      <PageHeader title="Admission Analytics" subtitle="Key admission metrics" />
+      <PageHeader title="Admission & Visitor Analytics" subtitle="Key admission metrics and Course Website visitor tracking" />
       {loading ? <Card style={{ padding: 20 }}>Loading analytics...</Card> : null}
       {error ? <Card style={{ padding: 20, color: '#b91c1c' }}>{error}</Card> : null}
       {!loading && !error && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <Card style={{ padding: 16 }}>
-            <div style={{ color: '#64748b' }}>Total applications</div>
-            <div style={{ fontSize: 26, fontWeight: 800 }}>{total}</div>
-            <div style={{ marginTop: 12 }}>Revenue: <strong>₹{revenue.totalFees || 0}</strong> (Paid ₹{revenue.paid || 0})</div>
-          </Card>
+        <div style={{ display: 'grid', gap: 16 }}>
+          <SectionHeader title="Course Website Analytics" />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+             <Card style={{ padding: 16 }}>
+               <div style={{ color: '#64748b' }}>Total Visitors</div>
+               <div style={{ fontSize: 26, fontWeight: 800 }}>{visitorStats?.totalVisitors || 0}</div>
+             </Card>
+             <Card style={{ padding: 16 }}>
+               <div style={{ color: '#64748b' }}>Today's Visitors</div>
+               <div style={{ fontSize: 26, fontWeight: 800 }}>{visitorStats?.todayVisitors || 0}</div>
+             </Card>
+             <Card style={{ padding: 16 }}>
+               <div style={{ color: '#64748b' }}>Application Count</div>
+               <div style={{ fontSize: 26, fontWeight: 800 }}>{total}</div>
+             </Card>
+          </div>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <Card style={{ padding: 16 }}>
+              <SectionHeader title="Top Viewed Pages" />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                 {visitorStats?.topPages?.slice(0, 5).map((p, i) => (
+                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                     <span style={{color: '#475569'}}>{p.page}</span>
+                     <span style={{fontWeight: 700}}>{p.visitors} visits</span>
+                   </div>
+                 ))}
+                 {(!visitorStats?.topPages || visitorStats.topPages.length === 0) && <div style={{color: '#94a3b8'}}>No data yet</div>}
+              </div>
+            </Card>
+            <Card style={{ padding: 16 }}>
+              <SectionHeader title="Top Locations" />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                 {visitorStats?.topCities?.slice(0, 5).map((c, i) => (
+                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                     <span style={{color: '#475569'}}>{c.city}</span>
+                     <span style={{fontWeight: 700}}>{c.visitors} visitors</span>
+                   </div>
+                 ))}
+                 {(!visitorStats?.topCities || visitorStats.topCities.length === 0) && <div style={{color: '#94a3b8'}}>No data yet</div>}
+              </div>
+            </Card>
+          </div>
 
-          <Card style={{ padding: 16 }}>
-            <div style={{ height: 220 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={monthlyData}>
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={2} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
+          <SectionHeader title="Admission Statistics" />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
+            <Card style={{ padding: 16, borderLeft: '4px solid #6366f1' }}>
+              <div style={{ color: '#64748b' }}>Total Apps</div>
+              <div style={{ fontSize: 24, fontWeight: 800 }}>{total}</div>
+            </Card>
+            <Card style={{ padding: 16, borderLeft: '4px solid #10b981' }}>
+              <div style={{ color: '#64748b' }}>Approved</div>
+              <div style={{ fontSize: 24, fontWeight: 800 }}>{approved}</div>
+            </Card>
+            <Card style={{ padding: 16, borderLeft: '4px solid #f59e0b' }}>
+              <div style={{ color: '#64748b' }}>Pending</div>
+              <div style={{ fontSize: 24, fontWeight: 800 }}>{pending}</div>
+            </Card>
+            <Card style={{ padding: 16, borderLeft: '4px solid #ef4444' }}>
+              <div style={{ color: '#64748b' }}>Rejected</div>
+              <div style={{ fontSize: 24, fontWeight: 800 }}>{rejected}</div>
+            </Card>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <Card style={{ padding: 16 }}>
+              <div style={{ color: '#64748b', marginBottom: 12 }}>Total Revenue</div>
+              <div style={{ fontSize: 26, fontWeight: 800 }}>₹{revenue.totalFees || 0}</div>
+              <div style={{ marginTop: 4, color: '#10b981', fontWeight: 600 }}>Collected: ₹{revenue.paid || 0}</div>
+            </Card>
+
+            <Card style={{ padding: 16 }}>
+              <div style={{ color: '#64748b', marginBottom: 8 }}>Enrollment Trend</div>
+              <div style={{ height: 160 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={monthlyData}>
+                    <XAxis dataKey="month" hide />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={3} dot={{r:4}} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </div>
 
           <Card style={{ padding: 16 }}>
             <div style={{ height: 240 }}>
@@ -2187,85 +2357,5 @@ const primaryButton = { border: "none", borderRadius: 12, background: "#4f46e5",
 const approveButton = { border: "none", borderRadius: 10, background: "#dcfce7", color: "#15803d", fontWeight: 700, padding: "8px 12px", cursor: "pointer" };
 const rejectButton = { border: "none", borderRadius: 10, background: "#fee2e2", color: "#b91c1c", fontWeight: 700, padding: "8px 12px", cursor: "pointer" };
 const pillButton = (active) => ({ padding: "6px 14px", borderRadius: 99, background: active ? "#6366f1" : "#fff", color: active ? "#fff" : "#64748b", fontWeight: 700, cursor: "pointer" });
-export function CareersPage() {
-  const { data: apps, loading, error, refresh } = useApiData("/api/v2/careers");
-  const [busyId, setBusyId] = useState("");
-
-  async function updateStatus(id, status) {
-    try {
-      setBusyId(id);
-      const res = await fetch(`/api/v2/careers/${id}/status`, {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
-      if (!res.ok) throw new Error("Failed to update status");
-      await refresh();
-    } catch (e) {
-      alert(e.message);
-    } finally {
-      setBusyId("");
-    }
-  }
-
-  const rows = apps.map((app) => (
-    <tr key={app._id || app.id} style={{ borderBottom: "1px solid #f8fafc" }}>
-      <td style={TD_STYLE}>
-        <div style={{ fontWeight: 700, color: "#0f172a" }}>{app.name}</div>
-        <div style={{ fontSize: 11, color: "#64748b" }}>{app.email}</div>
-      </td>
-      <td style={TD_STYLE}>
-        <div style={{ fontWeight: 600 }}>{app.roleApplied}</div>
-        <div style={{ fontSize: 11, color: "#94a3b8" }}>{app.experience} Exp</div>
-      </td>
-      <td style={TD_STYLE}>
-        <a 
-          href={app.resumeUrl} 
-          target="_blank" 
-          rel="noreferrer"
-          style={{ display: "flex", alignItems: "center", gap: 6, color: "#6366f1", fontSize: 12, fontWeight: 700, textDecoration: "none" }}
-        >
-          <EyeIcon /> View Resume
-        </a>
-      </td>
-      <td style={TD_STYLE}><StatusBadge status={app.status} /></td>
-      <td style={TD_STYLE}>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button 
-            disabled={busyId === app.id}
-            onClick={() => updateStatus(app._id || app.id, "shortlisted")}
-            style={{ ...primaryButton, padding: "6px 12px", fontSize: 11, background: "#6366f1" }}
-          >
-            Shortlist
-          </button>
-          <button 
-            disabled={busyId === app.id}
-            onClick={() => updateStatus(app._id || app.id, "hired")}
-            style={{ ...approveButton, padding: "6px 12px", fontSize: 11 }}
-          >
-            Hire
-          </button>
-          <button 
-            disabled={busyId === app.id}
-            onClick={() => updateStatus(app._id || app.id, "rejected")}
-            style={{ ...rejectButton, padding: "6px 12px", fontSize: 11 }}
-          >
-            Reject
-          </button>
-        </div>
-      </td>
-    </tr>
-  ));
-
-  return (
-    <div>
-      <PageHeader title="Career Applicants" subtitle={`${apps.length} total applications`} />
-      <DataCard loading={loading} error={error} empty={!apps.length} emptyText="No applicants yet.">
-        <TableWrapper headers={["Applicant", "Role & Experience", "Resume", "Status", "Actions"]} rows={rows} />
-      </DataCard>
-    </div>
-  );
-}
 
 // ... styles and utils ...

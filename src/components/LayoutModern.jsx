@@ -16,8 +16,12 @@ export const NAV_ITEMS = [
   { id: "attendance", label: "Attendance", icon: <MapPinIcon /> },
   { id: "notifications", label: "Notifications", icon: <BellIcon /> },
   { id: "reports", label: "Reports & Analytics", icon: <ChartIcon /> },
-  { id: "admissions", label: "Admission Management", icon: <UsersIcon /> },
-  { id: "careers", label: "Careers Management", icon: <BriefcaseIcon /> },
+  { id: "admissions", label: "Admission Management", icon: <UsersIcon />, isHeader: true },
+  { id: "admissions", label: "→ Applications", icon: <UsersIcon />, isSub: true },
+  { id: "student-profiles", label: "→ Students", icon: <UsersIcon />, isSub: true },
+  { id: "admission-payments", label: "→ Payments", icon: <CreditCardIcon />, isSub: true },
+  { id: "course-assignment", label: "→ Assignments", icon: <BriefcaseIcon />, isSub: true },
+  { id: "admission-analytics", label: "→ Analytics", icon: <ChartIcon />, isSub: true },
   { id: "settings", label: "Settings", icon: <SettingsIcon /> },
 ];
 
@@ -36,10 +40,13 @@ export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLo
 
       <nav style={{ flex: 1, padding: "12px 8px", overflowY: "auto", overflowX: "hidden" }}>
         {!collapsed && <div style={{ fontSize: 10, fontWeight: 600, color: "#334155", letterSpacing: "1px", textTransform: "uppercase", padding: "4px 12px 8px" }}>Main Menu</div>}
-        {NAV_ITEMS.map((item) => {
+        {NAV_ITEMS.map((item, idx) => {
+          if (item.isHeader) {
+            return !collapsed ? <div key={`header-${idx}`} style={{ fontSize: 10, fontWeight: 600, color: "#334155", letterSpacing: "1px", textTransform: "uppercase", padding: "16px 12px 8px", marginTop: 8, borderTop: "1px solid rgba(255,255,255,0.06)" }}>{item.label}</div> : <div key={`header-${idx}`} style={{height: 1, background: "rgba(255,255,255,0.06)", margin: "8px 0"}} />;
+          }
           const isActive = active === item.id;
           return (
-            <button key={item.id} onClick={() => setActive(item.id)} title={collapsed ? item.label : ""} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: collapsed ? "10px 18px" : "9px 12px", marginBottom: 1, borderRadius: 10, border: "none", cursor: "pointer", color: isActive ? "#fff" : "#64748b", background: isActive ? "linear-gradient(90deg,rgba(99,102,241,0.2),rgba(99,102,241,0.05))" : "transparent", fontSize: 13, fontWeight: isActive ? 600 : 400, transition: "all .15s", justifyContent: collapsed ? "center" : "flex-start", position: "relative", textAlign: "left", whiteSpace: "nowrap", overflow: "hidden" }}>
+            <button key={item.id || idx} onClick={() => setActive(item.id)} title={collapsed ? item.label : ""} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: collapsed ? "10px 18px" : "9px 12px", paddingLeft: !collapsed && item.isSub ? "24px" : (collapsed ? "18px" : "12px"), marginBottom: 1, borderRadius: 10, border: "none", cursor: "pointer", color: isActive ? "#fff" : "#64748b", background: isActive ? "linear-gradient(90deg,rgba(99,102,241,0.2),rgba(99,102,241,0.05))" : "transparent", fontSize: 13, fontWeight: isActive ? 600 : 400, transition: "all .15s", justifyContent: collapsed ? "center" : "flex-start", position: "relative", textAlign: "left", whiteSpace: "nowrap", overflow: "hidden" }}>
               {isActive ? <span style={{ position: "absolute", left: 0, top: "18%", height: "64%", width: 3, background: "#6366f1", borderRadius: "0 3px 3px 0" }} /> : null}
               <span style={{ color: isActive ? "#818cf8" : "#475569", flexShrink: 0 }}>{item.icon}</span>
               {!collapsed ? <span style={{ flex: 1 }}>{item.label}</span> : null}
@@ -83,8 +90,11 @@ export function TopNavbar({ page, notifCount, user, onLogout }) {
     attendance: "Daily Attendance",
     notifications: "Notifications",
     reports: "Reports & Analytics",
-    admissions: "Admission Management",
-    careers: "Careers Management",
+    admissions: "Admission Applications",
+    "student-profiles": "Student Profiles",
+    "admission-payments": "Admission Payments",
+    "course-assignment": "Course Assignments",
+    "admission-analytics": "Admission Analytics",
     settings: "Settings",
   };
 

@@ -15,7 +15,7 @@ export default function AllApplicationsPage({ onView }) {
   const toast = useToast();
 
   function toggle(id) { const s = new Set(selected); if (s.has(id)) s.delete(id); else s.add(id); setSelected(s); }
-  function onBulkAction(action) {
+  async function onBulkAction(action, id) {
     if (action === 'export') {
       const data = items.filter(it => selected.has(it._id || it.id));
       // simple CSV export
@@ -25,8 +25,24 @@ export default function AllApplicationsPage({ onView }) {
       const a = document.createElement('a'); a.href = url; a.download = 'admissions.csv'; a.click();
       toast('Export started');
     } else if (action === 'assign') {
-      if (!selected.size) return toast('Select applications first');
+      if (!id && !selected.size) return toast('Select applications first');
+      if (id) {
+        setSelected(new Set([id]));
+      }
       setAssignOpen(true);
+    } else if (action === 'approve' || action === 'reject') {
+      if (!id) return;
+      try {
+        await fetch(`/api/v2/admission/${id}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ admissionStatus: action === 'approve' ? 'approved' : 'rejected' })
+        });
+        toast(`Application ${action}d`);
+        refresh();
+      } catch (e) {
+        toast('Failed to update status');
+      }
     }
   }
 

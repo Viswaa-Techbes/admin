@@ -1,6 +1,5 @@
 "use client";
 import React, { useEffect, useState } from "react";
-const VisitorMap = React.lazy(() => import('./analytics/VisitorMap'));
 import { Modal } from './UI';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
@@ -113,12 +112,6 @@ export function AnalyticsPage() {
   const [jobBreakdown, setJobBreakdown] = useState({ byStatus: [], byServiceType: [] });
   const [techPerf, setTechPerf] = useState([]);
   const [funnel, setFunnel] = useState([]);
-  const [visitors, setVisitors] = useState(null);
-  const [activityFeed, setActivityFeed] = useState([]);
-  const [cityModalOpen, setCityModalOpen] = useState(false);
-  const [cityDetail, setCityDetail] = useState(null);
-  const [cityName, setCityName] = useState('');
-  const [liveVisitors, setLiveVisitors] = useState(null);
   const [revPeriod, setRevPeriod] = useState("monthly");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -149,106 +142,10 @@ export function AnalyticsPage() {
     return () => { cancelled = true; };
   }, [revPeriod]);
 
-  // separate fetch for visitors to handle auth path clearly
-  useEffect(() => {
-    let c = false;
-    let iv;
-    function fetchVisitors() {
-      apiFetch('/api/v2/analytics/visitors/dashboard')
-        .then((res) => { if (!c) { setVisitors(res.data); setLiveVisitors(res.data?.liveVisitors ?? res.data?.todayVisitors); } })
-        .catch(() => { if (!c) setVisitors(null); });
-    }
-    fetchVisitors();
-    iv = setInterval(fetchVisitors, 10_000);
-
-    // setup socket for realtime events (lazy)
-    let socket;
-    (async () => {
-      try {
-        const { io } = await import('socket.io-client');
-        socket = io(undefined, { transports: ['websocket'] });
-        socket.on('connect', () => {
-          // console.log('analytics socket connected');
-        });
-        socket.on('visitorEvent', (ev) => {
-          if (c) return;
-          // update live counters
-          setLiveVisitors(prev => (typeof prev === 'number' ? prev + 1 : 1));
-          // update topCities heuristically
-          setVisitors((prev) => {
-            if (!prev) return prev;
-            const topCities = Array.isArray(prev.topCities) ? [...prev.topCities] : [];
-            const found = topCities.find(t => t.city === ev.city);
-            if (found) found.visitors = (found.visitors || 0) + 1;
-            else topCities.unshift({ city: ev.city || 'unknown', visitors: 1 });
-            return { ...prev, topCities };
-          });
-          // push into activity feed
-          setActivityFeed(a => [{ city: ev.city, page: ev.page, device: ev.device, browser: ev.browser, visitedAt: ev.visitedAt }].concat(a).slice(0, 100));
-        });
-      } catch (e) {
-        // ignore if socket import fails
-      }
-    })();
-
-    return () => { c = true; clearInterval(iv); if (socket) socket.disconnect(); };
-  }, []);
 
   const fmt = (n) => n === undefined || n === null ? "—" : typeof n === "number" && n > 999 ? `₹${(n / 1000).toFixed(1)}k` : String(n);
 
-  async function openCityDetail(city) {
-    try {
-      setCityName(city);
-      setCityDetail(null);
-      setCityModalOpen(true);
-      const res = await apiFetch(`/api/v2/analytics/visitors/city/${encodeURIComponent(city)}`);
-      setCityDetail(res.data || null);
-    } catch (e) {
-      setCityDetail({ error: e.message || 'Failed to load' });
-    }
-  }
 
-  async function fetchCityDetailRange(city, from, to) {
-    try {
-      setCityDetail(null);
-      const q = [];
-      if (from) q.push(`from=${encodeURIComponent(from)}`);
-      if (to) q.push(`to=${encodeURIComponent(to)}`);
-      const url = `/api/v2/analytics/visitors/city/${encodeURIComponent(city)}${q.length ? ('?' + q.join('&')) : ''}`;
-      const res = await apiFetch(url);
-      setCityDetail(res.data || null);
-    } catch (e) {
-      setCityDetail({ error: e.message || 'Failed to load' });
-    }
-  }
-
-  function exportCityCSV() {
-    if (!cityDetail) return;
-    const rows = [];
-    rows.push(['City', cityName]);
-    rows.push(['Total Hits', cityDetail.extras?.totalHits || '']);
-    rows.push(['Unique Visitors', cityDetail.extras?.uniqueVisitors || '']);
-    rows.push(['Avg Session (s)', cityDetail.extras?.avgSessionDuration || '']);
-    rows.push([]);
-    rows.push(['Top Pages']);
-    rows.push(['Page', 'Visitors']);
-    (cityDetail.topPages || []).forEach(p => rows.push([p.page, p.visitors]));
-    rows.push([]);
-    rows.push(['Trends']);
-    rows.push(['Date', 'Visitors']);
-    (cityDetail.trends || []).forEach(t => rows.push([t.date, t.visitors]));
-
-    const csv = rows.map(r => r.map(c => `"${String(c || '')}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `city-${cityName || 'export'}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24, animation: "fadeIn 0.4s ease" }}>
@@ -257,13 +154,6 @@ export function AnalyticsPage() {
         <div>
           <div style={{ fontSize: 22, fontWeight: 800, color: "#0f172a" }}>Analytics & Insights</div>
           <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>Real-time business performance metrics</div>
-        </div>
-        <div style={{
-          padding: "6px 14px", borderRadius: 10,
-          background: "#dcfce7", color: "#166534",
-          fontSize: 12, fontWeight: 700,
-        }}>
-            🟢 Live {liveVisitors ? `• ${liveVisitors}` : ''}
         </div>
       </div>
 
@@ -307,32 +197,7 @@ export function AnalyticsPage() {
         <KPICard label="Total Members" value={summary?.totalMembers ?? "—"} icon="👥" color="#06b6d4" />
       </div>
 
-      {/* Visitor Map + Activity Feed Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
-        <div>
-          <ChartCard title="Visitor Locations">
-            {/* Lazy-load map component */}
-            <div style={{ height: 420 }}>
-              <React.Suspense fallback={<div style={{padding:20}}>Loading map…</div>}>
-                <VisitorMap viewers={visitors} onCityClick={openCityDetail} />
-              </React.Suspense>
-            </div>
-          </ChartCard>
-        </div>
-        <div>
-          <ChartCard title="Live Activity">
-            <div style={{ maxHeight: 420, overflow: 'auto' }}>
-              {activityFeed.length === 0 && <div style={{ padding: 12, color: '#64748b' }}>No recent activity yet.</div>}
-              {activityFeed.map((it, idx) => (
-                <div key={idx} style={{ padding: 10, borderBottom: '1px solid #f1f5f9' }}>
-                  <div style={{ fontSize: 13, color: '#0f172a', fontWeight: 700 }}>{it.page}</div>
-                  <div style={{ fontSize: 12, color: '#64748b' }}>{it.city} • {it.device} • {new Date(it.visitedAt).toLocaleTimeString()}</div>
-                </div>
-              ))}
-            </div>
-          </ChartCard>
-        </div>
-      </div>
+
 
       {/* Revenue Chart */}
       <ChartCard
@@ -364,78 +229,7 @@ export function AnalyticsPage() {
         </div>
       </ChartCard>
 
-      {/* Visitor Locations */}
-      <ChartCard title="Visitor Locations">
-        {visitors ? (
-          <div style={{ display: 'flex', gap: 12 }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Top Cities</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {(visitors.topCities || []).map((c, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: 8, borderRadius: 8, background: '#fff', cursor: 'pointer' }} onClick={() => openCityDetail(c.city)}>
-                    <div style={{ fontWeight: 700 }}>{c.city}</div>
-                    <div style={{ color: '#64748b' }}>{c.visitors}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div style={{ width: 1, background: '#f1f5f9' }} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Top Pages</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {(visitors.topPages || []).map((p, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: 8, borderRadius: 8, background: '#fff' }}>
-                    <div style={{ fontWeight: 700 }}>{p.page}</div>
-                    <div style={{ color: '#64748b' }}>{p.visitors}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div style={{ color: '#94a3b8' }}>Visitor analytics not available.</div>
-        )}
-      </ChartCard>
 
-      <Modal open={cityModalOpen} onClose={() => setCityModalOpen(false)} title={cityName ? `Visitors — ${cityName}` : 'City detail'}>
-        <div style={{ display: 'grid', gap: 12 }}>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-              <label style={{ fontSize: 12, color: '#64748b' }}>From</label>
-              <input type="date" onChange={(e) => fetchCityDetailRange(cityName, e.target.value, null)} />
-              <label style={{ fontSize: 12, color: '#64748b' }}>To</label>
-              <input type="date" onChange={(e) => fetchCityDetailRange(cityName, null, e.target.value)} />
-              <button onClick={() => fetchCityDetailRange(cityName)} style={{ marginLeft: 8, padding: '6px 10px', borderRadius: 8, background: BRAND, color: '#fff', border: 'none' }}>Refresh</button>
-              <button onClick={exportCityCSV} style={{ marginLeft: 8, padding: '6px 10px', borderRadius: 8, background: '#0f172a', color: '#fff', border: 'none' }}>Export CSV</button>
-            </div>
-            <div style={{ flex: 1 }}>
-              {cityDetail ? (
-                <div>
-                  <div style={{ fontWeight: 800, marginBottom: 8 }}>Top Pages</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {(cityDetail.topPages || []).map((p, i) => (
-                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: 8, background: '#fff', borderRadius: 8 }}>
-                        <div>{p.page}</div>
-                        <div style={{ color: '#64748b' }}>{p.visitors}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div style={{ color: '#94a3b8' }}>Loading city details…</div>
-              )}
-            </div>
-            <div style={{ width: 360 }}>
-              <div style={{ fontWeight: 800, marginBottom: 8 }}>Map</div>
-              {cityName ? (
-                <iframe title={`map-${cityName}`} src={`https://www.google.com/maps?q=${encodeURIComponent(cityName)}&output=embed`} style={{ width: '100%', height: 300, border: 0, borderRadius: 8 }} />
-              ) : (
-                <div style={{ color: '#94a3b8' }}>No city selected</div>
-              )}
-            </div>
-          </div>
-        </div>
-      </Modal>
 
       {/* Jobs + Service Type */}
       <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 16 }}>
