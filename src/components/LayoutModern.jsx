@@ -22,6 +22,10 @@ export const NAV_ITEMS = [
   { id: "admission-payments", label: "→ Payments", icon: <CreditCardIcon />, isSub: true },
   { id: "course-assignment", label: "→ Assignments", icon: <BriefcaseIcon />, isSub: true },
   { id: "admission-analytics", label: "→ Analytics", icon: <ChartIcon />, isSub: true },
+  { id: "visitor-analytics-header", label: "Visitor Analytics", icon: <ChartIcon />, isHeader: true },
+  { id: "analytics-main", label: "→ Main Website", icon: <ChartIcon />, isSub: true },
+  { id: "analytics-members", label: "→ Members Portal", icon: <ChartIcon />, isSub: true },
+  { id: "analytics-skills", label: "→ Skills Portal", icon: <ChartIcon />, isSub: true },
   { id: "settings", label: "Settings", icon: <SettingsIcon /> },
 ];
 
@@ -95,6 +99,9 @@ export function TopNavbar({ page, notifCount, user, onLogout }) {
     "admission-payments": "Admission Payments",
     "course-assignment": "Course Assignments",
     "admission-analytics": "Admission Analytics",
+    "analytics-main": "Main Website Analytics",
+    "analytics-members": "Members Portal Analytics",
+    "analytics-skills": "Skills Portal Analytics",
     settings: "Settings",
   };
 

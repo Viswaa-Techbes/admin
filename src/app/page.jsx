@@ -26,6 +26,7 @@ import {
   AdmissionAnalyticsPage
 } from "../components/AdminPagesModern";
 import { AnalyticsPage } from "../components/AnalyticsPage";
+import DomainAnalyticsPage from "../components/analytics/DomainAnalyticsPage";
 
 export default function AdminDashboard() {
   const [mounted, setMounted] = useState(false);
@@ -124,6 +125,9 @@ export default function AdminDashboard() {
     attendance: <AttendancePage />,
     notifications: <NotificationsPage />,
     reports: <AnalyticsPage />,
+    "analytics-main": <DomainAnalyticsPage domain="techbes.co.in" title="Main Website Analytics" />,
+    "analytics-members": <DomainAnalyticsPage domain="members.techbes.co.in" title="Members Portal Analytics" />,
+    "analytics-skills": <DomainAnalyticsPage domain="skills.techbes.co.in" title="Skills Portal Analytics" />,
     settings: <SettingsPage />,
   };
 

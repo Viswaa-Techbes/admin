@@ -823,8 +823,9 @@ export function CourseAssignmentPage() {
     fetch('/api/v2/courses').then(r=>r.json()).then(d=>setCourses(d.data || d.courses || d || [])).catch(()=>{});
   }, []);
 
-  const unassigned = items.filter(it => !it.assignedCourse && it.admissionStatus === 'approved');
-  const assigned = items.filter(it => it.assignedCourse);
+  const list = Array.isArray(items) ? items : items?.items || [];
+  const unassigned = list.filter(it => !it.assignedCourse && it.admissionStatus === 'approved');
+  const assigned = list.filter(it => it.assignedCourse);
 
   const toggleSelect = (id) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -927,7 +928,6 @@ export function CourseAssignmentPage() {
 
 export function AdmissionAnalyticsPage() {
   const [items, setItems] = useState([]);
-  const [visitorStats, setVisitorStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -936,22 +936,10 @@ export function AdmissionAnalyticsPage() {
     async function load() {
       try {
         setLoading(true);
-        const [admRes, visRes] = await Promise.all([
-          fetch('/api/v2/admission?limit=1000', { credentials: 'include' }),
-          fetch('/api/v2/analytics/visitors/dashboard', { credentials: 'include' }).catch(() => null)
-        ]);
-        if (!admRes.ok) throw new Error('Failed to load admissions');
-        const admPayload = await admRes.json();
-        
-        let visPayload = null;
-        if (visRes && visRes.ok) {
-           const parsed = await visRes.json();
-           visPayload = parsed.data || null;
-        }
-
-        if (!active) return;
-        setItems(admPayload.items || admPayload || []);
-        setVisitorStats(visPayload);
+        const res = await fetch('/api/v2/admission?limit=1000', { credentials: 'include' });
+        if (!res.ok) throw new Error('Failed to load admissions');
+        const payload = await res.json();
+        if (active) setItems(payload.items || payload || []);
       } catch (e) { if (active) setError(e.message || 'Failed'); }
       finally { if (active) setLoading(false); }
     }
@@ -974,92 +962,45 @@ export function AdmissionAnalyticsPage() {
     return acc;
   }, {});
 
+  const byStatus = items.reduce((acc, it) => { acc[it.admissionStatus||'unknown'] = (acc[it.admissionStatus||'unknown']||0)+1; return acc; }, {});
+  const statusData = Object.entries(byStatus).map(([k,v]) => ({ name: k, value: v }));
+
   const monthlyData = Object.entries(monthly).sort().map(([k,v]) => ({ month: k, value: v }));
   const courseData = Object.entries(byCourse).map(([k,v]) => ({ name: k, value: v }));
 
   return (
-    <div>
-      <PageHeader title="Admission & Visitor Analytics" subtitle="Key admission metrics and Course Website visitor tracking" />
-      {loading ? <Card style={{ padding: 20 }}>Loading analytics...</Card> : null}
-      {error ? <Card style={{ padding: 20, color: '#b91c1c' }}>{error}</Card> : null}
+    <div style={{ display: 'grid', gap: 16 }}>
+      <PageHeader title="Admission Analytics" subtitle="Student enrollment and application metrics" />
+      
+      {loading && <Card style={{ padding: 20 }}>Loading analytics...</Card>}
+      {error && <Card style={{ padding: 20, color: '#b91c1c' }}>{error}</Card>}
+      
       {!loading && !error && (
-        <div style={{ display: 'grid', gap: 16 }}>
-          <SectionHeader title="Course Website Analytics" />
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
-             <Card style={{ padding: 16 }}>
-               <div style={{ color: '#64748b' }}>Total Visitors</div>
-               <div style={{ fontSize: 26, fontWeight: 800 }}>{visitorStats?.totalVisitors || 0}</div>
-             </Card>
-             <Card style={{ padding: 16 }}>
-               <div style={{ color: '#64748b' }}>Today's Visitors</div>
-               <div style={{ fontSize: 26, fontWeight: 800 }}>{visitorStats?.todayVisitors || 0}</div>
-             </Card>
-             <Card style={{ padding: 16 }}>
-               <div style={{ color: '#64748b' }}>Application Count</div>
-               <div style={{ fontSize: 26, fontWeight: 800 }}>{total}</div>
-             </Card>
-          </div>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <Card style={{ padding: 16 }}>
-              <SectionHeader title="Top Viewed Pages" />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                 {visitorStats?.topPages?.slice(0, 5).map((p, i) => (
-                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                     <span style={{color: '#475569'}}>{p.page}</span>
-                     <span style={{fontWeight: 700}}>{p.visitors} visits</span>
-                   </div>
-                 ))}
-                 {(!visitorStats?.topPages || visitorStats.topPages.length === 0) && <div style={{color: '#94a3b8'}}>No data yet</div>}
-              </div>
-            </Card>
-            <Card style={{ padding: 16 }}>
-              <SectionHeader title="Top Locations" />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                 {visitorStats?.topCities?.slice(0, 5).map((c, i) => (
-                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                     <span style={{color: '#475569'}}>{c.city}</span>
-                     <span style={{fontWeight: 700}}>{c.visitors} visitors</span>
-                   </div>
-                 ))}
-                 {(!visitorStats?.topCities || visitorStats.topCities.length === 0) && <div style={{color: '#94a3b8'}}>No data yet</div>}
-              </div>
-            </Card>
-          </div>
-
-          <SectionHeader title="Admission Statistics" />
+        <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
-            <Card style={{ padding: 16, borderLeft: '4px solid #6366f1' }}>
-              <div style={{ color: '#64748b' }}>Total Apps</div>
-              <div style={{ fontSize: 24, fontWeight: 800 }}>{total}</div>
-            </Card>
-            <Card style={{ padding: 16, borderLeft: '4px solid #10b981' }}>
-              <div style={{ color: '#64748b' }}>Approved</div>
-              <div style={{ fontSize: 24, fontWeight: 800 }}>{approved}</div>
-            </Card>
-            <Card style={{ padding: 16, borderLeft: '4px solid #f59e0b' }}>
-              <div style={{ color: '#64748b' }}>Pending</div>
-              <div style={{ fontSize: 24, fontWeight: 800 }}>{pending}</div>
-            </Card>
-            <Card style={{ padding: 16, borderLeft: '4px solid #ef4444' }}>
-              <div style={{ color: '#64748b' }}>Rejected</div>
-              <div style={{ fontSize: 24, fontWeight: 800 }}>{rejected}</div>
-            </Card>
+            <KPISlim label="Total Apps" value={total} color="#6366f1" />
+            <KPISlim label="Approved" value={approved} color="#10b981" />
+            <KPISlim label="Pending" value={pending} color="#f59e0b" />
+            <KPISlim label="Rejected" value={rejected} color="#ef4444" />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <Card style={{ padding: 16 }}>
-              <div style={{ color: '#64748b', marginBottom: 12 }}>Total Revenue</div>
-              <div style={{ fontSize: 26, fontWeight: 800 }}>₹{revenue.totalFees || 0}</div>
-              <div style={{ marginTop: 4, color: '#10b981', fontWeight: 600 }}>Collected: ₹{revenue.paid || 0}</div>
+              <SectionHeader title="Fee Collection" />
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 26, fontWeight: 800 }}>₹{revenue.totalFees?.toLocaleString()}</div>
+                <div style={{ color: '#64748b', fontSize: 13 }}>Total Expected Revenue</div>
+                <div style={{ marginTop: 12, padding: '8px 12px', borderRadius: 8, background: '#f0fdf4', color: '#166534', fontWeight: 600, fontSize: 14 }}>
+                  Collected: ₹{revenue.paid?.toLocaleString()}
+                </div>
+              </div>
             </Card>
 
             <Card style={{ padding: 16 }}>
-              <div style={{ color: '#64748b', marginBottom: 8 }}>Enrollment Trend</div>
-              <div style={{ height: 160 }}>
+              <SectionHeader title="Monthly Trend" />
+              <div style={{ height: 140, marginTop: 12 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={monthlyData}>
-                    <XAxis dataKey="month" hide />
                     <Tooltip />
                     <Line type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={3} dot={{r:4}} />
                   </LineChart>
@@ -1068,34 +1009,47 @@ export function AdmissionAnalyticsPage() {
             </Card>
           </div>
 
-          <Card style={{ padding: 16 }}>
-            <div style={{ height: 240 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={statusData} dataKey="value" nameKey="name" innerRadius={40} outerRadius={80} fill="#8884d8">
-                    {statusData.map((entry, idx) => <Cell key={idx} fill={['#6366f1','#06b6d4','#f43f5e','#f59e0b'][idx % 4]} />)}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <Card style={{ padding: 16 }}>
+              <SectionHeader title="Status Distribution" />
+              <div style={{ height: 240 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={statusData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={5}>
+                      {statusData.map((_, idx) => <Cell key={idx} fill={['#6366f1','#06b6d4','#f43f5e','#f59e0b'][idx % 4]} />)}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
 
-          <Card style={{ padding: 16 }}>
-            <div style={{ height: 240 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={courseData} layout="vertical">
-                  <XAxis type="number" />
-                  <YAxis dataKey="name" type="category" />
-                  <Tooltip />
-                  <Bar dataKey="value" fill="#06b6d4" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-        </div>
+            <Card style={{ padding: 16 }}>
+              <SectionHeader title="Course Popularity" />
+              <div style={{ height: 240 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={courseData} layout="vertical">
+                    <XAxis type="number" hide />
+                    <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 11}} />
+                    <Tooltip />
+                    <Bar dataKey="value" fill="#6366f1" radius={[0,4,4,0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </div>
+        </>
       )}
     </div>
+  );
+}
+
+function KPISlim({ label, value, color }) {
+  return (
+    <Card style={{ padding: 16, borderLeft: `4px solid ${color}` }}>
+      <div style={{ color: '#64748b', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</div>
+      <div style={{ fontSize: 24, fontWeight: 800, marginTop: 4 }}>{value}</div>
+    </Card>
   );
 }
 
