@@ -419,9 +419,11 @@ function AdmissionDetail({ id, onBack }) {
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isMobile, setIsMobile] = useState(false);
   const [activity, setActivity] = useState([]);
   const [payments, setPayments] = useState([]);
   const [assignmentHistory, setAssignmentHistory] = useState([]);
+  const [courses, setCourses] = useState([]);
   const [loadingActivity, setLoadingActivity] = useState(false);
   const [noteText, setNoteText] = useState('');
   const [docUrl, setDocUrl] = useState('');
@@ -455,6 +457,13 @@ function AdmissionDetail({ id, onBack }) {
   useEffect(() => { load(); }, [id]);
 
   useEffect(() => {
+    function check() { setIsMobile(typeof window !== 'undefined' && window.innerWidth <= 880); }
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
+  useEffect(() => {
     let active = true;
     async function loadExtras() {
       try {
@@ -469,6 +478,14 @@ function AdmissionDetail({ id, onBack }) {
         if (aRes && aRes.ok) { const j = await aRes.json().catch(() => ({})); setActivity(j.data || j || []); }
         if (pRes && pRes.ok) { const j = await pRes.json().catch(() => ({})); setPayments(j.data || j || []); }
         if (asRes && asRes.ok) { const j = await asRes.json().catch(() => ({})); setAssignmentHistory(j.data || j || []); }
+        // load courses for assign select
+        try {
+          const cRes = await fetch('/api/v2/courses', { credentials: 'include' }).catch(() => null);
+          if (cRes && cRes.ok) {
+            const cj = await cRes.json().catch(() => ({}));
+            if (active) setCourses(cj.data || cj.courses || cj || []);
+          }
+        } catch (e) {}
       } catch (e) {
         // ignore — extras are best-effort
       } finally { if (active) setLoadingActivity(false); }
@@ -477,9 +494,9 @@ function AdmissionDetail({ id, onBack }) {
     return () => { active = false; };
   }, [id]);
 
-  if (loading) return <div>Loading application...</div>;
-  if (error) return <div style={{ color: '#b91c1c' }}>{error}</div>;
-  if (!item) return <div>Application not found.</div>;
+  if (loading) return <div><Card style={{ padding: 20 }}>Loading application…</Card></div>;
+  if (error) return <div><Card style={{ padding: 20, color: '#b91c1c' }}>{error}</Card></div>;
+  if (!item) return <div><Card style={{ padding: 20 }}>Application not found.</Card></div>;
 
   async function updateStatus(status) {
     try {
@@ -525,7 +542,7 @@ function AdmissionDetail({ id, onBack }) {
       if (!res.ok) throw new Error('Failed to update payment');
         await load();
         showToast('Payment updated');
-    } catch (e) { alert(e.message); }
+    } catch (e) { showToast(e.message || 'Failed to update payment', { duration: 4000 }); }
   }
 
   async function assign() {
@@ -533,7 +550,7 @@ function AdmissionDetail({ id, onBack }) {
       const res = await fetch(`/api/v2/admission/${id}/assignment`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assignedCourse: assignCourse, assignedInternship: assignInternship }) });
       if (!res.ok) throw new Error('Failed to assign');
       await load();
-      alert('Assignment updated');
+      showToast('Assignment updated');
     } catch (e) { alert(e.message); }
   }
 
@@ -559,7 +576,7 @@ function AdmissionDetail({ id, onBack }) {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 420px', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 420px', gap: 16 }}>
         <div>
           <Card style={{ padding: 16, marginBottom: 16 }}>
             <SectionHeader title="Personal Details" />
@@ -679,7 +696,10 @@ function AdmissionDetail({ id, onBack }) {
               <div><strong>Assigned Course</strong><div style={{ color: '#64748b' }}>{item.assignedCourse || '—'}</div></div>
               <div><strong>Assigned Internship</strong><div style={{ color: '#64748b' }}>{item.assignedInternship || '—'}</div></div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <input value={assignCourse} onChange={(e) => setAssignCourse(e.target.value)} placeholder="Course code/name" style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                <select value={assignCourse} onChange={(e) => setAssignCourse(e.target.value)} style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                  <option value="">-- Select course --</option>
+                  {courses.map(c => <option key={c._id || c.id} value={c._id || c.id}>{c.title || c.name}</option>)}
+                </select>
                 <input value={assignInternship} onChange={(e) => setAssignInternship(e.target.value)} placeholder="Internship" style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #e2e8f0' }} />
               </div>
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
