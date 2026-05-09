@@ -1,5 +1,15 @@
 import React from "react";
-import { StarIcon, SearchIcon } from "./Icons";
+import { 
+  StarIcon, SearchIcon, EditIcon, TrashIcon, EyeIcon, PlusIcon, 
+  GridIcon, UsersIcon, HardHatIcon, BriefcaseIcon, WrenchIcon, 
+  CreditCardIcon, MapPinIcon, BellIcon, ChartIcon, SettingsIcon, KeyIcon 
+} from "./Icons";
+
+export { 
+  StarIcon, SearchIcon, EditIcon, TrashIcon, EyeIcon, PlusIcon,
+  GridIcon, UsersIcon, HardHatIcon, BriefcaseIcon, WrenchIcon,
+  CreditCardIcon, MapPinIcon, BellIcon, ChartIcon, SettingsIcon, KeyIcon
+};
 import { STATUS_BADGE } from "../lib/data";
 // ─── REUSABLE COMPONENTS ──────────────────────────────────────────────────────
 

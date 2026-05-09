@@ -23,6 +23,7 @@ export default function ApplicationTable({ items = [], selected = new Set(), onT
       <td style={{ padding: 12 }}>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <button title="View Details" onClick={() => onView(it._id || it.id)} style={{ border: 'none', background: '#f1f5f9', color: '#475569', padding: '6px', borderRadius: 8, cursor: 'pointer' }}>View</button>
+          <button title="Receipt" onClick={() => window.open(`/api/v2/admission/${it._id || it.id}/receipt`, '_blank')} style={{ border: 'none', background: '#f1f5f9', color: '#475569', padding: '6px', borderRadius: 8, cursor: 'pointer' }}>Receipt</button>
           <button title="Edit" onClick={() => onView(it._id || it.id)} style={{ border: 'none', background: '#f1f5f9', color: '#475569', padding: '6px', borderRadius: 8, cursor: 'pointer' }}><EditIcon /></button>
           
           <div style={{ width: 1, height: 20, background: '#e2e8f0', margin: '0 4px' }} />
