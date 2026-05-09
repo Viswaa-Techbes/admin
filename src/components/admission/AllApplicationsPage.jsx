@@ -18,18 +18,28 @@ export default function AllApplicationsPage({ onView }) {
   async function onBulkAction(action, id) {
     if (action === 'export') {
       const data = items.filter(it => selected.has(it._id || it.id));
-      // simple CSV export
+      if (!data.length) return toast('No items selected for export');
       const csv = [Object.keys(data[0]||{}).join(','), ...data.map(r => Object.values(r).join(','))].join('\n');
       const blob = new Blob([csv], { type: 'text/csv' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = 'admissions.csv'; a.click();
-      toast('Export started');
+      toast('Export successful');
     } else if (action === 'assign') {
       if (!id && !selected.size) return toast('Select applications first');
       if (id) {
         setSelected(new Set([id]));
       }
       setAssignOpen(true);
+    } else if (action === 'delete') {
+      const targetId = id || [...selected][0];
+      if (!targetId) return;
+      if (!window.confirm("Permanently delete this application?")) return;
+      try {
+        const res = await fetch(`/api/v2/admission/${targetId}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Delete failed');
+        toast('Application deleted');
+        refresh();
+      } catch (e) { toast(e.message); }
     } else if (action === 'approve' || action === 'reject') {
       if (!id) return;
       try {
@@ -38,7 +48,7 @@ export default function AllApplicationsPage({ onView }) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ admissionStatus: action === 'approve' ? 'approved' : 'rejected' })
         });
-        toast(`Application ${action}d`);
+        toast(`Application ${action === 'approve' ? 'Approved' : 'Rejected'}`);
         refresh();
       } catch (e) {
         toast('Failed to update status');
@@ -60,12 +70,24 @@ export default function AllApplicationsPage({ onView }) {
         {loading && <div style={{ padding: 12 }}>Loading...</div>}
         {error && <div style={{ padding: 12, color: '#b91c1c' }}>{error}</div>}
         <ApplicationTable items={items} selected={selected} onToggle={toggle} onView={onView} onBulkAction={onBulkAction} />
-        <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>Showing {items.length} of {total}</div>
+        <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: 16 }}>
+          <div style={{ fontSize: 13, color: '#64748b' }}>Showing {items.length} of {total} applications</div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => setPage(p => Math.max(1, p-1))}>Prev</button>
-            <div>Page {page}</div>
-            <button onClick={() => setPage(p => p+1)}>Next</button>
+            <button 
+              disabled={page === 1} 
+              onClick={() => setPage(p => p - 1)}
+              style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', cursor: page === 1 ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 600, color: '#475569' }}
+            >
+              Previous
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', padding: '0 12px', fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Page {page}</div>
+            <button 
+              disabled={items.length < 20} 
+              onClick={() => setPage(p => p + 1)}
+              style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', cursor: items.length < 20 ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 600, color: '#475569' }}
+            >
+              Next
+            </button>
           </div>
         </div>
       </Card>

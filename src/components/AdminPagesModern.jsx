@@ -435,6 +435,8 @@ function AdmissionDetail({ id, onBack }) {
   const [confirmAction, setConfirmAction] = useState(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState(null);
 
   function openConfirm(action, message) {
     setConfirmAction({ action, message });
@@ -447,11 +449,42 @@ function AdmissionDetail({ id, onBack }) {
       const res = await fetch(`/api/v2/admission/${id}`, { credentials: 'include' });
       if (!res.ok) throw new Error('Failed to load application');
       const payload = await res.json();
-      setItem(payload.data || payload);
+      const data = payload.data || payload;
+      setItem(data);
+      setFormData(data);
       setError('');
     } catch (e) {
       setError(e.message);
     } finally { setLoading(false); }
+  }
+
+  async function handleSave() {
+    try {
+      const res = await fetch(`/api/v2/admission/${id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+      if (!res.ok) throw new Error('Failed to save changes');
+      await load();
+      setIsEditing(false);
+      showToast('Profile updated successfully');
+    } catch (e) {
+      showToast(e.message || 'Save failed');
+    }
+  }
+
+  async function handleDelete() {
+    if (!window.confirm("Permanently delete this student profile? This action cannot be undone.")) return;
+    try {
+      const res = await fetch(`/api/v2/admission/${id}`, { method: 'DELETE', credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to delete profile');
+      showToast('Profile deleted');
+      onBack();
+    } catch (e) {
+      showToast(e.message || 'Delete failed');
+    }
   }
 
   useEffect(() => { load(); }, [id]);
@@ -569,6 +602,20 @@ function AdmissionDetail({ id, onBack }) {
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <div style={{ display: 'flex', gap: 8 }}>
+              {!isEditing ? (
+                <button 
+                  onClick={() => setIsEditing(true)} 
+                  style={{ ...pillButton(false), background: '#f1f5f9', color: '#475569' }}
+                >
+                  Edit Profile
+                </button>
+              ) : (
+                <>
+                  <button onClick={() => { setIsEditing(false); setFormData(item); }} style={{ ...pillButton(false), background: '#fff', color: '#64748b' }}>Cancel</button>
+                  <button onClick={handleSave} style={{ ...pillButton(true), background: '#6366f1' }}>Save Changes</button>
+                </>
+              )}
+              <div style={{ width: 1, height: 24, background: '#e2e8f0', margin: '0 8px' }} />
               <button style={approveButton} onClick={() => openConfirm('approved', `Approve application for ${item.fullName}?`)}>Approve</button>
               <button style={rejectButton} onClick={() => openConfirm('rejected', `Reject application for ${item.fullName}?`)}>Reject</button>
             </div>
@@ -581,40 +628,44 @@ function AdmissionDetail({ id, onBack }) {
           <Card style={{ padding: 16, marginBottom: 16 }}>
             <SectionHeader title="Personal Details" />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div><strong>Full Name</strong><div style={{ color: '#64748b' }}>{item.fullName}</div></div>
-              <div><strong>DOB</strong><div style={{ color: '#64748b' }}>{item.dateOfBirth ? new Date(item.dateOfBirth).toLocaleDateString() : '—'}</div></div>
-              <div><strong>Gender</strong><div style={{ color: '#64748b' }}>{item.gender || '—'}</div></div>
-              <div><strong>Aadhaar</strong><div style={{ color: '#64748b' }}>{item.aadhaarNumber || '—'}</div></div>
-              <div style={{ gridColumn: '1 / -1' }}><strong>Address</strong><div style={{ color: '#64748b' }}>{item.address}</div></div>
+              <DetailField label="Full Name" value={formData?.fullName} isEditing={isEditing} onChange={v => setFormData({...formData, fullName: v})} />
+              <DetailField label="DOB" type="date" value={formData?.dateOfBirth?.split('T')[0]} isEditing={isEditing} onChange={v => setFormData({...formData, dateOfBirth: v})} />
+              <DetailField label="Gender" type="select" options={['Male', 'Female', 'Other']} value={formData?.gender} isEditing={isEditing} onChange={v => setFormData({...formData, gender: v})} />
+              <DetailField label="Aadhaar Number" value={formData?.aadhaarNumber} isEditing={isEditing} onChange={v => setFormData({...formData, aadhaarNumber: v})} />
+              <DetailField label="Phone" value={formData?.phone} isEditing={isEditing} onChange={v => setFormData({...formData, phone: v})} />
+              <DetailField label="Email" value={formData?.email} isEditing={isEditing} onChange={v => setFormData({...formData, email: v})} />
+              <div style={{ gridColumn: '1 / -1' }}>
+                <DetailField label="Address" value={formData?.address} isEditing={isEditing} onChange={v => setFormData({...formData, address: v})} />
+              </div>
             </div>
           </Card>
 
           <Card style={{ padding: 16, marginBottom: 16 }}>
             <SectionHeader title="Parent / Emergency" />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div><strong>Father</strong><div style={{ color: '#64748b' }}>{item.fatherName || '—'}</div></div>
-              <div><strong>Mother</strong><div style={{ color: '#64748b' }}>{item.motherName || '—'}</div></div>
-              <div><strong>Parent Mobile</strong><div style={{ color: '#64748b' }}>{item.parentMobile || '—'}</div></div>
-              <div><strong>Emergency</strong><div style={{ color: '#64748b' }}>{item.emergencyContact || '—'}</div></div>
+              <DetailField label="Father Name" value={formData?.fatherName} isEditing={isEditing} onChange={v => setFormData({...formData, fatherName: v})} />
+              <DetailField label="Mother Name" value={formData?.motherName} isEditing={isEditing} onChange={v => setFormData({...formData, motherName: v})} />
+              <DetailField label="Parent Mobile" value={formData?.parentMobile} isEditing={isEditing} onChange={v => setFormData({...formData, parentMobile: v})} />
+              <DetailField label="Emergency Contact" value={formData?.emergencyContact} isEditing={isEditing} onChange={v => setFormData({...formData, emergencyContact: v})} />
             </div>
           </Card>
 
           <Card style={{ padding: 16, marginBottom: 16 }}>
             <SectionHeader title="Education" />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div><strong>Qualification</strong><div style={{ color: '#64748b' }}>{item.qualification}</div></div>
-              <div><strong>College</strong><div style={{ color: '#64748b' }}>{item.collegeName || '—'}</div></div>
-              <div><strong>Year</strong><div style={{ color: '#64748b' }}>{item.yearOfPassing || '—'}</div></div>
-              <div><strong>Skill Level</strong><div style={{ color: '#64748b' }}>{item.currentSkillLevel || '—'}</div></div>
+              <DetailField label="Qualification" value={formData?.qualification} isEditing={isEditing} onChange={v => setFormData({...formData, qualification: v})} />
+              <DetailField label="College/School" value={formData?.collegeName} isEditing={isEditing} onChange={v => setFormData({...formData, collegeName: v})} />
+              <DetailField label="Year of Passing" value={formData?.yearOfPassing} isEditing={isEditing} onChange={v => setFormData({...formData, yearOfPassing: v})} />
+              <DetailField label="Skill Level" type="select" options={['Beginner', 'Intermediate', 'Advanced']} value={formData?.currentSkillLevel} isEditing={isEditing} onChange={v => setFormData({...formData, currentSkillLevel: v})} />
             </div>
           </Card>
 
           <Card style={{ padding: 16, marginBottom: 16 }}>
             <SectionHeader title="Financial Details" />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div><strong>Financial Stability</strong><div style={{ color: '#64748b' }}>{item.financialStability}</div></div>
-              <div><strong>Monthly Income</strong><div style={{ color: '#64748b' }}>{item.monthlyFamilyIncome || '—'}</div></div>
-              <div><strong>EMI Support</strong><div style={{ color: '#64748b' }}>{item.emiSupportRequired ? 'Yes' : 'No'}</div></div>
+              <DetailField label="Stability" type="select" options={['Stable', 'Low Income', 'Scholarship Needed']} value={formData?.financialStability} isEditing={isEditing} onChange={v => setFormData({...formData, financialStability: v})} />
+              <DetailField label="Monthly Income" value={formData?.monthlyFamilyIncome} isEditing={isEditing} onChange={v => setFormData({...formData, monthlyFamilyIncome: v})} />
+              <DetailField label="EMI Support" type="select" options={['Yes', 'No']} value={formData?.emiSupportRequired ? 'Yes' : 'No'} isEditing={isEditing} onChange={v => setFormData({...formData, emiSupportRequired: v === 'Yes'})} />
             </div>
           </Card>
 
@@ -639,10 +690,12 @@ function AdmissionDetail({ id, onBack }) {
           <Card style={{ padding: 12, marginBottom: 16 }}>
             <SectionHeader title="Quick Actions" />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <button onClick={() => showToast('Message sent (placeholder)')} style={{ padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }}>Send Message</button>
-              <button onClick={() => showToast('Task created (placeholder)')} style={{ padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }}>Create Task</button>
-              <button onClick={() => showToast('Payment link sent (placeholder)')} style={{ padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }}>Send Payment Link</button>
-              <button onClick={() => { const data = JSON.stringify(item); const blob = new Blob([data], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `${item._id || 'profile'}.json`; a.click(); showToast('Exported profile'); }} style={{ padding: 10, borderRadius: 8, border: '1px solid #e2e8f0' }}>Export Profile</button>
+              <button onClick={() => showToast('Message sent (placeholder)')} style={{ padding: 10, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}>Send Message</button>
+              <button onClick={() => showToast('Task created (placeholder)')} style={{ padding: 10, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}>Create Task</button>
+              <button onClick={() => showToast('Payment link sent (placeholder)')} style={{ padding: 10, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}>Send Payment Link</button>
+              <button onClick={() => { const data = JSON.stringify(item); const blob = new Blob([data], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `${item._id || 'profile'}.json`; a.click(); showToast('Exported profile'); }} style={{ padding: 10, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}>Export Profile</button>
+              <div style={{ height: 1, background: '#f1f5f9', margin: '8px 0' }} />
+              <button onClick={handleDelete} style={{ padding: 10, borderRadius: 8, background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca', fontWeight: 600, cursor: 'pointer' }}>Delete Profile</button>
             </div>
           </Card>
 
@@ -803,12 +856,12 @@ function AdmissionDetail({ id, onBack }) {
   );
 }
 
-export function StudentProfilesPage() {
-  return <AdmissionStudentProfilesPage />;
+export function StudentProfilesPage({ onView }) {
+  return <AdmissionStudentProfilesPage onView={onView} />;
 }
 
-export function AdmissionPaymentsPage() {
-  return <AdmissionPaymentStatusPage />;
+export function AdmissionPaymentsPage({ onView }) {
+  return <AdmissionPaymentStatusPage onView={onView} />;
 }
 
 export function CourseAssignmentPage() {
@@ -831,20 +884,18 @@ export function CourseAssignmentPage() {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
-  const handleBulkAssign = async () => {
-    if (!bulkCourse) return alert("Select a course");
-    if (!selectedIds.length) return alert("Select at least one student");
-    
+  const handleAssign = async (ids, courseId) => {
+    if (!courseId) return alert("Select a course");
     setAssigning(true);
     try {
-      for (const id of selectedIds) {
+      for (const id of ids) {
         await fetch(`/api/v2/admission/${id}/assignment`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ assignedCourse: bulkCourse })
+          body: JSON.stringify({ assignedCourse: courseId })
         });
       }
-      showToast(`Assigned ${selectedIds.length} students`);
+      showToast(`Successfully assigned ${ids.length} students`);
       setSelectedIds([]);
       setBulkCourse('');
       refresh();
@@ -855,6 +906,19 @@ export function CourseAssignmentPage() {
     }
   };
 
+  const removeAssignment = async (id) => {
+    if (!window.confirm("Remove course assignment for this student?")) return;
+    try {
+      await fetch(`/api/v2/admission/${id}/assignment`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignedCourse: "" })
+      });
+      showToast('Assignment removed');
+      refresh();
+    } catch (e) { alert(e.message); }
+  };
+
   return (
     <div>
       <PageHeader 
@@ -862,49 +926,70 @@ export function CourseAssignmentPage() {
         subtitle="Manage student course allocations and bulk assignments" 
       />
       
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 16 }}>
-        <div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <Card style={{ padding: 20 }}>
             <SectionHeader title={`Pending Assignments (${unassigned.length})`} />
             <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center', background: '#f8fafc', padding: 12, borderRadius: 12 }}>
-               <span style={{fontWeight: 600, fontSize: 13}}>Bulk Actions:</span>
-               <select value={bulkCourse} onChange={e=>setBulkCourse(e.target.value)} style={{ padding: 8, borderRadius: 8, border: '1px solid #cbd5e1' }}>
+               <span style={{fontWeight: 700, fontSize: 13, color: '#475569'}}>Bulk Assignment:</span>
+               <select value={bulkCourse} onChange={e=>setBulkCourse(e.target.value)} style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid #cbd5e1', outline: 'none' }}>
                  <option value="">-- Select Course --</option>
                  {courses.map(c => <option key={c._id} value={c._id}>{c.title}</option>)}
                </select>
-               <button onClick={handleBulkAssign} disabled={assigning || !selectedIds.length || !bulkCourse} style={{...primaryButton, opacity: (!selectedIds.length || !bulkCourse) ? 0.5 : 1}}>{assigning ? 'Assigning...' : 'Apply to Selected'}</button>
+               <button 
+                 onClick={() => handleAssign(selectedIds, bulkCourse)} 
+                 disabled={assigning || !selectedIds.length || !bulkCourse} 
+                 style={{...primaryButton, padding: '8px 16px', opacity: (!selectedIds.length || !bulkCourse) ? 0.5 : 1}}
+               >
+                 {assigning ? 'Assigning...' : `Assign Selected (${selectedIds.size || selectedIds.length})`}
+               </button>
             </div>
             
             <TableWrapper 
-              headers={["Select", "Student", "Status", "Applied For"]}
+              headers={["", "Student Name", "Course Preferred", "Payment Status", "Actions"]}
               rows={unassigned.map(u => (
                 <tr key={u._id} style={{borderBottom: '1px solid #f1f5f9'}}>
                   <td style={TD_STYLE}><input type="checkbox" checked={selectedIds.includes(u._id)} onChange={() => toggleSelect(u._id)} /></td>
                   <td style={TD_STYLE}>
                     <div style={{fontWeight: 700, color: '#0f172a'}}>{u.fullName}</div>
-                    <div style={{fontSize: 12, color: '#64748b'}}>{u.email}</div>
+                    <div style={{fontSize: 11, color: '#64748b'}}>{u.email}</div>
                   </td>
-                  <td style={TD_STYLE}><StatusBadge status={u.admissionStatus} /></td>
                   <td style={TD_STYLE}>{u.programType || '—'}</td>
+                  <td style={TD_STYLE}><StatusBadge status={u.paymentStatus || (u.payment?.paymentStatus) || 'pending'} /></td>
+                  <td style={TD_STYLE}>
+                     <select 
+                       onChange={(e) => handleAssign([u._id], e.target.value)} 
+                       style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 11 }}
+                       value=""
+                     >
+                       <option value="">Quick Assign...</option>
+                       {courses.map(c => <option key={c._id} value={c._id}>{c.title}</option>)}
+                     </select>
+                  </td>
                 </tr>
               ))}
             />
-            {unassigned.length === 0 && <div style={{padding: 20, textAlign: 'center', color: '#94a3b8'}}>No approved students pending assignment.</div>}
+            {unassigned.length === 0 && <div style={{padding: 40, textAlign: 'center', color: '#94a3b8'}}>No pending assignments.</div>}
           </Card>
 
-          <Card style={{ padding: 20, marginTop: 16 }}>
-            <SectionHeader title={`Assigned Students (${assigned.length})`} />
+          <Card style={{ padding: 20 }}>
+            <SectionHeader title={`Active Enrollments (${assigned.length})`} />
             <TableWrapper 
-              headers={["Student", "Assigned Course", "Date Assigned"]}
-              rows={assigned.slice(0, 10).map(u => (
+              headers={["Student", "Assigned Course", "Status", "Date", "Actions"]}
+              rows={assigned.map(u => (
                 <tr key={u._id} style={{borderBottom: '1px solid #f1f5f9'}}>
                   <td style={TD_STYLE}>
                     <div style={{fontWeight: 700, color: '#0f172a'}}>{u.fullName}</div>
+                    <div style={{fontSize: 11, color: '#64748b'}}>{u.email}</div>
                   </td>
                   <td style={TD_STYLE}>
-                    <span style={{background: '#eef2ff', color: '#4f46e5', padding: '4px 8px', borderRadius: 6, fontSize: 12, fontWeight: 700}}>{u.assignedCourse}</span>
+                    <span style={{background: '#eef2ff', color: '#4f46e5', padding: '4px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700}}>{u.assignedCourse}</span>
                   </td>
+                  <td style={TD_STYLE}><StatusBadge status={u.admissionStatus} /></td>
                   <td style={TD_STYLE}>{formatDate(u.updatedAt)}</td>
+                  <td style={TD_STYLE}>
+                    <button onClick={() => removeAssignment(u._id)} style={{ border: 'none', background: '#fee2e2', color: '#b91c1c', padding: '4px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Remove</button>
+                  </td>
                 </tr>
               ))}
             />
@@ -913,11 +998,12 @@ export function CourseAssignmentPage() {
 
         <div>
           <Card style={{ padding: 20, position: 'sticky', top: 20 }}>
-            <SectionHeader title="Assignment Rules" />
+            <SectionHeader title="Staff Instructions" />
             <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.6 }}>
-              <p style={{marginBottom: 8}}>• Only <strong>Approved</strong> students appear in the pending list.</p>
-              <p style={{marginBottom: 8}}>• Bulk assign lets you quickly allocate a batch of students to a single course.</p>
-              <p>• Make sure payments are verified before assigning premium courses.</p>
+              <p style={{marginBottom: 12}}>• Students appear here only after <strong>Application Approval</strong>.</p>
+              <p style={{marginBottom: 12}}>• Ensure <strong>Initial Payment</strong> is verified before course allocation.</p>
+              <p style={{marginBottom: 12}}>• Use bulk assignment for batch processing intake groups.</p>
+              <p>• Removing an assignment will move the student back to the pending list.</p>
             </div>
           </Card>
         </div>
@@ -2299,9 +2385,38 @@ function Field({ label, value, onChange, type = "text" }) {
   );
 }
 
+function DetailField({ label, value, type = "text", options = [], isEditing, onChange }) {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <label style={LABEL_STYLE}>{label}</label>
+      {isEditing ? (
+        type === "select" ? (
+          <select 
+            value={value || ''} 
+            onChange={(e) => onChange(e.target.value)} 
+            style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }}
+          >
+            <option value="">-- Select --</option>
+            {options.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        ) : (
+          <input 
+            type={type} 
+            value={value || ''} 
+            onChange={(e) => onChange(e.target.value)} 
+            style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }} 
+          />
+        )
+      ) : (
+        <div style={{ color: "#0f172a", fontSize: 14, fontWeight: 600, marginTop: 4 }}>{value || "—"}</div>
+      )}
+    </div>
+  );
+}
+
 function formatDate(v) {
   if (!v) return "—";
-  return new Date(v).toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+  return new Date(v).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 const LABEL_STYLE = { fontSize: 12, fontWeight: 700, color: "#475569" };
