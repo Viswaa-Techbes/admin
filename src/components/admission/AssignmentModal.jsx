@@ -97,9 +97,30 @@ export default function AssignmentModal({ open, onClose, selectedIds = [], onAss
             </div>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
-            <button onClick={onClose} style={{ padding: '8px 12px', borderRadius: 8 }}>Cancel</button>
-            <button onClick={assign} disabled={saving} style={{ padding: '8px 12px', borderRadius: 8 }}>{saving ? 'Assigning...' : 'Assign'}</button>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24, borderTop: '1px solid #f1f5f9', paddingTop: 20 }}>
+            <button 
+              onClick={onClose} 
+              style={{ padding: '10px 20px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontWeight: 600, cursor: 'pointer' }}
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={assign} 
+              disabled={saving || (!course && !internship)} 
+              style={{ 
+                padding: '10px 24px', 
+                borderRadius: 10, 
+                border: 'none', 
+                background: '#6366f1', 
+                color: '#fff', 
+                fontWeight: 700, 
+                cursor: (saving || (!course && !internship)) ? 'not-allowed' : 'pointer',
+                opacity: (saving || (!course && !internship)) ? 0.6 : 1,
+                boxShadow: '0 4px 12px rgba(99,102,241,0.2)'
+              }}
+            >
+              {saving ? 'Assigning...' : `Assign ${selectedIds.length} Student(s)`}
+            </button>
           </div>
         </div>
       </div>
