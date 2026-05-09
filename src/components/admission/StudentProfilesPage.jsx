@@ -50,10 +50,7 @@ export default function StudentProfilesPage({ onView }) {
             onSearchChange={setSearch} 
             statusFilter={status} 
             onStatusChange={setStatus} 
-            serviceFilter={'All'} 
-            onServiceChange={()=>{}} 
-            groupByPincode={false} 
-            onGroupToggle={()=>{}} 
+            placeholder="Search students..."
           />
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
             {['approved', 'enrolled', 'completed', 'suspended', 'All'].map(s => (

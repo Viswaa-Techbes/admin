@@ -131,8 +131,6 @@ export function SearchFilter({
   onStatusChange, 
   serviceFilter, 
   onServiceChange,
-  groupByPincode,
-  onGroupToggle,
   placeholder
 }) {
   return (
@@ -172,24 +170,6 @@ export function SearchFilter({
           <option value="Basic">Basic Plan</option>
           <option value="Premium">Premium Plan</option>
         </select>
-        
-        <div style={{ width: 1, height: 24, background: "#e2e8f0", margin: "0 4px" }} />
-        
-        <button 
-          onClick={onGroupToggle}
-          style={{
-            padding: "10px 16px", borderRadius: 14, border: "1px solid",
-            borderColor: groupByPincode ? "#6366f1" : "#e2e8f0",
-            background: groupByPincode ? "#eef2ff" : "#fff",
-            color: groupByPincode ? "#6366f1" : "#475569",
-            fontSize: 13, fontWeight: 600, cursor: "pointer",
-            transition: "all .2s",
-            display: "flex", alignItems: "center", gap: 6
-          }}
-        >
-          <span style={{ fontSize: 16 }}>📍</span>
-          {groupByPincode ? "Grouped by Pincode" : "Group by Pincode"}
-        </button>
       </div>
     </div>
   );

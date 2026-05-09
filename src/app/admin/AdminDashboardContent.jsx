@@ -49,7 +49,7 @@ export default function AdminDashboardContent() {
         const res = await fetch("/api/auth/me");
         clearTimeout(wakeTimeout);
         if (res.status === 401) {
-          window.location.href = "/login";
+          router.replace("/login");
           return;
         }
         const payload = await res.json();
@@ -59,7 +59,7 @@ export default function AdminDashboardContent() {
         setMounted(true);
       } catch (err) {
         clearTimeout(wakeTimeout);
-        window.location.href = "/login";
+        router.replace("/login");
       }
     }
     checkAuth();
@@ -103,9 +103,10 @@ export default function AdminDashboardContent() {
     </div>
   );
 
-  const logout = () => {
+  const logout = async () => {
     document.cookie = "auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
-    window.location.href = "/login";
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+    router.replace("/login");
   };
 
   const pages = {

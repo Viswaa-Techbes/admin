@@ -45,7 +45,6 @@ export function CustomersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [serviceFilter, setServiceFilter] = useState("All");
-  const [groupByPincode, setGroupByPincode] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -145,8 +144,6 @@ export function CustomersPage() {
         onStatusChange={setStatusFilter}
         serviceFilter={serviceFilter}
         onServiceChange={setServiceFilter}
-        groupByPincode={groupByPincode}
-        onGroupToggle={() => setGroupByPincode((value) => !value)}
         placeholder="Search by name, email, phone or pincode..."
       />
       <DataCard loading={loading} error={error} empty={!filteredLeads.length} emptyText="No leads found.">

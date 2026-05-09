@@ -8,11 +8,9 @@ export function CustomersPage() {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // Filter & Grouping State
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [serviceFilter, setServiceFilter] = useState("All");
-  const [groupByPincode, setGroupByPincode] = useState(false);
 
   useEffect(() => {
     fetch('/api/leads')
@@ -94,41 +92,16 @@ export function CustomersPage() {
     </tr>
   );
 
-  let tableContent;
-  if (groupByPincode && filteredLeads.length > 0) {
-    const groups = filteredLeads.reduce((acc, lead) => {
-      const pin = lead.pincode || "Unassigned";
-      if (!acc[pin]) acc[pin] = [];
-      acc[pin].push(lead);
-      return acc;
-    }, {});
-
-    tableContent = Object.entries(groups).map(([pin, groupLeads]) => (
-      <React.Fragment key={pin}>
-        <tr className="bg-slate-50/80">
-          <td colSpan="7" className="px-6 py-2 border-y border-slate-200">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">📍</span>
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Pincode Area: <span className="text-slate-900">{pin}</span></span>
-              <span className="ml-auto text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-bold">{groupLeads.length} Leads</span>
-            </div>
-          </td>
-        </tr>
-        {groupLeads.map((l, i) => renderRow(l, i))}
-      </React.Fragment>
-    ));
-  } else {
-    tableContent = filteredLeads.length > 0 ? filteredLeads.map((l, i) => renderRow(l, i)) : (
-      <tr>
-        <td colSpan="7" className="px-6 py-20 text-center">
-          <div className="flex flex-col items-center text-slate-400">
-            <div className="text-4xl mb-4">📭</div>
-            <p className="text-sm font-medium">No leads match your criteria.</p>
-          </div>
-        </td>
-      </tr>
-    );
-  }
+  let tableContent = filteredLeads.length > 0 ? filteredLeads.map((l, i) => renderRow(l, i)) : (
+    <tr>
+      <td colSpan="7" className="px-6 py-20 text-center">
+        <div className="flex flex-col items-center text-slate-400">
+          <div className="text-4xl mb-4">📭</div>
+          <p className="text-sm font-medium">No leads match your criteria.</p>
+        </div>
+      </td>
+    </tr>
+  );
 
   return (
     <div className="font-[family-name:var(--font-geist-sans)] max-w-[1400px] mx-auto">
@@ -145,8 +118,6 @@ export function CustomersPage() {
         onStatusChange={setStatusFilter}
         serviceFilter={serviceFilter}
         onServiceChange={setServiceFilter}
-        groupByPincode={groupByPincode}
-        onGroupToggle={() => setGroupByPincode(!groupByPincode)}
         placeholder="Search by name, email, phone or pincode…"
       />
       
