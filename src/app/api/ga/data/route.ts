@@ -36,45 +36,89 @@ export async function GET(req: Request) {
     const analyticsdata = google.analyticsdata({ version: 'v1beta', auth })
     const property = `properties/${propertyId}`
 
-    // Realtime users
-    let realtime: any = null
+    // Realtime users (active users + top cities)
+    let realtime: any = { error: 'unavailable' }
     try {
       const rt = await analyticsdata.properties.runRealtimeReport({
         property,
         requestBody: {
           metrics: [{ name: 'activeUsers' }],
           dimensions: [{ name: 'country' }, { name: 'city' }],
-          limit: 10,
+          limit: 100,
         },
       })
-      realtime = rt.data
+      realtime = rt.data || null
     } catch (e) {
       realtime = { error: String(e) }
     }
 
-    // 7-day totals (users) and device breakdown
-    const totalsRes = await analyticsdata.properties.runReport({
-      property,
-      requestBody: {
-        dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
-        metrics: [{ name: 'totalUsers' }, { name: 'newUsers' }],
-        dimensions: [{ name: 'deviceCategory' }, { name: 'country' }],
-        limit: 10,
-      },
-    })
+    // 7-day device breakdown and totals
+    let totals: any = null
+    try {
+      const totalsRes = await analyticsdata.properties.runReport({
+        property,
+        requestBody: {
+          dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
+          metrics: [{ name: 'totalUsers' }, { name: 'newUsers' }],
+          dimensions: [{ name: 'deviceCategory' }, { name: 'country' }],
+          limit: 50,
+        },
+      })
+      totals = totalsRes.data
+    } catch (e) {
+      totals = { error: String(e) }
+    }
 
-    // top pages by pagePath
-    const pagesRes = await analyticsdata.properties.runReport({
-      property,
-      requestBody: {
-        dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
-        metrics: [{ name: 'screenPageViews' }],
-        dimensions: [{ name: 'pagePath' }, { name: 'pageTitle' }],
-        limit: 10,
-      },
-    })
+    // top pages by pagePath (7d)
+    let pages: any = null
+    try {
+      const pagesRes = await analyticsdata.properties.runReport({
+        property,
+        requestBody: {
+          dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
+          metrics: [{ name: 'screenPageViews' }],
+          dimensions: [{ name: 'pagePath' }, { name: 'pageTitle' }],
+          limit: 25,
+        },
+      })
+      pages = pagesRes.data
+    } catch (e) {
+      pages = { error: String(e) }
+    }
 
-    return NextResponse.json({ realtime, totals: totalsRes.data, pages: pagesRes.data })
+    // visitors today
+    let visitorsToday: any = null
+    try {
+      const todayRes = await analyticsdata.properties.runReport({
+        property,
+        requestBody: {
+          dateRanges: [{ startDate: 'today', endDate: 'today' }],
+          metrics: [{ name: 'totalUsers' }],
+        },
+      })
+      visitorsToday = todayRes.data
+    } catch (e) {
+      visitorsToday = { error: String(e) }
+    }
+
+    // traffic trends (7d by date)
+    let trafficTrends: any = null
+    try {
+      const trendsRes = await analyticsdata.properties.runReport({
+        property,
+        requestBody: {
+          dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
+          metrics: [{ name: 'totalUsers' }],
+          dimensions: [{ name: 'date' }],
+          limit: 50,
+        },
+      })
+      trafficTrends = trendsRes.data
+    } catch (e) {
+      trafficTrends = { error: String(e) }
+    }
+
+    return NextResponse.json({ realtime, totals, pages, visitorsToday, trafficTrends })
   } catch (err: any) {
     return NextResponse.json({ error: String(err) }, { status: 500 })
   }

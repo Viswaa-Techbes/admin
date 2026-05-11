@@ -10,28 +10,51 @@ export default function AnalyticsMainPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let mounted = true
     fetch('/api/ga/data?domain=techbes.co.in')
       .then((r) => r.json())
-      .then((j) => setData(j))
-      .catch((e) => setData({ error: String(e) }))
-      .finally(() => setLoading(false))
+      .then((j) => { if (mounted) setData(j) })
+      .catch((e) => { if (mounted) setData({ error: String(e) }) })
+      .finally(() => { if (mounted) setLoading(false) })
+    return () => { mounted = false }
   }, [])
+
+  const renderRows = (rows) => (
+    <ul>{rows?.map((r, i) => <li key={i}>{JSON.stringify(r)}</li>)}</ul>
+  )
 
   return (
     <div style={{ padding: 24 }}>
       <h1>Analytics — Main site</h1>
       {loading && <p>Loading…</p>}
-      {!loading && data?.error && <pre style={{ color: 'red' }}>{data.error}</pre>}
+      {!loading && data?.error && <pre style={{ color: 'red' }}>{String(data.error)}</pre>}
       {!loading && data && !data.error && (
         <div>
-          <h3>Realtime</h3>
-          <pre style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(data.realtime, null, 2)}</pre>
+          <h3>Realtime Active Users</h3>
+          <div>{data.realtime?.rowCount ?? data.realtime?.totals?.[0]?.values?.[0] ?? 'N/A'}</div>
 
-          <h3>7-day Totals</h3>
-          <pre style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(data.totals, null, 2)}</pre>
+          <h3>Visitors Today</h3>
+          <div>{data.visitorsToday?.rows?.[0]?.metricValues?.[0]?.value ?? 'N/A'}</div>
 
           <h3>Top Pages (7d)</h3>
-          <pre style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(data.pages, null, 2)}</pre>
+          {data.pages?.rows ? (
+            <ol>
+              {data.pages.rows.map((r, i) => (
+                <li key={i}>{(r.dimensionValues?.[1]?.value || r.dimensionValues?.[0]?.value) + ' — ' + (r.metricValues?.[0]?.value || '')}</li>
+              ))}
+            </ol>
+          ) : <pre>{JSON.stringify(data.pages)}</pre>}
+
+          <h3>Top Cities (Realtime)</h3>
+          {data.realtime?.rows ? renderRows(data.realtime.rows.map(r => ({ city: r.dimensionValues?.[1]?.value, country: r.dimensionValues?.[0]?.value, users: r.metricValues?.[0]?.value }))) : <pre>{JSON.stringify(data.realtime)}</pre>}
+
+          <h3>Device Types (7d)</h3>
+          {data.totals?.rows ? renderRows(data.totals.rows.map(r => ({ device: r.dimensionValues?.[0]?.value, users: r.metricValues?.[0]?.value }))) : <pre>{JSON.stringify(data.totals)}</pre>}
+
+          <h3>Traffic Trends (7d)</h3>
+          {data.trafficTrends?.rows ? (
+            <ul>{data.trafficTrends.rows.map((r, i) => <li key={i}>{r.dimensionValues?.[0]?.value}: {r.metricValues?.[0]?.value}</li>)}</ul>
+          ) : <pre>{JSON.stringify(data.trafficTrends)}</pre>}
         </div>
       )}
     </div>
