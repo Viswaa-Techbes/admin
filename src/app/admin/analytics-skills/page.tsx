@@ -27,12 +27,12 @@ export default function AnalyticsSkillsPage() {
 
           <h3>Top Pages (7d)</h3>
           {data.pages?.rows ? (
-            <ol>{data.pages.rows.map((r, i) => <li key={i}>{(r.dimensionValues?.[1]?.value || r.dimensionValues?.[0]?.value) + ' — ' + (r.metricValues?.[0]?.value || '')}</li>)}</ol>
+            <ol>{data.pages.rows.map((r: any, i: number) => <li key={i}>{(r.dimensionValues?.[1]?.value || r.dimensionValues?.[0]?.value) + ' — ' + (r.metricValues?.[0]?.value || '')}</li>)}</ol>
           ) : <pre>{JSON.stringify(data.pages)}</pre>}
 
           <h3>Top Cities (Realtime)</h3>
           {data.realtime?.rows ? (
-            <ul>{data.realtime.rows.map((r, i) => <li key={i}>{r.dimensionValues?.[1]?.value} ({r.dimensionValues?.[0]?.value}) — {r.metricValues?.[0]?.value}</li>)}</ul>
+            <ul>{data.realtime.rows.map((r: any, i: number) => <li key={i}>{r.dimensionValues?.[1]?.value} ({r.dimensionValues?.[0]?.value}) — {r.metricValues?.[0]?.value}</li>)}</ul>
           ) : <pre>{JSON.stringify(data.realtime)}</pre>}
         </div>
       )}

@@ -32,24 +32,24 @@ export default function AnalyticsMainPage() {
           <h3>Visitors Today</h3>
           <div>{data.visitorsToday?.rows?.[0]?.metricValues?.[0]?.value ?? 'N/A'}</div>
 
-          <h3>Top Pages (7d)</h3>
+           <h3>Top Pages (7d)</h3>
           {data.pages?.rows ? (
             <ol>
-              {data.pages.rows.map((r, i) => (
+              {data.pages.rows.map((r: any, i: number) => (
                 <li key={i}>{(r.dimensionValues?.[1]?.value || r.dimensionValues?.[0]?.value) + ' — ' + (r.metricValues?.[0]?.value || '')}</li>
               ))}
             </ol>
           ) : <pre>{JSON.stringify(data.pages)}</pre>}
 
           <h3>Top Cities (Realtime)</h3>
-          {data.realtime?.rows ? renderRows(data.realtime.rows.map(r => ({ city: r.dimensionValues?.[1]?.value, country: r.dimensionValues?.[0]?.value, users: r.metricValues?.[0]?.value }))) : <pre>{JSON.stringify(data.realtime)}</pre>}
+          {data.realtime?.rows ? renderRows(data.realtime.rows.map((r: any) => ({ city: r.dimensionValues?.[1]?.value, country: r.dimensionValues?.[0]?.value, users: r.metricValues?.[0]?.value }))) : <pre>{JSON.stringify(data.realtime)}</pre>}
 
           <h3>Device Types (7d)</h3>
-          {data.totals?.rows ? renderRows(data.totals.rows.map(r => ({ device: r.dimensionValues?.[0]?.value, users: r.metricValues?.[0]?.value }))) : <pre>{JSON.stringify(data.totals)}</pre>}
+          {data.totals?.rows ? renderRows(data.totals.rows.map((r: any) => ({ device: r.dimensionValues?.[0]?.value, users: r.metricValues?.[0]?.value }))) : <pre>{JSON.stringify(data.totals)}</pre>}
 
           <h3>Traffic Trends (7d)</h3>
           {data.trafficTrends?.rows ? (
-            <ul>{data.trafficTrends.rows.map((r, i) => <li key={i}>{r.dimensionValues?.[0]?.value}: {r.metricValues?.[0]?.value}</li>)}</ul>
+            <ul>{data.trafficTrends.rows.map((r: any, i: number) => <li key={i}>{r.dimensionValues?.[0]?.value}: {r.metricValues?.[0]?.value}</li>)}</ul>
           ) : <pre>{JSON.stringify(data.trafficTrends)}</pre>}
         </div>
       )}
