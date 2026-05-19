@@ -44,7 +44,7 @@ export async function GET(req: Request) {
         requestBody: {
           metrics: [{ name: 'activeUsers' }],
           dimensions: [{ name: 'country' }, { name: 'city' }],
-          limit: 100,
+          limit: '100',
         },
       })
       realtime = rt.data || null
@@ -61,7 +61,7 @@ export async function GET(req: Request) {
           dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
           metrics: [{ name: 'totalUsers' }, { name: 'newUsers' }],
           dimensions: [{ name: 'deviceCategory' }, { name: 'country' }],
-          limit: 50,
+          limit: '50',
         },
       })
       totals = totalsRes.data
@@ -78,7 +78,7 @@ export async function GET(req: Request) {
           dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
           metrics: [{ name: 'screenPageViews' }],
           dimensions: [{ name: 'pagePath' }, { name: 'pageTitle' }],
-          limit: 25,
+          limit: '25',
         },
       })
       pages = pagesRes.data
@@ -110,7 +110,7 @@ export async function GET(req: Request) {
           dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
           metrics: [{ name: 'totalUsers' }],
           dimensions: [{ name: 'date' }],
-          limit: 50,
+          limit: '50',
         },
       })
       trafficTrends = trendsRes.data
