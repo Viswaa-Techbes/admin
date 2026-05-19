@@ -1,10 +1,6 @@
 "use client"
 import { useEffect, useState } from "react"
 
-export const metadata = {
-  title: "Analytics - Main",
-}
-
 export default function AnalyticsMainPage() {
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -19,8 +15,8 @@ export default function AnalyticsMainPage() {
     return () => { mounted = false }
   }, [])
 
-  const renderRows = (rows) => (
-    <ul>{rows?.map((r, i) => <li key={i}>{JSON.stringify(r)}</li>)}</ul>
+  const renderRows = (rows: any[]) => (
+    <ul>{rows?.map((r: any, i: number) => <li key={i}>{JSON.stringify(r)}</li>)}</ul>
   )
 
   return (

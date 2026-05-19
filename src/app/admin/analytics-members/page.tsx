@@ -1,13 +1,5 @@
-export const metadata = {
-  title: 'Analytics - Members',
-}
-
 "use client"
 import { useEffect, useState } from "react"
-
-export const metadata = {
-  title: 'Analytics - Members',
-}
 
 export default function AnalyticsMembersPage() {
   const [data, setData] = useState<any>(null)
