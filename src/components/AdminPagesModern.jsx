@@ -1755,6 +1755,11 @@ export function ServiceRequestsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [paymentFilter, setPaymentFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [subcategoryFilter, setSubcategoryFilter] = useState("all");
+  const [cameraTypeFilter, setCameraTypeFilter] = useState("all");
+  const [cctvOptions, setCctvOptions] = useState({ categories: [], subcategories: [], cameraTypes: [] });
   const [assignModal, setAssignModal] = useState(null); // booking object or null
   const [viewModal, setViewModal] = useState(null); // popup details
   const [technicians, setTechnicians] = useState([]);
@@ -1765,12 +1770,17 @@ export function ServiceRequestsPage() {
   const loadBookings = useCallback(async ({ showLoading = false } = {}) => {
     try {
       if (showLoading) setLoading(true);
-      const url = statusFilter === "all" ? "/api/v2/admin/bookings" : `/api/v2/admin/bookings?status=${statusFilter}`;
+      const params = new URLSearchParams();
+      if (statusFilter !== "all") params.set("status", statusFilter);
+      if (paymentFilter !== "all") params.set("paymentStatus", paymentFilter);
+      if (categoryFilter !== "all") params.set("cctvCategory", categoryFilter);
+      if (subcategoryFilter !== "all") params.set("cctvSubcategory", subcategoryFilter);
+      if (cameraTypeFilter !== "all") params.set("cameraType", cameraTypeFilter);
+      const url = `/api/v2/admin/bookings${params.toString() ? `?${params.toString()}` : ""}`;
       const res = await fetch(url, { cache: "no-store" });
       const payload = await res.json();
       if (!res.ok) throw new Error(payload.message || "Failed to load bookings");
-      // Filter out installations to keep only repairs/others in Service Requests
-      const list = (payload.data || []).filter(j => j.serviceType !== 'installation' && !String(j.title || j.serviceName).toLowerCase().includes('install'));
+      const list = payload.data || [];
       setBookings(list);
       setError("");
     } catch (err) {
@@ -1778,7 +1788,7 @@ export function ServiceRequestsPage() {
     } finally {
       if (showLoading) setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, paymentFilter, categoryFilter, subcategoryFilter, cameraTypeFilter]);
 
   async function handleUpdateStatus(id, status) {
     try {
@@ -1802,6 +1812,20 @@ export function ServiceRequestsPage() {
   }
 
   useEffect(() => { loadBookings({ showLoading: true }); }, [loadBookings]);
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/v2/admin/services/cctv/categories").then(r => r.json()),
+      fetch("/api/v2/admin/services/cctv/subcategories").then(r => r.json()),
+      fetch("/api/v2/admin/services/cctv/camera-types").then(r => r.json()),
+    ]).then(([categories, subcategories, cameraTypes]) => {
+      setCctvOptions({
+        categories: categories.data || [],
+        subcategories: subcategories.data || [],
+        cameraTypes: cameraTypes.data || [],
+      });
+    }).catch(() => {});
+  }, []);
 
   // Poll every 5 seconds for real-time updates
   useEffect(() => {
@@ -1864,6 +1888,7 @@ export function ServiceRequestsPage() {
   }
 
   const statusOptions = ["all", "pending", "assigned", "in_progress", "completed"];
+  const paymentOptions = ["all", "pending", "advance_paid", "requested", "verification_pending", "paid", "rejected"];
 
   return (
     <div>
@@ -1892,6 +1917,21 @@ export function ServiceRequestsPage() {
                 {s === "all" ? "All" : s.replace(/_/g, " ")}
               </button>
             ))}
+            <select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)} style={INPUT_STYLE}>
+              {paymentOptions.map(p => <option key={p} value={p}>{p === "all" ? "All Payments" : p.replace(/_/g, " ")}</option>)}
+            </select>
+            <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} style={INPUT_STYLE}>
+              <option value="all">All CCTV Categories</option>
+              {cctvOptions.categories.map(c => <option key={c._id} value={c.slug}>{c.name}</option>)}
+            </select>
+            <select value={subcategoryFilter} onChange={(e) => setSubcategoryFilter(e.target.value)} style={INPUT_STYLE}>
+              <option value="all">All Subcategories</option>
+              {cctvOptions.subcategories.map(s => <option key={s._id} value={s.slug}>{s.name}</option>)}
+            </select>
+            <select value={cameraTypeFilter} onChange={(e) => setCameraTypeFilter(e.target.value)} style={INPUT_STYLE}>
+              <option value="all">All Camera Types</option>
+              {cctvOptions.cameraTypes.map(t => <option key={t._id} value={t.slug}>{t.name}</option>)}
+            </select>
           </div>
         }
       />
@@ -1909,6 +1949,21 @@ export function ServiceRequestsPage() {
               <div><strong style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Date & Time</strong><div style={{ fontSize: 14, fontWeight: 600 }}>{viewModal.date || "TBD"} {viewModal.timeSlot || ""}</div></div>
               <div style={{ gridColumn: "1 / -1" }}><strong style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Address</strong><div style={{ fontSize: 14, fontWeight: 600 }}>{viewModal.address || "—"}</div></div>
               <div style={{ gridColumn: "1 / -1" }}><strong style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Description</strong><div style={{ fontSize: 14, fontWeight: 600, color: "#475569" }}>{viewModal.description || "No description provided."}</div></div>
+              {viewModal.cctvDetails?.cameraType?.name && (
+                <div style={{ gridColumn: "1 / -1", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 12, padding: 12 }}>
+                  <strong style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>CCTV Details</strong>
+                  <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 13 }}>
+                    <div>Category: <b>{viewModal.cctvDetails.category?.name || "—"}</b></div>
+                    <div>Subcategory: <b>{viewModal.cctvDetails.subcategory?.name || "—"}</b></div>
+                    <div>Camera Type: <b>{viewModal.cctvDetails.cameraType?.name || "—"}</b></div>
+                    <div>Camera Count: <b>{viewModal.cctvDetails.cameraCount || 0}</b></div>
+                    <div>Area: <b>{viewModal.cctvDetails.installationArea || "—"}</b></div>
+                    <div>Wire Length: <b>{viewModal.cctvDetails.wireLength || 0} m</b></div>
+                    <div style={{ gridColumn: "1 / -1" }}>Add-ons: <b>{(viewModal.cctvDetails.addons || []).map(a => a.name).join(", ") || "None"}</b></div>
+                    <div style={{ gridColumn: "1 / -1" }}>Grand Total: <b>₹{viewModal.grandTotal || viewModal.cctvDetails.priceBreakdown?.grandTotal || 0}</b></div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 24, paddingTop: 20, borderTop: "1px solid #f1f5f9" }}>
@@ -1965,7 +2020,7 @@ export function ServiceRequestsPage() {
 
       <DataCard loading={loading} error={error} empty={!bookings.length} emptyText="No service requests found.">
         <TableWrapper
-          headers={["Customer", "Service", "Date & Time", "Status", "Technician", "Assign", "Actions"]}
+          headers={["Customer", "Service", "CCTV Details", "Date & Time", "Status", "Payment", "Technician", "Assign", "Actions"]}
           rows={bookings.map(booking => (
             <tr key={booking.id} style={{ borderBottom: "1px solid #f8fafc", cursor: "pointer" }} onClick={(e) => { if(e.target.tagName !== 'BUTTON') setViewModal(booking); }}>
               <td style={TD_STYLE}>
@@ -1977,10 +2032,20 @@ export function ServiceRequestsPage() {
                 {booking.address && <div style={{ fontSize: 11, color: "#94a3b8" }}>{booking.address}</div>}
               </td>
               <td style={TD_STYLE}>
+                {booking.cctvDetails?.cameraType?.name ? (
+                  <div style={{ fontSize: 11, lineHeight: 1.6 }}>
+                    <div><b>{booking.cctvDetails.subcategory?.name}</b></div>
+                    <div>{booking.cctvDetails.cameraType.name} · {booking.cctvDetails.cameraCount} cams</div>
+                    <div>{booking.cctvDetails.installationArea} · {booking.cctvDetails.wireLength}m · ₹{booking.grandTotal}</div>
+                  </div>
+                ) : <span style={{ color: "#94a3b8" }}>—</span>}
+              </td>
+              <td style={TD_STYLE}>
                 <div style={{ fontWeight: 600 }}>{booking.date || "TBD"}</div>
                 <div style={{ fontSize: 11, color: "#94a3b8" }}>{booking.timeSlot || ""}</div>
               </td>
               <td style={TD_STYLE}><StatusChip status={booking.status} /></td>
+              <td style={TD_STYLE}><StatusChip status={booking.paymentStatus || "pending"} /></td>
               <td style={TD_STYLE}>
                 {booking.technicianName
                   ? <span style={{ color: "#15803d", fontWeight: 600, fontSize: 12 }}>✓ {booking.technicianName}</span>
@@ -2009,7 +2074,179 @@ export function ServiceRequestsPage() {
   );
 }
 
-export function ServicesPage() { return <PlaceholderPage title="Services" />; }
+export function ServicesPage() {
+  const [tab, setTab] = useState("subcategories");
+  const [data, setData] = useState({ categories: [], subcategories: [], cameraTypes: [], addons: [], pricing: null });
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const [categories, subcategories, cameraTypes, addons, pricing] = await Promise.all([
+        fetch("/api/v2/admin/services/cctv/categories").then(r => r.json()),
+        fetch("/api/v2/admin/services/cctv/subcategories").then(r => r.json()),
+        fetch("/api/v2/admin/services/cctv/camera-types").then(r => r.json()),
+        fetch("/api/v2/admin/services/cctv/addons").then(r => r.json()),
+        fetch("/api/v2/admin/services/cctv/pricing-config").then(r => r.json()),
+      ]);
+      setData({
+        categories: categories.data || [],
+        subcategories: subcategories.data || [],
+        cameraTypes: cameraTypes.data || [],
+        addons: addons.data || [],
+        pricing: pricing.data || null,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  function endpoint(kind, id = "") {
+    const map = {
+      categories: "categories",
+      subcategories: "subcategories",
+      cameraTypes: "camera-types",
+      addons: "addons",
+    };
+    return `/api/v2/admin/services/cctv/${map[kind]}${id ? `/${id}` : ""}`;
+  }
+
+  async function saveItem(kind) {
+    try {
+      setSaving(true);
+      const body = { ...form };
+      if (kind === "subcategories" && !body.categoryId) body.categoryId = data.categories[0]?._id;
+      const res = await fetch(endpoint(kind, body._id), {
+        method: body._id ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload.message || "Save failed");
+      setForm({});
+      await load();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function savePricing() {
+    try {
+      setSaving(true);
+      const res = await fetch("/api/v2/admin/services/cctv/pricing-config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      if (!res.ok) throw new Error("Failed to save pricing");
+      setForm({});
+      await load();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const tabs = [
+    ["subcategories", "CCTV Services"],
+    ["categories", "Categories"],
+    ["cameraTypes", "Camera Types"],
+    ["addons", "Add-ons"],
+    ["pricing", "Pricing"],
+  ];
+
+  return (
+    <div>
+      <PageHeader title="Services Management" subtitle="Manage database-backed CCTV services, pricing, camera types, and add-ons." />
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+        {tabs.map(([id, label]) => <button key={id} onClick={() => { setTab(id); setForm(id === "pricing" ? (data.pricing || {}) : {}); }} style={pillButton(tab === id)}>{label}</button>)}
+      </div>
+      <DataCard loading={loading} empty={false}>
+        {tab === "pricing" ? (
+          <div>
+            <SectionHeader title="Pricing Configuration" />
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+              <AdminField label="Base Charge" value={form.baseCharge ?? data.pricing?.baseCharge ?? ""} onChange={v => setForm({ ...form, baseCharge: Number(v) })} />
+              <AdminField label="Indoor Charge" value={form.indoorCharge ?? data.pricing?.indoorCharge ?? ""} onChange={v => setForm({ ...form, indoorCharge: Number(v) })} />
+              <AdminField label="Outdoor Charge" value={form.outdoorCharge ?? data.pricing?.outdoorCharge ?? ""} onChange={v => setForm({ ...form, outdoorCharge: Number(v) })} />
+              <AdminField label="Wire Price / Meter" value={form.wirePricePerMeter ?? data.pricing?.wirePricePerMeter ?? ""} onChange={v => setForm({ ...form, wirePricePerMeter: Number(v) })} />
+              <AdminField label="Discount Value" value={form.discount?.value ?? data.pricing?.discount?.value ?? 0} onChange={v => setForm({ ...form, discount: { ...(form.discount || data.pricing?.discount || {}), value: Number(v), type: "flat" } })} />
+              <AdminField label="Tax %" value={form.tax?.percentage ?? data.pricing?.tax?.percentage ?? 0} onChange={v => setForm({ ...form, tax: { ...(form.tax || data.pricing?.tax || {}), percentage: Number(v), status: "active" } })} />
+            </div>
+            <button onClick={savePricing} disabled={saving} style={{ ...primaryButton, marginTop: 16 }}>{saving ? "Saving..." : "Save Pricing"}</button>
+          </div>
+        ) : (
+          <AdminCctvList
+            tab={tab}
+            items={data[tab] || []}
+            categories={data.categories}
+            form={form}
+            setForm={setForm}
+            onSave={() => saveItem(tab)}
+            saving={saving}
+          />
+        )}
+      </DataCard>
+    </div>
+  );
+}
+
+function AdminCctvList({ tab, items, categories, form, setForm, onSave, saving }) {
+  const isSub = tab === "subcategories";
+  const isCamera = tab === "cameraTypes";
+  const isAddon = tab === "addons";
+  return (
+    <div>
+      <SectionHeader title={tab === "subcategories" ? "CCTV Services" : tab === "cameraTypes" ? "Camera Types" : tab === "addons" ? "Add-ons" : "Categories"} />
+      <div style={{ display: "grid", gridTemplateColumns: isSub ? "1fr 1fr 1fr" : "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
+        {isSub && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <label style={LABEL_STYLE}>Category</label>
+            <select value={form.categoryId || categories[0]?._id || ""} onChange={e => setForm({ ...form, categoryId: e.target.value })} style={INPUT_STYLE}>
+              {categories.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+            </select>
+          </div>
+        )}
+        <AdminField label="Name" value={form.name || ""} onChange={v => setForm({ ...form, name: v })} />
+        {(isCamera || isAddon) && <AdminField label={isCamera ? "Installation Price" : "Price"} value={isCamera ? form.installationPrice || "" : form.price || ""} onChange={v => setForm({ ...form, [isCamera ? "installationPrice" : "price"]: Number(v) })} />}
+        <AdminField label="Status" value={form.status || "active"} onChange={v => setForm({ ...form, status: v })} />
+        {isSub && <AdminField label="Pricing Starts From" value={form.pricingStartsFrom || ""} onChange={v => setForm({ ...form, pricingStartsFrom: Number(v) })} />}
+        <div style={{ gridColumn: "1 / -1" }}>
+          <label style={LABEL_STYLE}>Description / Overview</label>
+          <textarea value={form.overview || form.description || ""} onChange={e => setForm({ ...form, [isSub ? "overview" : "description"]: e.target.value })} style={{ ...INPUT_STYLE, width: "100%", minHeight: 74, marginTop: 6 }} />
+        </div>
+      </div>
+      <button onClick={onSave} disabled={saving || !form.name} style={primaryButton}>{saving ? "Saving..." : form._id ? "Update" : "Create"}</button>
+      {form._id && <button onClick={() => setForm({})} style={{ ...rejectButton, marginLeft: 8 }}>Cancel</button>}
+      <div style={{ marginTop: 18 }}>
+        <TableWrapper headers={["Name", "Price", "Status", "Actions"]} rows={items.map(item => (
+          <tr key={item._id} style={{ borderBottom: "1px solid #f8fafc" }}>
+            <td style={TD_STYLE}><b>{item.name}</b><div style={{ color: "#94a3b8", fontSize: 11 }}>{item.slug}</div></td>
+            <td style={TD_STYLE}>{item.installationPrice ?? item.price ?? item.pricingStartsFrom ?? "—"}</td>
+            <td style={TD_STYLE}><StatusBadge status={item.status} /></td>
+            <td style={TD_STYLE}><button onClick={() => setForm(item)} style={approveButton}>Edit</button></td>
+          </tr>
+        ))} />
+      </div>
+    </div>
+  );
+}
+
+function AdminField({ label, value, onChange }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <label style={LABEL_STYLE}>{label}</label>
+      <input value={value} onChange={e => onChange(e.target.value)} style={INPUT_STYLE} />
+    </div>
+  );
+}
 export function PaymentsPage() {
   const { data: requests, loading, error, refresh } = useApiData("/api/v2/payment/requests");
   const { data: verifications, loading: vLoading, refresh: vRefresh } = useApiData("/api/v2/admin/payment-requests");
