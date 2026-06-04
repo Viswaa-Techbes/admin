@@ -3,12 +3,12 @@ import { Card, StatusBadge, SectionHeader, TableWrapper } from "./UI";
 import * as Icons from "./Icons";
 
 const STAT_META = [
-  { key: "totalLeads", label: "Total Leads", icon: <Icons.UsersIcon />, color: "#6366f1", bg: "#eef2ff", target: "members" },
-  { key: "totalJobs", label: "Total Projects", icon: <Icons.BriefcaseIcon />, color: "#3b82f6", bg: "#eff6ff", target: "jobs" },
-  { key: "completedJobs", label: "Completed Projects", icon: <Icons.GridIcon />, color: "#10b981", bg: "#ecfdf5", target: "jobs" },
-  { key: "activeTechnicians", label: "Active Technicians", icon: <Icons.WrenchIcon />, color: "#8b5cf6", bg: "#f5f3ff", target: "tracking" },
-  { key: "approvalQueue", label: "Approval Queue", icon: <Icons.BellIcon />, color: "#f43f5e", bg: "#fff1f2", target: "requests" },
-  { key: "paymentQueue", label: "Payment Queue", icon: <Icons.CreditCardIcon />, color: "#0f766e", bg: "#ecfeff", target: "payments" },
+  { key: "totalUsers", label: "Total Users", icon: <Icons.UsersIcon />, color: "#6366f1", bg: "#eef2ff", target: "technicians" },
+  { key: "totalLeads", label: "Total Leads", icon: <Icons.UsersIcon />, color: "#3b82f6", bg: "#eff6ff", target: "members" },
+  { key: "totalBookings", label: "Total Bookings", icon: <Icons.BriefcaseIcon />, color: "#10b981", bg: "#ecfdf5", target: "service-requests" },
+  { key: "totalRevenue", label: "Total Revenue", icon: <Icons.CreditCardIcon />, color: "#8b5cf6", bg: "#f5f3ff", target: "payments", money: true },
+  { key: "pendingPayments", label: "Pending Payments", icon: <Icons.BellIcon />, color: "#f43f5e", bg: "#fff1f2", target: "payments" },
+  { key: "upcomingJobs", label: "Upcoming Jobs", icon: <Icons.WrenchIcon />, color: "#0f766e", bg: "#ecfeff", target: "jobs" },
 ];
 
 export function DashboardPage({ onNavigate }) {
@@ -72,7 +72,7 @@ export function DashboardPage({ onNavigate }) {
               <div style={{ padding: "4px 8px", borderRadius: 8, background: "#f8fafc", fontSize: 10, fontWeight: 700, color: "#64748b" }}>LIVE</div>
             </div>
             <div style={{ fontSize: 26, fontWeight: 800, color: "#0f172a", marginBottom: 2 }}>
-              {loading ? "..." : summary[item.key] ?? 0}
+              {loading ? "..." : item.money ? `₹${Number(summary[item.key] || 0).toLocaleString("en-IN")}` : summary[item.key] ?? 0}
             </div>
             <div style={{ fontSize: 13, color: "#475569", fontWeight: 700 }}>{item.label}</div>
           </Card>

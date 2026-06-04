@@ -2314,6 +2314,44 @@ export function ServicesPage() {
   );
 }
 
+export function AddressesPage() {
+  const { data: addresses, loading, error } = useApiData("/api/v2/admin/addresses");
+  const [search, setSearch] = useState("");
+  const [stateFilter, setStateFilter] = useState("all");
+  const states = useMemo(() => [...new Set(addresses.map(a => a.state).filter(Boolean))], [addresses]);
+  const filtered = useMemo(() => addresses.filter((item) => {
+    const q = search.toLowerCase();
+    const matchesSearch = [item.customerName, item.phone, item.address, item.city, item.state, item.pincode].some(v => String(v || "").toLowerCase().includes(q));
+    const matchesState = stateFilter === "all" || item.state === stateFilter;
+    return matchesSearch && matchesState;
+  }), [addresses, search, stateFilter]);
+
+  return (
+    <div>
+      <PageHeader title="Address Management" subtitle={`${filtered.length} customer addresses`} />
+      <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search customer, phone, city, pincode" style={{ ...INPUT_STYLE, flex: 1 }} />
+        <select value={stateFilter} onChange={e => setStateFilter(e.target.value)} style={INPUT_STYLE}>
+          <option value="all">All States</option>
+          {states.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </div>
+      <DataCard loading={loading} error={error} empty={!filtered.length} emptyText="No customer addresses found.">
+        <TableWrapper headers={["Customer", "Phone", "Address", "City", "State", "Pincode"]} rows={filtered.map(item => (
+          <tr key={item.id} style={{ borderBottom: "1px solid #f8fafc" }}>
+            <td style={TD_STYLE}><b>{item.customerName}</b></td>
+            <td style={TD_STYLE}>{item.phone || "—"}</td>
+            <td style={TD_STYLE}>{item.address || "—"}</td>
+            <td style={TD_STYLE}>{item.city || "—"}</td>
+            <td style={TD_STYLE}>{item.state || "—"}</td>
+            <td style={TD_STYLE}>{item.pincode || "—"}</td>
+          </tr>
+        ))} />
+      </DataCard>
+    </div>
+  );
+}
+
 function AdminCctvList({ tab, items, categories, subcategories = [], form, setForm, onSave, saving, addons = [], products = [] }) {
   const isSub = tab === "subcategories";
   const isCamera = tab === "cameraTypes";
@@ -2357,7 +2395,7 @@ function AdminCctvList({ tab, items, categories, subcategories = [], form, setFo
               <option value="">Select a service type</option>
               {subcategories.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
             </select>
-            <label style={LABEL_STYLE}>FAQs (JSON array of {question,answer})</label>
+            <label style={LABEL_STYLE}>FAQs (JSON array of question and answer objects)</label>
             <textarea value={form.faqsJson || JSON.stringify(form.faqs || [], null, 2)} onChange={e => setForm({ ...form, faqsJson: e.target.value })} style={{ ...INPUT_STYLE, minHeight: 120 }} />
           </div>
         )}
