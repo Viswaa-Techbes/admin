@@ -6,6 +6,7 @@ export const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: <GridIcon /> },
   { id: "members", label: "Members Management", icon: <UsersIcon /> },
   { id: "technicians", label: "User Management", icon: <HardHatIcon /> },
+  { id: "leads", label: "Leads", icon: <UsersIcon /> },
   { id: "jobs", label: "Projects", icon: <BriefcaseIcon /> },
   { id: "service-requests", label: "Service Requests", icon: <BellIcon />, badge: null },
   { id: "requests", label: "Completion Requests", icon: <BellIcon /> },

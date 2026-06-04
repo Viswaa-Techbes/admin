@@ -112,6 +112,7 @@ export default function AdminDashboardContent() {
   const pages = {
     dashboard: <DashboardPage onNavigate={setActivePage} />,
     members: <CustomersPage />,
+    leads: <CustomersPage />,
     technicians: <TechniciansPage />,
     jobs: <ProjectsPage />,
     "service-requests": <ServiceRequestsPage />,

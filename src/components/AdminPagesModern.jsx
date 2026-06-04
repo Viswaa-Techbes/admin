@@ -44,6 +44,7 @@ export function CustomersPage() {
   const { data: leads, setData: setLeads, loading, error, refresh: refreshLeads } = useApiData("/api/v2/admin/leads");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [viewMode, setViewMode] = useState("list"); // list | kanban
   const [serviceFilter, setServiceFilter] = useState("All");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -106,6 +107,51 @@ export function CustomersPage() {
     } catch (err) {
       alert(err.message);
     }
+  }
+
+  async function updateTechnicianStatus(id, status) {
+    try {
+      const res = await fetch(`/api/v2/admin/technicians/${id}/status`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, isOnline: status === 'available' }),
+      });
+      if (!res.ok) throw new Error('Failed to update status');
+      await refreshUsers();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function adminClockIn(userId) {
+    try {
+      const res = await fetch(`/api/v2/admin/attendance/clock-in`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.message || 'Clock-in failed');
+      alert('Clocked in');
+      await refreshUsers();
+    } catch (err) { alert(err.message); }
+  }
+
+  async function adminClockOut(userId) {
+    try {
+      const res = await fetch(`/api/v2/admin/attendance/clock-out`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.message || 'Clock-out failed');
+      alert('Clocked out');
+      await refreshUsers();
+    } catch (err) { alert(err.message); }
   }
 
   const rows = filteredLeads.map((lead, index) => leadRow(lead, index, handleDelete, startEdit));
@@ -374,6 +420,17 @@ export function TechniciansPage() {
                   {activeTab === 'member' && <button title="Edit" onClick={() => startEdit(u)} style={{ border: "none", background: "none", cursor: "pointer", color: "#64748b" }}><EditIcon /></button>}
                   <button title="Delete" onClick={() => handleDelete(u._id || u.id)} style={{ border: "none", background: "none", cursor: "pointer", color: "#f43f5e" }}><TrashIcon /></button>
                 </div>
+                {u.role === 'technician' && (
+                  <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <select value={u.status || 'offline'} onChange={(e) => updateTechnicianStatus(u._id || u.id, e.target.value)} style={{ padding: '6px 8px', borderRadius: 8 }}>
+                      <option value="available">Available</option>
+                      <option value="busy">Busy</option>
+                      <option value="offline">Offline</option>
+                    </select>
+                    <button onClick={() => adminClockIn(u._id || u.id)} style={{ padding: '6px 8px', borderRadius: 8, background: '#ecfccb', border: 'none' }}>Clock In</button>
+                    <button onClick={() => adminClockOut(u._id || u.id)} style={{ padding: '6px 8px', borderRadius: 8, background: '#fee2e2', border: 'none' }}>Clock Out</button>
+                  </div>
+                )}
                 {passwordChangeId === (u._id || u.id) && (
                   <div style={{ position: "absolute", right: 20, background: "#fff", border: "1px solid #e2e8f0", padding: 12, borderRadius: 12, boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", zIndex: 10 }}>
                     <form onSubmit={handlePasswordUpdate} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1222,7 +1279,7 @@ export function ProjectsPage() {
 
   return (
     <div>
-      <PageHeader title="Project Repository" subtitle={`${filteredJobs.length} projects available`} actions={<ActionBtn icon={<PlusIcon />} onClick={() => setShowForm(!showForm)} label={showForm ? "Close Form" : "Create Project"} primary />} />
+      <PageHeader title="Project Repository" subtitle={`${filteredJobs.length} projects available`} actions={<div style={{display:'flex',gap:8}}><ActionBtn icon={<PlusIcon />} onClick={() => setShowForm(!showForm)} label={showForm ? "Close Form" : "Create Project"} primary /><button onClick={() => setViewMode(viewMode === 'list' ? 'kanban' : 'list')} style={{padding:'8px 12px', borderRadius:10, border:'1px solid #e2e8f0', background:'#fff', cursor:'pointer'}}>{viewMode === 'list' ? 'Open Kanban' : 'List View'}</button></div>} />
       {showForm && (
         <Card style={{ padding: 20, marginBottom: 16 }}>
           <SectionHeader title="Assign New Project" />
@@ -1255,38 +1312,62 @@ export function ProjectsPage() {
         </Card>
       )}
       <DataCard loading={loading} error={error} empty={!filteredJobs.length} emptyText="No projects found.">
-        <TableWrapper
-          headers={["Customer", "Service", "Technician", "Location", "Status", "Created", "Actions"]}
-          rows={filteredJobs.map((job) => (
-            <tr key={job._id || job.id} style={{ borderBottom: "1px solid #f8fafc" }}>
-              <td style={TD_STYLE}><div style={{ fontWeight: 700, color: "#0f172a" }}>{job.customerName || "Client"}</div></td>
-              <td style={TD_STYLE}>{job.title || job.serviceName}</td>
-              <td style={TD_STYLE}>{job.assignedTechnician?.name || "Unassigned"}</td>
-              <td style={TD_STYLE}>{job.location || job.address}</td>
-              <td style={TD_STYLE}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <StatusBadge status={job.status} />
-                  <select
-                    value={job.status || "pending"}
-                    disabled={statusSavingId === (job._id || job.id)}
-                    onChange={(e) => handleChangeJobStatus(job._id || job.id, e.target.value)}
-                    style={{ padding: "5px 8px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 11, outline: "none", background: "#fff", color: "#334155" }}
-                  >
-                    {jobStatusOptions.map(status => (
-                      <option key={status} value={status}>{status.replace(/_/g, " ")}</option>
-                    ))}
-                  </select>
+        {viewMode === 'list' ? (
+          <TableWrapper
+            headers={["Customer", "Service", "Technician", "Location", "Status", "Created", "Actions"]}
+            rows={filteredJobs.map((job) => (
+              <tr key={job._id || job.id} style={{ borderBottom: "1px solid #f8fafc" }}>
+                <td style={TD_STYLE}><div style={{ fontWeight: 700, color: "#0f172a" }}>{job.customerName || "Client"}</div></td>
+                <td style={TD_STYLE}>{job.title || job.serviceName}</td>
+                <td style={TD_STYLE}>{job.assignedTechnician?.name || "Unassigned"}</td>
+                <td style={TD_STYLE}>{job.location || job.address}</td>
+                <td style={TD_STYLE}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <StatusBadge status={job.status} />
+                    <select
+                      value={job.status || "pending"}
+                      disabled={statusSavingId === (job._id || job.id)}
+                      onChange={(e) => handleChangeJobStatus(job._id || job.id, e.target.value)}
+                      style={{ padding: "5px 8px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 11, outline: "none", background: "#fff", color: "#334155" }}
+                    >
+                      {jobStatusOptions.map(status => (
+                        <option key={status} value={status}>{status.replace(/_/g, " ")}</option>
+                      ))}
+                    </select>
+                  </div>
+                </td>
+                <td style={TD_STYLE}>{formatDate(job.createdAt)}</td>
+                <td style={TD_STYLE}>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button title="Delete" onClick={() => handleDeleteJob(job._id || job.id)} style={{ border: "none", background: "none", cursor: "pointer", color: "#f43f5e" }}><TrashIcon /></button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          />
+        ) : (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            {['assigned','accepted','travelling','arrived','working','completed','closed'].map(column => (
+              <div key={column} style={{ flex: 1, background: '#fff', borderRadius: 12, padding: 12, minHeight: 200, border: '1px solid #e6edf3' }}>
+                <div style={{ fontWeight: 800, marginBottom: 8, textTransform: 'capitalize' }}>{column.replace(/_/g,' ')}</div>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {filteredJobs.filter(j => (j.status || 'pending') === column).map(job => (
+                    <div key={job._id || job.id} style={{ padding: 10, borderRadius: 8, background: '#f8fafc', border: '1px solid #eef2ff' }}>
+                      <div style={{ fontWeight: 700 }}>{job.customerName || job.title}</div>
+                      <div style={{ fontSize: 12, color: '#64748b' }}>{job.title || job.serviceName}</div>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                        <select value={job.status || 'pending'} onChange={(e) => handleChangeJobStatus(job._id || job.id, e.target.value)} style={{ padding: '6px 8px', borderRadius: 8 }}>
+                          {jobStatusOptions.map(s => <option key={s} value={s}>{s.replace(/_/g,' ')}</option>)}
+                        </select>
+                        <button onClick={() => handleDeleteJob(job._id || job.id)} style={{ padding: '6px 8px', borderRadius: 8, background: '#fee2e2', border: 'none' }}>Delete</button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </td>
-              <td style={TD_STYLE}>{formatDate(job.createdAt)}</td>
-              <td style={TD_STYLE}>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button title="Delete" onClick={() => handleDeleteJob(job._id || job.id)} style={{ border: "none", background: "none", cursor: "pointer", color: "#f43f5e" }}><TrashIcon /></button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        />
+              </div>
+            ))}
+          </div>
+        )}
       </DataCard>
     </div>
   );
@@ -1818,11 +1899,15 @@ export function ServiceRequestsPage() {
       fetch("/api/v2/admin/services/cctv/categories").then(r => r.json()),
       fetch("/api/v2/admin/services/cctv/subcategories").then(r => r.json()),
       fetch("/api/v2/admin/services/cctv/camera-types").then(r => r.json()),
-    ]).then(([categories, subcategories, cameraTypes]) => {
+      fetch("/api/v2/admin/materials").then(r => r.json()),
+      fetch("/api/v2/admin/services/cctv/products").then(r => r.json()),
+    ]).then(([categories, subcategories, cameraTypes, addons, products]) => {
       setCctvOptions({
         categories: categories.data || [],
         subcategories: subcategories.data || [],
         cameraTypes: cameraTypes.data || [],
+        addons: addons.data || [],
+        products: products.data || [],
       });
     }).catch(() => {});
   }, []);
@@ -1949,18 +2034,29 @@ export function ServiceRequestsPage() {
               <div><strong style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Date & Time</strong><div style={{ fontSize: 14, fontWeight: 600 }}>{viewModal.date || "TBD"} {viewModal.timeSlot || ""}</div></div>
               <div style={{ gridColumn: "1 / -1" }}><strong style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Address</strong><div style={{ fontSize: 14, fontWeight: 600 }}>{viewModal.address || "—"}</div></div>
               <div style={{ gridColumn: "1 / -1" }}><strong style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Description</strong><div style={{ fontSize: 14, fontWeight: 600, color: "#475569" }}>{viewModal.description || "No description provided."}</div></div>
-              {viewModal.cctvDetails?.cameraType?.name && (
+              {viewModal.cctvDetails && (
                 <div style={{ gridColumn: "1 / -1", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 12, padding: 12 }}>
                   <strong style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>CCTV Details</strong>
                   <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 13 }}>
-                    <div>Category: <b>{viewModal.cctvDetails.category?.name || "—"}</b></div>
-                    <div>Subcategory: <b>{viewModal.cctvDetails.subcategory?.name || "—"}</b></div>
-                    <div>Camera Type: <b>{viewModal.cctvDetails.cameraType?.name || "—"}</b></div>
-                    <div>Camera Count: <b>{viewModal.cctvDetails.cameraCount || 0}</b></div>
-                    <div>Area: <b>{viewModal.cctvDetails.installationArea || "—"}</b></div>
-                    <div>Wire Length: <b>{viewModal.cctvDetails.wireLength || 0} m</b></div>
-                    <div style={{ gridColumn: "1 / -1" }}>Add-ons: <b>{(viewModal.cctvDetails.addons || []).map(a => a.name).join(", ") || "None"}</b></div>
-                    <div style={{ gridColumn: "1 / -1" }}>Grand Total: <b>₹{viewModal.grandTotal || viewModal.cctvDetails.priceBreakdown?.grandTotal || 0}</b></div>
+                    <div>Service Type: <b>{viewModal.cctvDetails.serviceType || "—"}</b></div>
+                    <div>Map Link: <b>{viewModal.cctvDetails.mapLink ? <a href={viewModal.cctvDetails.mapLink} target="_blank" rel="noreferrer">Open Map</a> : '—'}</b></div>
+                    <div style={{ gridColumn: "1 / -1" }}>
+                      <div style={{ fontWeight: 700, marginBottom: 6 }}>Selected Materials</div>
+                      {(viewModal.cctvDetails.selectedMaterials || []).length ? (
+                        <div style={{ display: "grid", gap: 6 }}>
+                          {(viewModal.cctvDetails.selectedMaterials || []).map((m, idx) => (
+                            <div key={idx} style={{ display: "flex", justifyContent: "space-between" }}>
+                              <div>{m.name} {m.qty} {m.unit}</div>
+                              <div>₹{m.unitPrice} × {m.qty} = ₹{m.total}</div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : <div>No materials selected</div>}
+                    </div>
+                    <div>Preferred Date: <b>{viewModal.cctvDetails.date || viewModal.date || '—'}</b></div>
+                    <div>Preferred Time: <b>{viewModal.cctvDetails.time || viewModal.timeSlot || '—'}</b></div>
+                    <div style={{ gridColumn: "1 / -1" }}>Notes: <div style={{ marginTop: 6 }}>{viewModal.cctvDetails.notes || viewModal.description || '—'}</div></div>
+                    <div style={{ gridColumn: "1 / -1" }}>Price Breakdown: <b>₹{viewModal.cctvDetails.priceBreakdown?.grandTotal || viewModal.grandTotal || 0}</b></div>
                   </div>
                 </div>
               )}
@@ -2088,7 +2184,8 @@ export function ServicesPage() {
         fetch("/api/v2/admin/services/cctv/categories").then(r => r.json()),
         fetch("/api/v2/admin/services/cctv/subcategories").then(r => r.json()),
         fetch("/api/v2/admin/services/cctv/camera-types").then(r => r.json()),
-        fetch("/api/v2/admin/services/cctv/addons").then(r => r.json()),
+        fetch("/api/v2/admin/materials").then(r => r.json()),
+        fetch("/api/v2/admin/services/cctv/products").then(r => r.json()),
         fetch("/api/v2/admin/services/cctv/pricing-config").then(r => r.json()),
       ]);
       setData({
@@ -2096,6 +2193,7 @@ export function ServicesPage() {
         subcategories: subcategories.data || [],
         cameraTypes: cameraTypes.data || [],
         addons: addons.data || [],
+        products: (await fetch("/api/v2/admin/services/cctv/products").then(r=>r.json())).data || [],
         pricing: pricing.data || null,
       });
     } finally {
@@ -2111,8 +2209,12 @@ export function ServicesPage() {
       subcategories: "subcategories",
       cameraTypes: "camera-types",
       addons: "addons",
+      products: "products",
+      images: "subcategories",
+      faqs: "subcategories",
     };
-    return `/api/v2/admin/services/cctv/${map[kind]}${id ? `/${id}` : ""}`;
+    const base = map[kind] || map.subcategories;
+    return `/api/v2/admin/services/cctv/${base}${id ? `/${id}` : ""}`;
   }
 
   async function saveItem(kind) {
@@ -2120,6 +2222,14 @@ export function ServicesPage() {
       setSaving(true);
       const body = { ...form };
       if (kind === "subcategories" && !body.categoryId) body.categoryId = data.categories[0]?._id;
+      if (kind === "images" && body.images) {
+        const list = body.images.split(",").map(s => s.trim()).filter(Boolean);
+        body.image = list[0] || "";
+        body.gallery = list;
+      }
+      if (kind === "faqs" && body.faqsJson) {
+        try { body.faqs = JSON.parse(body.faqsJson); } catch (e) { alert("Invalid FAQ JSON"); setSaving(false); return; }
+      }
       const res = await fetch(endpoint(kind, body._id), {
         method: body._id ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -2155,16 +2265,19 @@ export function ServicesPage() {
   }
 
   const tabs = [
-    ["subcategories", "CCTV Services"],
-    ["categories", "Categories"],
-    ["cameraTypes", "Camera Types"],
-    ["addons", "Add-ons"],
+    ["subcategories", "Service Types"],
+    ["addons", "Materials"],
+    ["products", "Spare Parts"],
     ["pricing", "Pricing"],
+    ["images", "Images"],
+    ["faqs", "FAQs"],
+    ["cameraTypes", "Camera Types"],
+    ["categories", "Categories"],
   ];
 
   return (
     <div>
-      <PageHeader title="Services Management" subtitle="Manage database-backed CCTV services, pricing, camera types, and add-ons." />
+      <PageHeader title="Services Management" subtitle="CCTV Installation — Service Types, Materials, Spare Parts, Pricing, Images, and FAQs." />
       <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
         {tabs.map(([id, label]) => <button key={id} onClick={() => { setTab(id); setForm(id === "pricing" ? (data.pricing || {}) : {}); }} style={pillButton(tab === id)}>{label}</button>)}
       </div>
@@ -2187,10 +2300,13 @@ export function ServicesPage() {
             tab={tab}
             items={data[tab] || []}
             categories={data.categories}
+            subcategories={data.subcategories || []}
             form={form}
             setForm={setForm}
             onSave={() => saveItem(tab)}
             saving={saving}
+            addons={data.addons || []}
+            products={data.products || []}
           />
         )}
       </DataCard>
@@ -2198,10 +2314,13 @@ export function ServicesPage() {
   );
 }
 
-function AdminCctvList({ tab, items, categories, form, setForm, onSave, saving }) {
+function AdminCctvList({ tab, items, categories, subcategories = [], form, setForm, onSave, saving, addons = [], products = [] }) {
   const isSub = tab === "subcategories";
   const isCamera = tab === "cameraTypes";
   const isAddon = tab === "addons";
+  const isProduct = tab === "products";
+  const isImages = tab === "images";
+  const isFaqs = tab === "faqs";
   return (
     <div>
       <SectionHeader title={tab === "subcategories" ? "CCTV Services" : tab === "cameraTypes" ? "Camera Types" : tab === "addons" ? "Add-ons" : "Categories"} />
@@ -2214,22 +2333,86 @@ function AdminCctvList({ tab, items, categories, form, setForm, onSave, saving }
             </select>
           </div>
         )}
+        {isImages && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <label style={LABEL_STYLE}>Service Type</label>
+            <select value={form._id || ""} onChange={e => {
+              const id = e.target.value; const sel = subcategories.find(s => s._id === id) || null;
+              setForm({ ...form, _id: id, images: sel ? (sel.image || (sel.gallery || []).join(",")) : form.images });
+            }} style={INPUT_STYLE}>
+              <option value="">Select a service type</option>
+              {subcategories.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
+            </select>
+            <label style={LABEL_STYLE}>Image URLs (comma separated)</label>
+            <textarea value={form.images || ""} onChange={e => setForm({ ...form, images: e.target.value })} style={{ ...INPUT_STYLE, minHeight: 80 }} />
+          </div>
+        )}
+        {isFaqs && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <label style={LABEL_STYLE}>Service Type</label>
+            <select value={form._id || ""} onChange={e => {
+              const id = e.target.value; const sel = subcategories.find(s => s._id === id) || null;
+              setForm({ ...form, _id: id, faqsJson: sel ? JSON.stringify(sel.faqs || [], null, 2) : form.faqsJson });
+            }} style={INPUT_STYLE}>
+              <option value="">Select a service type</option>
+              {subcategories.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
+            </select>
+            <label style={LABEL_STYLE}>FAQs (JSON array of {question,answer})</label>
+            <textarea value={form.faqsJson || JSON.stringify(form.faqs || [], null, 2)} onChange={e => setForm({ ...form, faqsJson: e.target.value })} style={{ ...INPUT_STYLE, minHeight: 120 }} />
+          </div>
+        )}
         <AdminField label="Name" value={form.name || ""} onChange={v => setForm({ ...form, name: v })} />
-        {(isCamera || isAddon) && <AdminField label={isCamera ? "Installation Price" : "Price"} value={isCamera ? form.installationPrice || "" : form.price || ""} onChange={v => setForm({ ...form, [isCamera ? "installationPrice" : "price"]: Number(v) })} />}
+        {(isCamera || isAddon || isProduct) && <AdminField label={isCamera ? "Installation Price" : "Price"} value={isCamera ? form.installationPrice || "" : form.price || ""} onChange={v => setForm({ ...form, [isCamera ? "installationPrice" : "price"]: Number(v) })} />}
+        {isAddon && <AdminField label="Unit" value={form.unit || "each"} onChange={v => setForm({ ...form, unit: v })} />}
+        {isAddon && <AdminField label="Image URL" value={form.image || ""} onChange={v => setForm({ ...form, image: v })} />}
+        {isAddon && <div style={{ gridColumn: "1 / -1" }}>
+          <label style={LABEL_STYLE}>Description</label>
+          <textarea value={form.description || ""} onChange={e => setForm({ ...form, description: e.target.value })} style={{ ...INPUT_STYLE, width: "100%", minHeight: 74, marginTop: 6 }} />
+        </div>}
+        {isProduct && <AdminField label="Type" value={form.type || "product"} onChange={v => setForm({ ...form, type: v })} />}
         <AdminField label="Status" value={form.status || "active"} onChange={v => setForm({ ...form, status: v })} />
         {isSub && <AdminField label="Pricing Starts From" value={form.pricingStartsFrom || ""} onChange={v => setForm({ ...form, pricingStartsFrom: Number(v) })} />}
         <div style={{ gridColumn: "1 / -1" }}>
           <label style={LABEL_STYLE}>Description / Overview</label>
           <textarea value={form.overview || form.description || ""} onChange={e => setForm({ ...form, [isSub ? "overview" : "description"]: e.target.value })} style={{ ...INPUT_STYLE, width: "100%", minHeight: 74, marginTop: 6 }} />
         </div>
+        {isSub && (
+          <div style={{ marginTop: 12, gridColumn: "1 / -1" }}>
+            <label style={LABEL_STYLE}>Supported Add-ons</label>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+              {addons.map(a => (
+                <label key={a._id} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <input type="checkbox" checked={(form.supportedAddons || []).includes(a._id)} onChange={(e) => {
+                    const list = new Set(form.supportedAddons || []);
+                    if (e.target.checked) list.add(a._id); else list.delete(a._id);
+                    setForm({ ...form, supportedAddons: Array.from(list) });
+                  }} /> {a.name}
+                </label>
+              ))}
+            </div>
+            <label style={{ ...LABEL_STYLE, marginTop: 10 }}>Supported Products / Spare Parts</label>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+              {products.map(p => (
+                <label key={p._id} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <input type="checkbox" checked={(form.supportedProducts || []).includes(p._id)} onChange={(e) => {
+                    const list = new Set(form.supportedProducts || []);
+                    if (e.target.checked) list.add(p._id); else list.delete(p._id);
+                    setForm({ ...form, supportedProducts: Array.from(list) });
+                  }} /> {p.name}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
-      <button onClick={onSave} disabled={saving || !form.name} style={primaryButton}>{saving ? "Saving..." : form._id ? "Update" : "Create"}</button>
+      <button onClick={onSave} disabled={saving || (!(form.name || form._id))} style={primaryButton}>{saving ? "Saving..." : form._id ? "Update" : "Create"}</button>
       {form._id && <button onClick={() => setForm({})} style={{ ...rejectButton, marginLeft: 8 }}>Cancel</button>}
       <div style={{ marginTop: 18 }}>
-        <TableWrapper headers={["Name", "Price", "Status", "Actions"]} rows={items.map(item => (
+        <TableWrapper headers={["Name", "Price", ...(isAddon ? ["Unit"] : []), "Status", "Actions"]} rows={items.map(item => (
           <tr key={item._id} style={{ borderBottom: "1px solid #f8fafc" }}>
             <td style={TD_STYLE}><b>{item.name}</b><div style={{ color: "#94a3b8", fontSize: 11 }}>{item.slug}</div></td>
             <td style={TD_STYLE}>{item.installationPrice ?? item.price ?? item.pricingStartsFrom ?? "—"}</td>
+            {isAddon && <td style={TD_STYLE}>{item.unit || "each"}</td>}
             <td style={TD_STYLE}><StatusBadge status={item.status} /></td>
             <td style={TD_STYLE}><button onClick={() => setForm(item)} style={approveButton}>Edit</button></td>
           </tr>
