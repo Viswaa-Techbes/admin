@@ -1199,6 +1199,7 @@ export function ProjectsPage() {
   const technicians = useMemo(() => users.filter(u => u.role === 'technician'), [users]);
   
   const [statusFilter, setStatusFilter] = useState("All");
+  const [viewMode, setViewMode] = useState("list");
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
@@ -1832,6 +1833,7 @@ export function AttendancePage() {
 }
 
 export function ServiceRequestsPage() {
+  const toast = useToast();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -1841,8 +1843,12 @@ export function ServiceRequestsPage() {
   const [subcategoryFilter, setSubcategoryFilter] = useState("all");
   const [cameraTypeFilter, setCameraTypeFilter] = useState("all");
   const [cctvOptions, setCctvOptions] = useState({ categories: [], subcategories: [], cameraTypes: [] });
-  const [assignModal, setAssignModal] = useState(null); // booking object or null
-  const [viewModal, setViewModal] = useState(null); // popup details
+  const [assignModal, setAssignModal] = useState(null);
+  const [viewModal, setViewModal] = useState(null);
+  const [editForm, setEditForm] = useState(null);
+  const [selectedRequestId, setSelectedRequestId] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [technicians, setTechnicians] = useState([]);
   const [selectedTech, setSelectedTech] = useState("");
   const [assigning, setAssigning] = useState(false);
@@ -1857,12 +1863,11 @@ export function ServiceRequestsPage() {
       if (categoryFilter !== "all") params.set("cctvCategory", categoryFilter);
       if (subcategoryFilter !== "all") params.set("cctvSubcategory", subcategoryFilter);
       if (cameraTypeFilter !== "all") params.set("cameraType", cameraTypeFilter);
-      const url = `/api/v2/admin/bookings${params.toString() ? `?${params.toString()}` : ""}`;
+      const url = `/api/v2/admin/service-requests${params.toString() ? `?${params.toString()}` : ""}`;
       const res = await fetch(url, { cache: "no-store" });
       const payload = await res.json();
-      if (!res.ok) throw new Error(payload.message || "Failed to load bookings");
-      const list = payload.data || [];
-      setBookings(list);
+      if (!res.ok) throw new Error(payload.message || "Failed to load service requests");
+      setBookings(payload.data || []);
       setError("");
     } catch (err) {
       setError(err.message);
@@ -1871,16 +1876,104 @@ export function ServiceRequestsPage() {
     }
   }, [statusFilter, paymentFilter, categoryFilter, subcategoryFilter, cameraTypeFilter]);
 
+  function buildEditForm(data) {
+    return {
+      customerName: data.customerName || "",
+      customerPhone: data.customerPhone || "",
+      customerEmail: data.customerEmail || "",
+      status: data.status || "pending",
+      technicianId: data.technicianId || "",
+      date: data.date || "",
+      timeSlot: data.timeSlot || "",
+      address: data.address || "",
+      city: data.city || "",
+      state: data.state || "",
+      pincode: data.pincode || "",
+      mapLink: data.mapLink || "",
+      internalNotes: data.internalNotes || "",
+      priority: data.priority || "medium",
+      tags: data.tags || "",
+      paymentStatus: data.paymentStatus || "pending",
+    };
+  }
+
+  async function openRequestDetails(booking) {
+    setSelectedRequestId(booking.id);
+    setDetailLoading(true);
+    setViewModal(booking);
+    setEditForm(buildEditForm(booking));
+    try {
+      const res = await fetch(`/api/v2/admin/service-requests/${booking.id}`, { cache: "no-store" });
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.message || "Failed to load request details");
+      setViewModal(payload.data);
+      setEditForm(buildEditForm(payload.data));
+    } catch (err) {
+      toast(err.message, { duration: 4000 });
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  function closeRequestDetails() {
+    setViewModal(null);
+    setEditForm(null);
+    setSelectedRequestId(null);
+  }
+
+  function updateEditField(field, value) {
+    setEditForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  async function handleSaveChanges() {
+    if (!viewModal || !editForm) return;
+    if (!editForm.customerName?.trim()) {
+      toast("Customer name is required", { duration: 3000 });
+      return;
+    }
+    if (editForm.customerPhone && editForm.customerPhone.replace(/\D/g, "").length < 10) {
+      toast("Phone must be at least 10 digits", { duration: 3000 });
+      return;
+    }
+    try {
+      setSaving(true);
+      const res = await fetch(`/api/v2/admin/service-requests/${viewModal.id}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editForm),
+      });
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.message || "Failed to save changes");
+      setViewModal(payload.data);
+      setEditForm(buildEditForm(payload.data));
+      setBookings((prev) => prev.map((b) => (b.id === payload.data.id ? payload.data : b)));
+      toast("Service request updated successfully");
+    } catch (err) {
+      toast(err.message, { duration: 4000 });
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleUpdateStatus(id, status) {
     try {
       const res = await fetch(`/api/v2/admin/service-requests/${id}`, {
-        method: "PATCH",
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status })
+        body: JSON.stringify({ status }),
       });
-      if (!res.ok) throw new Error("Failed to update status");
-      loadBookings();
-    } catch (e) { alert(e.message); }
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.message || "Failed to update status");
+      await loadBookings();
+      if (viewModal?.id === id && payload.data) {
+        setViewModal(payload.data);
+        setEditForm(buildEditForm(payload.data));
+      }
+      toast(`Status updated to ${status.replace(/_/g, " ")}`);
+    } catch (e) {
+      toast(e.message, { duration: 4000 });
+    }
   }
 
   async function handleDelete(id) {
@@ -1888,8 +1981,12 @@ export function ServiceRequestsPage() {
     try {
       const res = await fetch(`/api/v2/admin/service-requests/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to delete request");
-      loadBookings();
-    } catch (e) { alert(e.message); }
+      if (viewModal?.id === id) closeRequestDetails();
+      await loadBookings();
+      toast("Service request deleted");
+    } catch (e) {
+      toast(e.message, { duration: 4000 });
+    }
   }
 
   useEffect(() => { loadBookings({ showLoading: true }); }, [loadBookings]);
@@ -1901,7 +1998,8 @@ export function ServiceRequestsPage() {
       fetch("/api/v2/admin/services/cctv/camera-types").then(r => r.json()),
       fetch("/api/v2/admin/materials").then(r => r.json()),
       fetch("/api/v2/admin/services/cctv/products").then(r => r.json()),
-    ]).then(([categories, subcategories, cameraTypes, addons, products]) => {
+      fetch("/api/v2/admin/users").then(r => r.json()),
+    ]).then(([categories, subcategories, cameraTypes, addons, products, users]) => {
       setCctvOptions({
         categories: categories.data || [],
         subcategories: subcategories.data || [],
@@ -1909,27 +2007,19 @@ export function ServiceRequestsPage() {
         addons: addons.data || [],
         products: products.data || [],
       });
+      setTechnicians((users.data || []).filter(u => u.role === "technician"));
     }).catch(() => {});
   }, []);
 
-  // Poll every 5 seconds for real-time updates
   useEffect(() => {
     const interval = setInterval(loadBookings, 5000);
     return () => clearInterval(interval);
   }, [loadBookings]);
 
-  async function loadTechnicians() {
-    if (technicians.length > 0) return;
-    const res = await fetch("/api/v2/admin/users");
-    const payload = await res.json();
-    if (res.ok) setTechnicians((payload.data || []).filter(u => u.role === "technician"));
-  }
-
   function openAssign(booking) {
     setAssignModal(booking);
     setSelectedTech(booking.technicianId || "");
     setAssignError("");
-    loadTechnicians();
   }
 
   async function handleAssign() {
@@ -1947,6 +2037,7 @@ export function ServiceRequestsPage() {
       if (!res.ok) throw new Error(payload.message || "Assignment failed");
       setAssignModal(null);
       await loadBookings();
+      toast("Technician assigned successfully");
     } catch (err) {
       setAssignError(err.message);
     } finally {
@@ -1972,8 +2063,19 @@ export function ServiceRequestsPage() {
     );
   }
 
+  function InfoSection({ title, children }) {
+    return (
+      <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 12, padding: 16, marginBottom: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: "#6366f1", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 12 }}>{title}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>{children}</div>
+      </div>
+    );
+  }
+
   const statusOptions = ["all", "pending", "assigned", "in_progress", "completed"];
   const paymentOptions = ["all", "pending", "advance_paid", "requested", "verification_pending", "paid", "rejected"];
+  const bookingStatusOptions = ["pending", "assigned", "in_progress", "started", "completed", "closed"];
+  const priorityOptions = ["low", "medium", "high"];
 
   return (
     <div>
@@ -2021,55 +2123,110 @@ export function ServiceRequestsPage() {
         }
       />
 
-      {/* View Modal */}
-      {viewModal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
-          <div style={{ background: "#fff", borderRadius: 20, padding: 28, width: "100%", maxWidth: 500, boxShadow: "0 25px 50px rgba(0,0,0,0.25)" }}>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "#0f172a", marginBottom: 16 }}>Service Request Details</div>
-            
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
-              <div><strong style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>User Name</strong><div style={{ fontSize: 14, fontWeight: 600 }}>{viewModal.customerName}</div></div>
-              <div><strong style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Phone</strong><div style={{ fontSize: 14, fontWeight: 600 }}>{viewModal.customerPhone || "—"}</div></div>
-              <div><strong style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Service</strong><div style={{ fontSize: 14, fontWeight: 600 }}>{viewModal.serviceName}</div></div>
-              <div><strong style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Date & Time</strong><div style={{ fontSize: 14, fontWeight: 600 }}>{viewModal.date || "TBD"} {viewModal.timeSlot || ""}</div></div>
-              <div style={{ gridColumn: "1 / -1" }}><strong style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Address</strong><div style={{ fontSize: 14, fontWeight: 600 }}>{viewModal.address || "—"}</div></div>
-              <div style={{ gridColumn: "1 / -1" }}><strong style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Description</strong><div style={{ fontSize: 14, fontWeight: 600, color: "#475569" }}>{viewModal.description || "No description provided."}</div></div>
-              {viewModal.cctvDetails && (
-                <div style={{ gridColumn: "1 / -1", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 12, padding: 12 }}>
-                  <strong style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>CCTV Details</strong>
-                  <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 13 }}>
-                    <div>Service Type: <b>{viewModal.cctvDetails.serviceType || "—"}</b></div>
-                    <div>Map Link: <b>{viewModal.cctvDetails.mapLink ? <a href={viewModal.cctvDetails.mapLink} target="_blank" rel="noreferrer">Open Map</a> : '—'}</b></div>
-                    <div style={{ gridColumn: "1 / -1" }}>
-                      <div style={{ fontWeight: 700, marginBottom: 6 }}>Selected Materials</div>
-                      {(viewModal.cctvDetails.selectedMaterials || []).length ? (
-                        <div style={{ display: "grid", gap: 6 }}>
-                          {(viewModal.cctvDetails.selectedMaterials || []).map((m, idx) => (
-                            <div key={idx} style={{ display: "flex", justifyContent: "space-between" }}>
-                              <div>{m.name} {m.qty} {m.unit}</div>
-                              <div>₹{m.unitPrice} × {m.qty} = ₹{m.total}</div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : <div>No materials selected</div>}
-                    </div>
-                    <div>Preferred Date: <b>{viewModal.cctvDetails.date || viewModal.date || '—'}</b></div>
-                    <div>Preferred Time: <b>{viewModal.cctvDetails.time || viewModal.timeSlot || '—'}</b></div>
-                    <div style={{ gridColumn: "1 / -1" }}>Notes: <div style={{ marginTop: 6 }}>{viewModal.cctvDetails.notes || viewModal.description || '—'}</div></div>
-                    <div style={{ gridColumn: "1 / -1" }}>Price Breakdown: <b>₹{viewModal.cctvDetails.priceBreakdown?.grandTotal || viewModal.grandTotal || 0}</b></div>
+      <Modal open={!!viewModal} onClose={closeRequestDetails} title={`Service Request · ${viewModal?.bookingNumber || viewModal?.bookingId || ""}`}>
+        {detailLoading ? (
+          <div style={{ color: "#64748b", padding: 24, textAlign: "center" }}>Loading full details...</div>
+        ) : viewModal && editForm ? (
+          <div>
+            <InfoSection title="Customer Information">
+              <DetailField label="Name" value={editForm.customerName} isEditing onChange={(v) => updateEditField("customerName", v)} />
+              <DetailField label="Email" value={editForm.customerEmail} isEditing onChange={(v) => updateEditField("customerEmail", v)} />
+              <DetailField label="Phone" value={editForm.customerPhone} isEditing onChange={(v) => updateEditField("customerPhone", v)} />
+              <DetailField label="User ID" value={viewModal.userId ? String(viewModal.userId) : "—"} isEditing={false} />
+            </InfoSection>
+
+            <InfoSection title="Service Information">
+              <DetailField label="Service Name" value={viewModal.serviceName} isEditing={false} />
+              <DetailField label="Service Category" value={viewModal.serviceCategory || viewModal.cctvDetails?.category?.name} isEditing={false} />
+              <DetailField label="Subcategory" value={viewModal.serviceSubcategory || viewModal.cctvDetails?.subcategory?.name} isEditing={false} />
+              <DetailField label="Labour Charges" value={viewModal.labourCharges ? `₹${viewModal.labourCharges}` : "—"} isEditing={false} />
+              <DetailField label="Total Amount" value={`₹${viewModal.totalAmount || viewModal.grandTotal || 0}`} isEditing={false} />
+              <DetailField label="Status" value={editForm.status} type="select" options={bookingStatusOptions} isEditing onChange={(v) => updateEditField("status", v)} />
+              <div>
+                <label style={LABEL_STYLE}>Assigned Technician</label>
+                <select
+                  value={editForm.technicianId || ""}
+                  onChange={(e) => updateEditField("technicianId", e.target.value)}
+                  style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }}
+                >
+                  <option value="">Unassigned</option>
+                  {technicians.map(t => (
+                    <option key={t._id || t.id} value={t._id || t.id}>{t.name}{t.specialty ? ` · ${t.specialty}` : ""}</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={LABEL_STYLE}>Selected Materials</label>
+                {(viewModal.selectedMaterials || viewModal.cctvDetails?.addons || []).length ? (
+                  <div style={{ marginTop: 6, display: "grid", gap: 6 }}>
+                    {(viewModal.selectedMaterials || viewModal.cctvDetails?.addons || []).map((m, idx) => (
+                      <div key={idx} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "6px 10px", background: "#fff", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+                        <span>{m.name} {m.quantity || m.qty ? `× ${m.quantity || m.qty}` : ""}</span>
+                        <span style={{ fontWeight: 700 }}>₹{m.total || m.price || 0}</span>
+                      </div>
+                    ))}
                   </div>
+                ) : <div style={{ color: "#94a3b8", fontSize: 13, marginTop: 4 }}>No materials selected</div>}
+              </div>
+              {viewModal.description && (
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <DetailField label="Description" value={viewModal.description} isEditing={false} />
                 </div>
               )}
-            </div>
+            </InfoSection>
 
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 24, paddingTop: 20, borderTop: "1px solid #f1f5f9" }}>
-              <button onClick={() => setViewModal(null)} style={{ padding: "9px 18px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#64748b", fontWeight: 700, cursor: "pointer" }}>Close</button>
+            <InfoSection title="Address Information">
+              <div style={{ gridColumn: "1 / -1" }}>
+                <DetailField label="Full Address" value={editForm.address} isEditing onChange={(v) => updateEditField("address", v)} />
+              </div>
+              <DetailField label="City" value={editForm.city} isEditing onChange={(v) => updateEditField("city", v)} />
+              <DetailField label="State" value={editForm.state} isEditing onChange={(v) => updateEditField("state", v)} />
+              <DetailField label="Pincode" value={editForm.pincode} isEditing onChange={(v) => updateEditField("pincode", v)} />
+              <div style={{ gridColumn: "1 / -1" }}>
+                <DetailField label="Map Link" value={editForm.mapLink} isEditing onChange={(v) => updateEditField("mapLink", v)} />
+                {editForm.mapLink && (
+                  <a href={editForm.mapLink} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "#4f46e5", fontWeight: 600 }}>Open in Maps →</a>
+                )}
+              </div>
+            </InfoSection>
+
+            <InfoSection title="Schedule Information">
+              <DetailField label="Preferred Date" value={editForm.date} type="date" isEditing onChange={(v) => updateEditField("date", v)} />
+              <DetailField label="Preferred Time" value={editForm.timeSlot} isEditing onChange={(v) => updateEditField("timeSlot", v)} />
+            </InfoSection>
+
+            <InfoSection title="Payment Information">
+              <DetailField label="Payment Status" value={editForm.paymentStatus} type="select" options={paymentOptions.filter(p => p !== "all")} isEditing onChange={(v) => updateEditField("paymentStatus", v)} />
+              <DetailField label="Amount Paid" value={viewModal.amountPaid ? `₹${viewModal.amountPaid}` : "—"} isEditing={false} />
+              <DetailField label="Razorpay Order ID" value={viewModal.razorpayOrderId || "—"} isEditing={false} />
+              <DetailField label="Razorpay Payment ID" value={viewModal.razorpayPaymentId || "—"} isEditing={false} />
+            </InfoSection>
+
+            <InfoSection title="Booking Metadata">
+              <DetailField label="Booking ID" value={viewModal.bookingId || viewModal.bookingNumber || "—"} isEditing={false} />
+              <DetailField label="Status" value={viewModal.status?.replace(/_/g, " ")} isEditing={false} />
+              <DetailField label="Created Date" value={formatDate(viewModal.createdAt)} isEditing={false} />
+              <DetailField label="Last Updated" value={formatDate(viewModal.updatedAt)} isEditing={false} />
+            </InfoSection>
+
+            <InfoSection title="Internal Notes">
+              <div style={{ gridColumn: "1 / -1" }}>
+                <DetailField label="Notes" value={editForm.internalNotes} isEditing onChange={(v) => updateEditField("internalNotes", v)} />
+              </div>
+              <DetailField label="Priority" value={editForm.priority} type="select" options={priorityOptions} isEditing onChange={(v) => updateEditField("priority", v)} />
+              <DetailField label="Tags" value={editForm.tags} isEditing onChange={(v) => updateEditField("tags", v)} />
+            </InfoSection>
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8, paddingTop: 16, borderTop: "1px solid #f1f5f9" }}>
+              <button onClick={closeRequestDetails} style={{ padding: "10px 18px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#64748b", fontWeight: 700, cursor: "pointer" }}>Close</button>
+              <button disabled={saving} onClick={handleSaveChanges} style={{ ...primaryButton, opacity: saving ? 0.7 : 1 }}>
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
             </div>
           </div>
-        </div>
-      )}
+        ) : null}
+      </Modal>
 
-      {/* Assign Modal */}
       {assignModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
           <div style={{ background: "#fff", borderRadius: 20, padding: 28, width: "100%", maxWidth: 420, boxShadow: "0 25px 50px rgba(0,0,0,0.25)" }}>
@@ -2077,14 +2234,7 @@ export function ServiceRequestsPage() {
             <div style={{ fontSize: 13, color: "#64748b", marginBottom: 12 }}>
               <p style={{ margin: "0 0 6px 0" }}><strong style={{ color: "#334155" }}>Service:</strong> {assignModal.serviceName}</p>
               <p style={{ margin: "0 0 6px 0" }}><strong style={{ color: "#334155" }}>Date:</strong> {assignModal.date || "Date TBD"} {assignModal.timeSlot || ""}</p>
-              
-              <p style={{ margin: "8px 0 4px 0" }}><strong style={{ color: "#334155" }}>Description:</strong></p>
-              <div style={{
-                background: "#f5f5f5",
-                padding: "10px",
-                borderRadius: "8px",
-                color: "#475569"
-              }}>
+              <div style={{ background: "#f5f5f5", padding: 10, borderRadius: 8, color: "#475569" }}>
                 {assignModal.description || "No description provided"}
               </div>
             </div>
@@ -2101,9 +2251,7 @@ export function ServiceRequestsPage() {
                 ))}
               </select>
             </div>
-
             {assignError && <div style={{ color: "#dc2626", fontSize: 12, marginBottom: 12 }}>{assignError}</div>}
-
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button onClick={() => setAssignModal(null)} style={{ padding: "9px 18px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#64748b", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
               <button disabled={assigning} onClick={handleAssign} style={{ padding: "9px 18px", borderRadius: 10, border: "none", background: "#4f46e5", color: "#fff", fontWeight: 700, cursor: "pointer" }}>
@@ -2117,53 +2265,72 @@ export function ServiceRequestsPage() {
       <DataCard loading={loading} error={error} empty={!bookings.length} emptyText="No service requests found.">
         <TableWrapper
           headers={["Customer", "Service", "CCTV Details", "Date & Time", "Status", "Payment", "Technician", "Assign", "Actions"]}
-          rows={bookings.map(booking => (
-            <tr key={booking.id} style={{ borderBottom: "1px solid #f8fafc", cursor: "pointer" }} onClick={(e) => { if(e.target.tagName !== 'BUTTON') setViewModal(booking); }}>
-              <td style={TD_STYLE}>
-                <div style={{ fontWeight: 700, color: "#0f172a" }}>{booking.customerName}</div>
-                {booking.customerPhone && <div style={{ fontSize: 11, color: "#94a3b8" }}>{booking.customerPhone}</div>}
-              </td>
-              <td style={TD_STYLE}>
-                <div style={{ fontWeight: 600, color: "#0f172a" }}>{booking.serviceName}</div>
-                {booking.address && <div style={{ fontSize: 11, color: "#94a3b8" }}>{booking.address}</div>}
-              </td>
-              <td style={TD_STYLE}>
-                {booking.cctvDetails?.cameraType?.name ? (
-                  <div style={{ fontSize: 11, lineHeight: 1.6 }}>
-                    <div><b>{booking.cctvDetails.subcategory?.name}</b></div>
-                    <div>{booking.cctvDetails.cameraType.name} · {booking.cctvDetails.cameraCount} cams</div>
-                    <div>{booking.cctvDetails.installationArea} · {booking.cctvDetails.wireLength}m · ₹{booking.grandTotal}</div>
+          rows={bookings.map(booking => {
+            const isActive = selectedRequestId === booking.id;
+            return (
+              <tr
+                key={booking.id}
+                style={{
+                  borderBottom: "1px solid #f8fafc",
+                  cursor: "pointer",
+                  background: isActive ? "#eef2ff" : "transparent",
+                  transition: "background 0.15s ease",
+                }}
+                onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "#f8fafc"; }}
+                onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+                onClick={(e) => {
+                  const tag = e.target.tagName;
+                  if (tag !== "BUTTON" && tag !== "SELECT" && tag !== "OPTION") openRequestDetails(booking);
+                }}
+              >
+                <td style={TD_STYLE}>
+                  <div style={{ fontWeight: 700, color: "#0f172a" }}>{booking.customerName}</div>
+                  {booking.customerPhone && <div style={{ fontSize: 11, color: "#94a3b8" }}>{booking.customerPhone}</div>}
+                  {booking.customerEmail && <div style={{ fontSize: 11, color: "#94a3b8" }}>{booking.customerEmail}</div>}
+                </td>
+                <td style={TD_STYLE}>
+                  <div style={{ fontWeight: 600, color: "#0f172a" }}>{booking.serviceName}</div>
+                  {booking.serviceCategory && <div style={{ fontSize: 11, color: "#94a3b8" }}>{booking.serviceCategory}</div>}
+                  {booking.address && <div style={{ fontSize: 11, color: "#94a3b8" }}>{booking.address}</div>}
+                </td>
+                <td style={TD_STYLE}>
+                  {booking.cctvDetails?.cameraType?.name ? (
+                    <div style={{ fontSize: 11, lineHeight: 1.6 }}>
+                      <div><b>{booking.cctvDetails.subcategory?.name || booking.serviceSubcategory}</b></div>
+                      <div>{booking.cctvDetails.cameraType.name} · {booking.cctvDetails.cameraCount} cams</div>
+                      <div>{booking.cctvDetails.installationArea} · {booking.cctvDetails.wireLength}m · ₹{booking.grandTotal || booking.totalAmount}</div>
+                    </div>
+                  ) : <span style={{ color: "#94a3b8" }}>—</span>}
+                </td>
+                <td style={TD_STYLE}>
+                  <div style={{ fontWeight: 600 }}>{booking.date || "TBD"}</div>
+                  <div style={{ fontSize: 11, color: "#94a3b8" }}>{booking.timeSlot || ""}</div>
+                </td>
+                <td style={TD_STYLE}><StatusChip status={booking.status} /></td>
+                <td style={TD_STYLE}><StatusChip status={booking.paymentStatus || "pending"} /></td>
+                <td style={TD_STYLE}>
+                  {booking.technicianName
+                    ? <span style={{ color: "#15803d", fontWeight: 600, fontSize: 12 }}>✓ {booking.technicianName}</span>
+                    : <span style={{ color: "#94a3b8", fontSize: 12 }}>Unassigned</span>}
+                </td>
+                <td style={TD_STYLE}>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); openAssign(booking); }}
+                    style={{ padding: "6px 14px", borderRadius: 10, border: "none", background: booking.technicianName ? "#f1f5f9" : "#4f46e5", color: booking.technicianName ? "#64748b" : "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
+                  >
+                    {booking.technicianName ? "Reassign" : "Assign"}
+                  </button>
+                </td>
+                <td style={TD_STYLE}>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button title="Approve" onClick={(e) => { e.stopPropagation(); handleUpdateStatus(booking.id, "completed"); }} style={{ padding: "4px 8px", background: "#dcfce7", color: "#166534", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700 }}>✓</button>
+                    <button title="Reject" onClick={(e) => { e.stopPropagation(); handleUpdateStatus(booking.id, "closed"); }} style={{ padding: "4px 8px", background: "#fee2e2", color: "#991b1b", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700 }}>✕</button>
+                    <button title="Delete" onClick={(e) => { e.stopPropagation(); handleDelete(booking.id); }} style={{ padding: "4px 8px", background: "#fef2f2", color: "#ef4444", border: "1px solid #fecaca", borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700 }}>Del</button>
                   </div>
-                ) : <span style={{ color: "#94a3b8" }}>—</span>}
-              </td>
-              <td style={TD_STYLE}>
-                <div style={{ fontWeight: 600 }}>{booking.date || "TBD"}</div>
-                <div style={{ fontSize: 11, color: "#94a3b8" }}>{booking.timeSlot || ""}</div>
-              </td>
-              <td style={TD_STYLE}><StatusChip status={booking.status} /></td>
-              <td style={TD_STYLE}><StatusChip status={booking.paymentStatus || "pending"} /></td>
-              <td style={TD_STYLE}>
-                {booking.technicianName
-                  ? <span style={{ color: "#15803d", fontWeight: 600, fontSize: 12 }}>✓ {booking.technicianName}</span>
-                  : <span style={{ color: "#94a3b8", fontSize: 12 }}>Unassigned</span>}
-              </td>
-              <td style={TD_STYLE}>
-                <button
-                  onClick={(e) => { e.stopPropagation(); openAssign(booking); }}
-                  style={{ padding: "6px 14px", borderRadius: 10, border: "none", background: booking.technicianName ? "#f1f5f9" : "#4f46e5", color: booking.technicianName ? "#64748b" : "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
-                >
-                  {booking.technicianName ? "Reassign" : "Assign"}
-                </button>
-              </td>
-              <td style={TD_STYLE}>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button title="Approve" onClick={(e) => { e.stopPropagation(); handleUpdateStatus(booking.id, "approved"); }} style={{ padding: "4px 8px", background: "#dcfce7", color: "#166534", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700 }}>✓</button>
-                  <button title="Reject" onClick={(e) => { e.stopPropagation(); handleUpdateStatus(booking.id, "rejected"); }} style={{ padding: "4px 8px", background: "#fee2e2", color: "#991b1b", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700 }}>✕</button>
-                  <button title="Delete" onClick={(e) => { e.stopPropagation(); handleDelete(booking.id); }} style={{ padding: "4px 8px", background: "#fef2f2", color: "#ef4444", border: "1px solid #fecaca", borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700 }}>Del</button>
-                </div>
-              </td>
-            </tr>
-          ))}
+                </td>
+              </tr>
+            );
+          })}
         />
       </DataCard>
     </div>
@@ -2180,7 +2347,7 @@ export function ServicesPage() {
   async function load() {
     setLoading(true);
     try {
-      const [categories, subcategories, cameraTypes, addons, pricing] = await Promise.all([
+      const [categories, subcategories, cameraTypes, addons, products, pricing] = await Promise.all([
         fetch("/api/v2/admin/services/cctv/categories").then(r => r.json()),
         fetch("/api/v2/admin/services/cctv/subcategories").then(r => r.json()),
         fetch("/api/v2/admin/services/cctv/camera-types").then(r => r.json()),
@@ -2193,7 +2360,7 @@ export function ServicesPage() {
         subcategories: subcategories.data || [],
         cameraTypes: cameraTypes.data || [],
         addons: addons.data || [],
-        products: (await fetch("/api/v2/admin/services/cctv/products").then(r=>r.json())).data || [],
+        products: products.data || [],
         pricing: pricing.data || null,
       });
     } finally {
@@ -2204,6 +2371,9 @@ export function ServicesPage() {
   useEffect(() => { load(); }, []);
 
   function endpoint(kind, id = "") {
+    if (kind === "addons") {
+      return `/api/v2/admin/materials${id ? `/${id}` : ""}`;
+    }
     const map = {
       categories: "categories",
       subcategories: "subcategories",
@@ -2221,7 +2391,18 @@ export function ServicesPage() {
     try {
       setSaving(true);
       const body = { ...form };
-      if (kind === "subcategories" && !body.categoryId) body.categoryId = data.categories[0]?._id;
+      if (kind === "subcategories") {
+        if (!body.categoryId) body.categoryId = data.categories[0]?._id;
+        if (body.serviceTypesJson) {
+          try { body.serviceTypes = JSON.parse(body.serviceTypesJson); } catch (e) { alert("Invalid Service Types JSON"); setSaving(false); return; }
+        }
+        if (body.formSchemaJson) {
+          try { body.formSchema = JSON.parse(body.formSchemaJson); } catch (e) { alert("Invalid Form Schema JSON"); setSaving(false); return; }
+        }
+        if (body.pricingRulesJson) {
+          try { body.pricingRules = JSON.parse(body.pricingRulesJson); } catch (e) { alert("Invalid Pricing Rules JSON"); setSaving(false); return; }
+        }
+      }
       if (kind === "images" && body.images) {
         const list = body.images.split(",").map(s => s.trim()).filter(Boolean);
         body.image = list[0] || "";
@@ -2353,12 +2534,23 @@ export function AddressesPage() {
 }
 
 function AdminCctvList({ tab, items, categories, subcategories = [], form, setForm, onSave, saving, addons = [], products = [] }) {
+  const [selectedSubcategoryIdFilter, setSelectedSubcategoryIdFilter] = useState("all");
   const isSub = tab === "subcategories";
   const isCamera = tab === "cameraTypes";
   const isAddon = tab === "addons";
   const isProduct = tab === "products";
   const isImages = tab === "images";
   const isFaqs = tab === "faqs";
+
+  const filteredItems = useMemo(() => {
+    if (!isAddon) return items;
+    if (selectedSubcategoryIdFilter === "all") return items;
+    return items.filter(item => {
+      const subId = item.subcategoryId?._id || item.subcategoryId;
+      return subId === selectedSubcategoryIdFilter;
+    });
+  }, [items, isAddon, selectedSubcategoryIdFilter]);
+
   return (
     <div>
       <SectionHeader title={tab === "subcategories" ? "CCTV Services" : tab === "cameraTypes" ? "Camera Types" : tab === "addons" ? "Add-ons" : "Categories"} />
@@ -2399,6 +2591,22 @@ function AdminCctvList({ tab, items, categories, subcategories = [], form, setFo
             <textarea value={form.faqsJson || JSON.stringify(form.faqs || [], null, 2)} onChange={e => setForm({ ...form, faqsJson: e.target.value })} style={{ ...INPUT_STYLE, minHeight: 120 }} />
           </div>
         )}
+        {isAddon && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <label style={LABEL_STYLE}>Subcategory *</label>
+            <select
+              value={form.subcategoryId || ""}
+              onChange={e => setForm({ ...form, subcategoryId: e.target.value })}
+              style={INPUT_STYLE}
+              required
+            >
+              <option value="">-- Choose Subcategory --</option>
+              {subcategories.map(s => (
+                <option key={s._id} value={s._id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <AdminField label="Name" value={form.name || ""} onChange={v => setForm({ ...form, name: v })} />
         {(isCamera || isAddon || isProduct) && <AdminField label={isCamera ? "Installation Price" : "Price"} value={isCamera ? form.installationPrice || "" : form.price || ""} onChange={v => setForm({ ...form, [isCamera ? "installationPrice" : "price"]: Number(v) })} />}
         {isAddon && <AdminField label="Unit" value={form.unit || "each"} onChange={v => setForm({ ...form, unit: v })} />}
@@ -2409,7 +2617,38 @@ function AdminCctvList({ tab, items, categories, subcategories = [], form, setFo
         </div>}
         {isProduct && <AdminField label="Type" value={form.type || "product"} onChange={v => setForm({ ...form, type: v })} />}
         <AdminField label="Status" value={form.status || "active"} onChange={v => setForm({ ...form, status: v })} />
-        {isSub && <AdminField label="Pricing Starts From" value={form.pricingStartsFrom || ""} onChange={v => setForm({ ...form, pricingStartsFrom: Number(v) })} />}
+         {isSub && <AdminField label="Pricing Starts From" value={form.pricingStartsFrom || ""} onChange={v => setForm({ ...form, pricingStartsFrom: Number(v) })} />}
+        {isSub && (
+          <>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, gridColumn: "1 / -1" }}>
+              <label style={LABEL_STYLE}>Service Types (JSON Array)</label>
+              <textarea 
+                value={form.serviceTypesJson || (form.serviceTypes ? JSON.stringify(form.serviceTypes, null, 2) : "[]")} 
+                onChange={e => setForm({ ...form, serviceTypesJson: e.target.value })} 
+                style={{ ...INPUT_STYLE, minHeight: 100 }} 
+                placeholder='[{"name": "New Network Setup", "price": 1499, "description": ""}]'
+              />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, gridColumn: "1 / -1" }}>
+              <label style={LABEL_STYLE}>Form Schema (JSON Object)</label>
+              <textarea 
+                value={form.formSchemaJson || (form.formSchema ? JSON.stringify(form.formSchema, null, 2) : "{}")} 
+                onChange={e => setForm({ ...form, formSchemaJson: e.target.value })} 
+                style={{ ...INPUT_STYLE, minHeight: 120 }}
+                placeholder='{"step1": {...}, "step2": {...}}'
+              />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, gridColumn: "1 / -1" }}>
+              <label style={LABEL_STYLE}>Pricing Rules Override (JSON Object)</label>
+              <textarea 
+                value={form.pricingRulesJson || (form.pricingRules ? JSON.stringify(form.pricingRules, null, 2) : "{}")} 
+                onChange={e => setForm({ ...form, pricingRulesJson: e.target.value })} 
+                style={{ ...INPUT_STYLE, minHeight: 80 }}
+                placeholder='{"baseCharge": 499, "taxPercentage": 18}'
+              />
+            </div>
+          </>
+        )}
         <div style={{ gridColumn: "1 / -1" }}>
           <label style={LABEL_STYLE}>Description / Overview</label>
           <textarea value={form.overview || form.description || ""} onChange={e => setForm({ ...form, [isSub ? "overview" : "description"]: e.target.value })} style={{ ...INPUT_STYLE, width: "100%", minHeight: 74, marginTop: 6 }} />
@@ -2446,15 +2685,35 @@ function AdminCctvList({ tab, items, categories, subcategories = [], form, setFo
       <button onClick={onSave} disabled={saving || (!(form.name || form._id))} style={primaryButton}>{saving ? "Saving..." : form._id ? "Update" : "Create"}</button>
       {form._id && <button onClick={() => setForm({})} style={{ ...rejectButton, marginLeft: 8 }}>Cancel</button>}
       <div style={{ marginTop: 18 }}>
-        <TableWrapper headers={["Name", "Price", ...(isAddon ? ["Unit"] : []), "Status", "Actions"]} rows={items.map(item => (
-          <tr key={item._id} style={{ borderBottom: "1px solid #f8fafc" }}>
-            <td style={TD_STYLE}><b>{item.name}</b><div style={{ color: "#94a3b8", fontSize: 11 }}>{item.slug}</div></td>
-            <td style={TD_STYLE}>{item.installationPrice ?? item.price ?? item.pricingStartsFrom ?? "—"}</td>
-            {isAddon && <td style={TD_STYLE}>{item.unit || "each"}</td>}
-            <td style={TD_STYLE}><StatusBadge status={item.status} /></td>
-            <td style={TD_STYLE}><button onClick={() => setForm(item)} style={approveButton}>Edit</button></td>
-          </tr>
-        ))} />
+        {isAddon && (
+          <div style={{ marginBottom: 12, display: "flex", gap: 8, alignItems: "center" }}>
+            <label style={LABEL_STYLE}>Filter by Subcategory:</label>
+            <select
+              value={selectedSubcategoryIdFilter}
+              onChange={e => setSelectedSubcategoryIdFilter(e.target.value)}
+              style={INPUT_STYLE}
+            >
+              <option value="all">All Subcategories</option>
+              {subcategories.map(s => (
+                <option key={s._id} value={s._id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        <TableWrapper headers={["Name", "Price", ...(isAddon ? ["Subcategory", "Unit"] : []), "Status", "Actions"]} rows={filteredItems.map(item => {
+          const parentSub = subcategories.find(s => s._id === (item.subcategoryId?._id || item.subcategoryId));
+          const parentSubName = parentSub ? parentSub.name : "—";
+          return (
+            <tr key={item._id} style={{ borderBottom: "1px solid #f8fafc" }}>
+              <td style={TD_STYLE}><b>{item.name}</b><div style={{ color: "#94a3b8", fontSize: 11 }}>{item.slug}</div></td>
+              <td style={TD_STYLE}>{item.installationPrice ?? item.price ?? item.pricingStartsFrom ?? "—"}</td>
+              {isAddon && <td style={TD_STYLE}>{parentSubName}</td>}
+              {isAddon && <td style={TD_STYLE}>{item.unit || "each"}</td>}
+              <td style={TD_STYLE}><StatusBadge status={item.status} /></td>
+              <td style={TD_STYLE}><button onClick={() => setForm(item)} style={approveButton}>Edit</button></td>
+            </tr>
+          );
+        })} />
       </div>
     </div>
   );
