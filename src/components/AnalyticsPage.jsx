@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { Modal } from './UI';
+import { apiFetch as clientApiFetch } from '../lib/apiClient';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   LineChart, Line, FunnelChart, Funnel, LabelList,
@@ -14,12 +15,8 @@ const COLORS = [BRAND, ACCENT, "#10b981", "#8b5cf6", "#f59e0b", "#06b6d4", "#ec4
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 async function apiFetch(path) {
-  const res = await fetch(path);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || `Request failed: ${res.status}`);
-  }
-  return res.json();
+  const { payload } = await clientApiFetch(path);
+  return payload;
 }
 
 function KPICard({ label, value, sub, color = BRAND, icon, trend }) {

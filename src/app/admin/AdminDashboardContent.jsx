@@ -27,6 +27,7 @@ import {
 } from "../../components/AdminPagesModern";
 import { AnalyticsPage } from "../../components/AnalyticsPage";
 import DomainAnalyticsPage from "../../components/analytics/DomainAnalyticsPage";
+import { wakeBackend } from "../../lib/apiClient";
 
 export default function AdminDashboardContent() {
   const pathname = usePathname();
@@ -47,7 +48,8 @@ export default function AdminDashboardContent() {
 
     async function checkAuth() {
       try {
-        const res = await fetch("/api/auth/me");
+        await wakeBackend();
+        const res = await fetch("/api/auth/me", { credentials: "include", cache: "no-store" });
         clearTimeout(wakeTimeout);
         if (res.status === 401) {
           router.replace("/login");

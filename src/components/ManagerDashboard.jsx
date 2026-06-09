@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Card, StatusBadge, SectionHeader, TableWrapper } from "./UI";
 import * as Icons from "./Icons";
+import { apiFetch } from "../lib/apiClient";
 
 const STAT_META = [
   { key: "totalUsers", label: "Total Users", icon: <Icons.UsersIcon />, color: "#6366f1", bg: "#eef2ff", target: "technicians" },
@@ -22,13 +23,9 @@ export function DashboardPage({ onNavigate }) {
     async function loadDashboard() {
       try {
         setLoading(true);
-        const res = await fetch("/api/v2/admin/dashboard");
-        const payload = await res.json();
-        if (!res.ok) {
-          throw new Error(payload.message || "Failed to load dashboard");
-        }
+        const { data } = await apiFetch("/api/v2/admin/dashboard");
         if (!ignore) {
-          setData(payload.data);
+          setData(data);
           setError("");
         }
       } catch (err) {

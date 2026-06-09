@@ -15,7 +15,7 @@ export const AuthProvider = ({ children }) => {
 
   const checkUser = async () => {
     try {
-      const res = await fetch('/api/auth/me');
+      const res = await fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         setUser(data.user?.role === 'admin' ? data.user : null);
@@ -32,6 +32,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     const res = await fetch('/api/admin/login', {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });

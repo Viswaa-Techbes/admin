@@ -3,6 +3,7 @@ import dynamic from 'next/dynamic';
 import { io } from 'socket.io-client';
 import { PlusIcon, EditIcon, TrashIcon, KeyIcon } from "./Icons";
 import { PageHeader, SearchFilter, Card, TableWrapper, Avatar, StatusBadge, ActionBtn, StarRating, SectionHeader, useToast, Modal } from "./UI";
+import { apiFetch } from "../lib/apiClient";
 import AllApplicationsPage from './admission/AllApplicationsPage';
 import AdmissionStudentProfilesPage from './admission/StudentProfilesPage';
 import AdmissionPaymentStatusPage from './admission/PaymentStatusPage';
@@ -20,12 +21,7 @@ function useApiData(url, initial = []) {
   async function load() {
     try {
       setLoading(true);
-      const res = await fetch(url, { credentials: "include" });
-      let payload;
-      try { payload = await res.json(); } catch { payload = {}; }
-      if (!res.ok) {
-        throw new Error(payload.message || `Request failed (${res.status})`);
-      }
+      const { payload } = await apiFetch(url);
       setData(payload.data ?? payload ?? []);
       setError("");
     } catch (err) {
@@ -1864,10 +1860,8 @@ export function ServiceRequestsPage() {
       if (subcategoryFilter !== "all") params.set("cctvSubcategory", subcategoryFilter);
       if (cameraTypeFilter !== "all") params.set("cameraType", cameraTypeFilter);
       const url = `/api/v2/admin/service-requests${params.toString() ? `?${params.toString()}` : ""}`;
-      const res = await fetch(url, { cache: "no-store" });
-      const payload = await res.json();
-      if (!res.ok) throw new Error(payload.message || "Failed to load service requests");
-      setBookings(payload.data || []);
+      const { data } = await apiFetch(url);
+      setBookings(Array.isArray(data) ? data : []);
       setError("");
     } catch (err) {
       setError(err.message);
@@ -1903,11 +1897,9 @@ export function ServiceRequestsPage() {
     setViewModal(booking);
     setEditForm(buildEditForm(booking));
     try {
-      const res = await fetch(`/api/v2/admin/service-requests/${booking.id}`, { cache: "no-store" });
-      const payload = await res.json();
-      if (!res.ok) throw new Error(payload.message || "Failed to load request details");
-      setViewModal(payload.data);
-      setEditForm(buildEditForm(payload.data));
+      const { data } = await apiFetch(`/api/v2/admin/service-requests/${booking.id}`);
+      setViewModal(data);
+      setEditForm(buildEditForm(data));
     } catch (err) {
       toast(err.message, { duration: 4000 });
     } finally {
@@ -1937,17 +1929,13 @@ export function ServiceRequestsPage() {
     }
     try {
       setSaving(true);
-      const res = await fetch(`/api/v2/admin/service-requests/${viewModal.id}`, {
+      const { data } = await apiFetch(`/api/v2/admin/service-requests/${viewModal.id}`, {
         method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editForm),
+        body: editForm,
       });
-      const payload = await res.json();
-      if (!res.ok) throw new Error(payload.message || "Failed to save changes");
-      setViewModal(payload.data);
-      setEditForm(buildEditForm(payload.data));
-      setBookings((prev) => prev.map((b) => (b.id === payload.data.id ? payload.data : b)));
+      setViewModal(data);
+      setEditForm(buildEditForm(data));
+      setBookings((prev) => prev.map((b) => (b.id === data.id ? data : b)));
       toast("Service request updated successfully");
     } catch (err) {
       toast(err.message, { duration: 4000 });
@@ -1958,17 +1946,14 @@ export function ServiceRequestsPage() {
 
   async function handleUpdateStatus(id, status) {
     try {
-      const res = await fetch(`/api/v2/admin/service-requests/${id}`, {
+      const { data } = await apiFetch(`/api/v2/admin/service-requests/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: { status },
       });
-      const payload = await res.json();
-      if (!res.ok) throw new Error(payload.message || "Failed to update status");
       await loadBookings();
-      if (viewModal?.id === id && payload.data) {
-        setViewModal(payload.data);
-        setEditForm(buildEditForm(payload.data));
+      if (viewModal?.id === id && data) {
+        setViewModal(data);
+        setEditForm(buildEditForm(data));
       }
       toast(`Status updated to ${status.replace(/_/g, " ")}`);
     } catch (e) {
@@ -1979,8 +1964,7 @@ export function ServiceRequestsPage() {
   async function handleDelete(id) {
     if (!window.confirm("Are you sure you want to delete this service request?")) return;
     try {
-      const res = await fetch(`/api/v2/admin/service-requests/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete request");
+      await apiFetch(`/api/v2/admin/service-requests/${id}`, { method: "DELETE" });
       if (viewModal?.id === id) closeRequestDetails();
       await loadBookings();
       toast("Service request deleted");
@@ -1993,12 +1977,12 @@ export function ServiceRequestsPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/v2/admin/services/cctv/categories").then(r => r.json()),
-      fetch("/api/v2/admin/services/cctv/subcategories").then(r => r.json()),
-      fetch("/api/v2/admin/services/cctv/camera-types").then(r => r.json()),
-      fetch("/api/v2/admin/materials").then(r => r.json()),
-      fetch("/api/v2/admin/services/cctv/products").then(r => r.json()),
-      fetch("/api/v2/admin/users").then(r => r.json()),
+      apiFetch("/api/v2/admin/services/cctv/categories"),
+      apiFetch("/api/v2/admin/services/cctv/subcategories"),
+      apiFetch("/api/v2/admin/services/cctv/camera-types"),
+      apiFetch("/api/v2/admin/materials"),
+      apiFetch("/api/v2/admin/services/cctv/products"),
+      apiFetch("/api/v2/admin/users"),
     ]).then(([categories, subcategories, cameraTypes, addons, products, users]) => {
       setCctvOptions({
         categories: categories.data || [],
@@ -2027,14 +2011,10 @@ export function ServiceRequestsPage() {
     try {
       setAssigning(true);
       setAssignError("");
-      const res = await fetch(`/api/v2/admin/bookings/${assignModal.id}/assign`, {
+      await apiFetch(`/api/v2/admin/bookings/${assignModal.id}/assign`, {
         method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ technicianId: selectedTech }),
+        body: { technicianId: selectedTech },
       });
-      const payload = await res.json();
-      if (!res.ok) throw new Error(payload.message || "Assignment failed");
       setAssignModal(null);
       await loadBookings();
       toast("Technician assigned successfully");
