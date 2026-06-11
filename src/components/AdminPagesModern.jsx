@@ -105,51 +105,6 @@ export function CustomersPage() {
     }
   }
 
-  async function updateTechnicianStatus(id, status) {
-    try {
-      const res = await fetch(`/api/v2/admin/technicians/${id}/status`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status, isOnline: status === 'available' }),
-      });
-      if (!res.ok) throw new Error('Failed to update status');
-      await refreshUsers();
-    } catch (err) {
-      alert(err.message);
-    }
-  }
-
-  async function adminClockIn(userId) {
-    try {
-      const res = await fetch(`/api/v2/admin/attendance/clock-in`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
-      });
-      const payload = await res.json();
-      if (!res.ok) throw new Error(payload.message || 'Clock-in failed');
-      alert('Clocked in');
-      await refreshUsers();
-    } catch (err) { alert(err.message); }
-  }
-
-  async function adminClockOut(userId) {
-    try {
-      const res = await fetch(`/api/v2/admin/attendance/clock-out`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
-      });
-      const payload = await res.json();
-      if (!res.ok) throw new Error(payload.message || 'Clock-out failed');
-      alert('Clocked out');
-      await refreshUsers();
-    } catch (err) { alert(err.message); }
-  }
-
   const rows = filteredLeads.map((lead, index) => leadRow(lead, index, handleDelete, startEdit));
 
   return (
@@ -2011,13 +1966,13 @@ export function ServiceRequestsPage() {
     try {
       setAssigning(true);
       setAssignError("");
-      await apiFetch(`/api/v2/admin/bookings/${assignModal.id}/assign`, {
-        method: "PUT",
+      await apiFetch(`/api/v2/dispatch/override/${assignModal.id}`, {
+        method: "POST",
         body: { technicianId: selectedTech },
       });
       setAssignModal(null);
       await loadBookings();
-      toast("Technician assigned successfully");
+      toast("Technician assigned and dispatched successfully");
     } catch (err) {
       setAssignError(err.message);
     } finally {
@@ -2244,9 +2199,23 @@ export function ServiceRequestsPage() {
 
       <DataCard loading={loading} error={error} empty={!bookings.length} emptyText="No service requests found.">
         <TableWrapper
-          headers={["Customer", "Service", "CCTV Details", "Date & Time", "Status", "Payment", "Technician", "Assign", "Actions"]}
+          headers={["Customer", "Service", "CCTV Details", "Date & Time", "Status", "Payment", "Method", "Dispatch", "Technician", "Assign", "Actions"]}
           rows={bookings.map(booking => {
             const isActive = selectedRequestId === booking.id;
+            const dscColors = {
+              pending_dispatch: { bg: "#fef3c7", color: "#92400e" },
+              dispatching: { bg: "#dbeafe", color: "#1e40af" },
+              assigned: { bg: "#d1fae5", color: "#065f46" },
+              no_tech_found: { bg: "#fee2e2", color: "#991b1b" },
+            };
+            const methodColors = {
+              AUTO: { bg: "#ede9fe", color: "#5b21b6" },
+              MANUAL: { bg: "#fce7f3", color: "#831843" },
+              ACCEPTED: { bg: "#d1fae5", color: "#065f46" },
+              FALLBACK: { bg: "#fff7ed", color: "#9a3412" },
+            };
+            const dsc = dscColors[booking.dispatchStatus] || { bg: "#f1f5f9", color: "#475569" };
+            const amc = methodColors[booking.assignmentMethod] || { bg: "#f1f5f9", color: "#475569" };
             return (
               <tr
                 key={booking.id}
@@ -2289,6 +2258,18 @@ export function ServiceRequestsPage() {
                 <td style={TD_STYLE}><StatusChip status={booking.status} /></td>
                 <td style={TD_STYLE}><StatusChip status={booking.paymentStatus || "pending"} /></td>
                 <td style={TD_STYLE}>
+                  {booking.assignmentMethod ? (
+                    <span style={{ ...amc, padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 700 }}>{booking.assignmentMethod}</span>
+                  ) : <span style={{ color: "#94a3b8" }}>—</span>}
+                </td>
+                <td style={TD_STYLE}>
+                  {booking.dispatchStatus ? (
+                    <span style={{ ...dsc, padding: "2px 8px", borderRadius: 99, fontSize: 10, fontWeight: 700, textTransform: "uppercase" }}>
+                      {booking.dispatchStatus.replace(/_/g, " ")}
+                    </span>
+                  ) : <span style={{ color: "#94a3b8" }}>—</span>}
+                </td>
+                <td style={TD_STYLE}>
                   {booking.technicianName
                     ? <span style={{ color: "#15803d", fontWeight: 600, fontSize: 12 }}>✓ {booking.technicianName}</span>
                     : <span style={{ color: "#94a3b8", fontSize: 12 }}>Unassigned</span>}
@@ -2298,7 +2279,7 @@ export function ServiceRequestsPage() {
                     onClick={(e) => { e.stopPropagation(); openAssign(booking); }}
                     style={{ padding: "6px 14px", borderRadius: 10, border: "none", background: booking.technicianName ? "#f1f5f9" : "#4f46e5", color: booking.technicianName ? "#64748b" : "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
                   >
-                    {booking.technicianName ? "Reassign" : "Assign"}
+                    {booking.technicianName ? "Override" : "Assign"}
                   </button>
                 </td>
                 <td style={TD_STYLE}>
@@ -3121,4 +3102,3 @@ const approveButton = { border: "none", borderRadius: 10, background: "#dcfce7",
 const rejectButton = { border: "none", borderRadius: 10, background: "#fee2e2", color: "#b91c1c", fontWeight: 700, padding: "8px 12px", cursor: "pointer" };
 const pillButton = (active) => ({ padding: "6px 14px", borderRadius: 99, background: active ? "#6366f1" : "#fff", color: active ? "#fff" : "#64748b", fontWeight: 700, cursor: "pointer" });
 
-// ... styles and utils ...

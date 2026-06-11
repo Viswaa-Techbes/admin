@@ -25,9 +25,10 @@ import {
   CourseAssignmentPage,
   AdmissionAnalyticsPage
 } from "../../components/AdminPagesModern";
+import { DispatchMonitorPage, CancellationsPage, TechPerformancePage } from "../../components/DispatchAdminPages";
 import { AnalyticsPage } from "../../components/AnalyticsPage";
 import DomainAnalyticsPage from "../../components/analytics/DomainAnalyticsPage";
-import { wakeBackend } from "../../lib/apiClient";
+import { wakeBackend, apiFetch } from "../../lib/apiClient";
 
 export default function AdminDashboardContent() {
   const pathname = usePathname();
@@ -40,6 +41,7 @@ export default function AdminDashboardContent() {
   const [collapsed, setCollapsed] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [user, setUser] = useState({ name: "Admin", role: "admin" });
+  const [notifCount, setNotifCount] = useState(0);
 
   useEffect(() => {
     let wakeTimeout = setTimeout(() => {
@@ -95,6 +97,25 @@ export default function AdminDashboardContent() {
     syncPageFromUrl();
   }, [mounted, pathname]);
 
+  useEffect(() => {
+    if (!mounted) return;
+
+    const fetchNotificationsCount = async () => {
+      try {
+        const { payload } = await apiFetch("/api/v2/notifications");
+        const list = payload.data ?? payload ?? [];
+        const unread = list.filter(n => !n.isRead).length;
+        setNotifCount(unread);
+      } catch (err) {
+        console.error("Failed to fetch notification count:", err.message);
+      }
+    };
+
+    fetchNotificationsCount();
+    const interval = setInterval(fetchNotificationsCount, 8000); // refresh every 8s
+    return () => clearInterval(interval);
+  }, [mounted, activePage]);
+
   if (!mounted) return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#f1f5f9", color: "#64748b" }}>
       <div style={{ fontSize: 16, fontWeight: 500 }}>Loading techbes dashboard...</div>
@@ -119,6 +140,9 @@ export default function AdminDashboardContent() {
     technicians: <TechniciansPage />,
     jobs: <ProjectsPage />,
     "service-requests": <ServiceRequestsPage />,
+    "dispatch-monitor": <DispatchMonitorPage />,
+    cancellations: <CancellationsPage />,
+    "tech-performance": <TechPerformancePage />,
     requests: <RequestsPage />,
     reviews: <ReviewsPage />,
     services: <ServicesPage />,
@@ -170,9 +194,10 @@ export default function AdminDashboardContent() {
         <ToastProvider>
           <TopNavbar 
             page={activePage} 
-            notifCount={0} 
+            notifCount={notifCount} 
             user={user} 
             onLogout={logout} 
+            onNotifClick={() => setActivePage("notifications")}
           />
           
           <main style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
