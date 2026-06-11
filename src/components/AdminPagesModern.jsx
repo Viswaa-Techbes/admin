@@ -11,6 +11,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { MONTHLY_TREND, SERVICE_DIST, TECH_PERF } from "../lib/data";
 
 const LiveMap = dynamic(() => import('./LiveMap'), { ssr: false });
+const RouteMap = dynamic(() => import('./RouteMap'), { ssr: false });
 
 
 function useApiData(url, initial = []) {
@@ -2007,6 +2008,29 @@ export function ServiceRequestsPage() {
     );
   }
 
+  const customerCoords = useMemo(() => {
+    if (!viewModal) return null;
+    const meta = viewModal.v2Metadata;
+    const latStr = meta?.lat || (meta?.get ? meta.get('lat') : '') || '';
+    const lngStr = meta?.lng || (meta?.get ? meta.get('lng') : '') || '';
+    if (latStr && lngStr) return { lat: parseFloat(latStr), lng: parseFloat(lngStr) };
+    if (viewModal.addressId?.latitude && viewModal.addressId?.longitude) return { lat: viewModal.addressId.latitude, lng: viewModal.addressId.longitude };
+    const link = (editForm && editForm.mapLink) || viewModal.googleMapsLink || viewModal.location || '';
+    if (link && link.includes('q=')) {
+      const match = link.match(/q=([-\d.]+),([-\d.]+)/);
+      if (match) return { lat: parseFloat(match[1]), lng: parseFloat(match[2]) };
+    }
+    return null;
+  }, [viewModal, editForm]);
+
+  const techCoords = useMemo(() => {
+    if (!viewModal) return null;
+    const techId = (editForm && editForm.technicianId) || viewModal.technicianId || viewModal.assignedTechnician?._id || viewModal.assignedTechnician?.id;
+    const tech = technicians.find(t => t._id === techId || t.id === techId);
+    if (tech?.lat && tech?.lng) return { lat: tech.lat, lng: tech.lng };
+    return null;
+  }, [viewModal, editForm, technicians]);
+
   const statusOptions = ["all", "pending", "assigned", "in_progress", "completed"];
   const paymentOptions = ["all", "pending", "advance_paid", "requested", "verification_pending", "paid", "rejected"];
   const bookingStatusOptions = ["pending", "assigned", "in_progress", "started", "completed", "closed"];
@@ -2117,12 +2141,18 @@ export function ServiceRequestsPage() {
               <DetailField label="City" value={editForm.city} isEditing onChange={(v) => updateEditField("city", v)} />
               <DetailField label="State" value={editForm.state} isEditing onChange={(v) => updateEditField("state", v)} />
               <DetailField label="Pincode" value={editForm.pincode} isEditing onChange={(v) => updateEditField("pincode", v)} />
-              <div style={{ gridColumn: "1 / -1" }}>
-                <DetailField label="Map Link" value={editForm.mapLink} isEditing onChange={(v) => updateEditField("mapLink", v)} />
-                {editForm.mapLink && (
-                  <a href={editForm.mapLink} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "#4f46e5", fontWeight: 600 }}>Open in Maps →</a>
-                )}
-              </div>
+              {customerCoords && (
+                <div style={{ gridColumn: "1 / -1", marginTop: 10 }}>
+                  <label style={LABEL_STYLE}>Service Route Map (OSM)</label>
+                  <div style={{ height: "290px", marginTop: 6 }}>
+                    <RouteMap 
+                      customerCoords={customerCoords} 
+                      techCoords={techCoords} 
+                      bookingId={viewModal.id} 
+                    />
+                  </div>
+                </div>
+              )}
             </InfoSection>
 
             <InfoSection title="Schedule Information">
