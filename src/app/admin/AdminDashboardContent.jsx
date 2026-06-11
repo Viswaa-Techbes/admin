@@ -7,7 +7,8 @@ import { ToastProvider } from "../../components/UI";
 import { DashboardPage } from "../../components/ManagerDashboard";
 import { 
   CustomersPage, 
-  TechniciansPage, 
+  EmployeeManagementPage,
+  CustomerManagementPage,
   ProjectsPage, 
   ServiceRequestsPage,
   RequestsPage,
@@ -135,9 +136,9 @@ export default function AdminDashboardContent() {
 
   const pages = {
     dashboard: <DashboardPage onNavigate={setActivePage} />,
-    members: <CustomersPage />,
+    members: <EmployeeManagementPage />,
+    technicians: <CustomerManagementPage />,
     leads: <CustomersPage />,
-    technicians: <TechniciansPage />,
     jobs: <ProjectsPage />,
     "service-requests": <ServiceRequestsPage />,
     "dispatch-monitor": <DispatchMonitorPage />,

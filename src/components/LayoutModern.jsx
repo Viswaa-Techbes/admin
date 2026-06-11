@@ -4,9 +4,9 @@ import { Avatar } from "./UI";
 
 export const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: <GridIcon /> },
-  { id: "members", label: "Members Management", icon: <UsersIcon /> },
-  { id: "technicians", label: "User Management", icon: <HardHatIcon /> },
-  { id: "leads", label: "Leads", icon: <UsersIcon /> },
+  { id: "members", label: "Employee Management", icon: <HardHatIcon /> },
+  { id: "technicians", label: "Customer Management", icon: <UsersIcon /> },
+  { id: "leads", label: "Lead Management", icon: <BriefcaseIcon /> },
   { id: "jobs", label: "Projects", icon: <BriefcaseIcon /> },
   { id: "service-requests", label: "Service Requests", icon: <BellIcon />, badge: null },
   // ─── Phase 2: Dispatch ────────────────────────────────────────────────────
@@ -89,8 +89,9 @@ export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLo
 export function TopNavbar({ page, notifCount, user, onLogout, onNotifClick }) {
   const titles = {
     dashboard: "Dashboard",
-    members: "Members Management",
-    technicians: "User Management",
+    members: "Employee Management",
+    technicians: "Customer Management",
+    leads: "Lead Management",
     jobs: "Projects",
     "service-requests": "Service Requests",
     "dispatch-monitor": "Dispatch Monitor",

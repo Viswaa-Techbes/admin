@@ -46,7 +46,7 @@ export function CustomersPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", phone: "", pincode: "", status: "Active" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", pincode: "", status: "New", lostReason: "", requiredService: "", budget: 0, priority: "medium", remarks: "" });
   const [formError, setFormError] = useState("");
 
   async function handleSubmit(e) {
@@ -54,7 +54,14 @@ export function CustomersPage() {
     try {
       setSaving(true);
       setFormError("");
-      const url = editingId ? `/api/v2/admin/leads/${editingId}` : "/api/v2/admin/leads"; // Changed to leads list for POST
+
+      if (form.status === "Lost" && (!form.lostReason || form.lostReason.trim() === "")) {
+        setFormError("Lost Reason is mandatory when status is Lost");
+        setSaving(false);
+        return;
+      }
+
+      const url = editingId ? `/api/v2/admin/leads/${editingId}` : "/api/v2/admin/leads";
       const method = editingId ? "PUT" : "POST";
       const res = await fetch(url, {
         method,
@@ -68,7 +75,7 @@ export function CustomersPage() {
       await refreshLeads(); // Refresh to ensure DB state
       setShowForm(false);
       setEditingId(null);
-      setForm({ name: "", email: "", phone: "", pincode: "", status: "Active" });
+      setForm({ name: "", email: "", phone: "", pincode: "", status: "New", lostReason: "", requiredService: "", budget: 0, priority: "medium", remarks: "" });
     } catch (err) {
       setFormError(err.message);
     } finally {
@@ -78,7 +85,18 @@ export function CustomersPage() {
 
   function startEdit(lead) {
     setEditingId(lead._id || lead.id);
-    setForm({ name: lead.name, email: lead.email, phone: lead.phone, pincode: lead.pincode, status: lead.status || "Active" });
+    setForm({
+      name: lead.name || "",
+      email: lead.email || "",
+      phone: lead.phone || "",
+      pincode: lead.pincode || "",
+      status: lead.status || "New",
+      lostReason: lead.lostReason || "",
+      requiredService: lead.requiredService || lead.plan || lead.service || "",
+      budget: lead.budget || 0,
+      priority: lead.priority || "medium",
+      remarks: lead.remarks || "",
+    });
     setShowForm(true);
   }
 
@@ -90,7 +108,7 @@ export function CustomersPage() {
       (lead.phone || "").toLowerCase().includes(query) ||
       String(lead.pincode || "").toLowerCase().includes(query);
     const matchesStatus = statusFilter === "All" || lead.status === statusFilter;
-    const plan = lead.plan || lead.service || "";
+    const plan = lead.plan || lead.service || lead.requiredService || "";
     const matchesService = serviceFilter === "All" || plan.toLowerCase().includes(serviceFilter.toLowerCase());
     return matchesSearch && matchesStatus && matchesService;
   }), [leads, searchQuery, serviceFilter, statusFilter]);
@@ -110,7 +128,7 @@ export function CustomersPage() {
 
   return (
     <div className="font-[family-name:var(--font-geist-sans)] max-w-[1400px] mx-auto">
-      <PageHeader title="Lead Management" subtitle={`${filteredLeads.length} leads available`} actions={<ActionBtn icon={<PlusIcon />} onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({name: "", email: "", phone: "", pincode: "", status: "Active"}); }} label={showForm ? "Close Form" : "Add Lead"} primary />} />
+      <PageHeader title="Lead Management" subtitle={`${filteredLeads.length} leads available`} actions={<ActionBtn icon={<PlusIcon />} onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({ name: "", email: "", phone: "", pincode: "", status: "New", lostReason: "", requiredService: "", budget: 0, priority: "medium", remarks: "" }); }} label={showForm ? "Close Form" : "Add Lead"} primary />} />
       
       {showForm && (
         <Card style={{ padding: 20, marginBottom: 20 }}>
@@ -120,13 +138,42 @@ export function CustomersPage() {
             <Field label="Email" value={form.email} onChange={(v) => setForm({...form, email: v})} />
             <Field label="Phone" value={form.phone} onChange={(v) => setForm({...form, phone: v})} />
             <Field label="Pincode" value={form.pincode} onChange={(v) => setForm({...form, pincode: v})} />
+            <Field label="Required Service" value={form.requiredService} onChange={(v) => setForm({...form, requiredService: v})} />
+            <Field label="Budget" type="number" value={form.budget} onChange={(v) => setForm({...form, budget: Number(v)})} />
+            
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label style={LABEL_STYLE}>Priority</label>
+              <select value={form.priority} onChange={(e) => setForm({...form, priority: e.target.value})} style={INPUT_STYLE}>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <label style={LABEL_STYLE}>Status</label>
               <select value={form.status} onChange={(e) => setForm({...form, status: e.target.value})} style={INPUT_STYLE}>
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
+                <option value="New">New</option>
+                <option value="Contacted">Contacted</option>
+                <option value="Qualified">Qualified</option>
+                <option value="Proposal Sent">Proposal Sent</option>
+                <option value="Negotiation">Negotiation</option>
+                <option value="Won">Won</option>
+                <option value="Lost">Lost</option>
+                <option value="Project Created">Project Created</option>
               </select>
             </div>
+
+            {form.status === "Lost" && (
+              <div style={{ gridColumn: "1 / -1" }}>
+                <Field label="Lost Reason (Mandatory)" value={form.lostReason || ""} onChange={(v) => setForm({...form, lostReason: v})} />
+              </div>
+            )}
+
+            <div style={{ gridColumn: "1 / -1" }}>
+              <Field label="Remarks / Notes" value={form.remarks} onChange={(v) => setForm({...form, remarks: v})} />
+            </div>
+            
             <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ color: "#f43f5e", fontSize: 12 }}>{formError}</span>
               <button type="submit" disabled={saving} style={primaryButton}>{saving ? "Saving..." : (editingId ? "Update Lead" : "Create Lead")}</button>
@@ -182,46 +229,42 @@ function leadRow(lead, index, onDelete, onEdit) {
   );
 }
 
-export function TechniciansPage() {
+export function EmployeeManagementPage() {
   const { data: users, loading, error, refresh: refreshUsers } = useApiData("/api/v2/admin/users");
-  const [activeTab, setActiveTab] = useState("member"); // 'member' or 'web_user'
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: "", mobileNumber: "", password: "", role: "technician", specialty: "", permissions: [] });
+  const [form, setForm] = useState({
+    name: "", mobileNumber: "", password: "", role: "technician", specialty: "",
+    address: "", pincode: "", skills: "", joiningDate: new Date().toISOString().split('T')[0],
+    employeeStatus: "Active"
+  });
   const [formError, setFormError] = useState("");
-  const [passwordChangeId, setPasswordChangeId] = useState(null);
-  const [newPassword, setNewPassword] = useState("");
-  const [updatingPassword, setUpdatingPassword] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [employeeDetails, setEmployeeDetails] = useState(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
 
-  const filteredUsers = useMemo(() => {
-    return users.filter(u => (u.userType || 'member') === activeTab);
-  }, [users, activeTab]);
+  // Filter for staff members (technician, manager, admin)
+  const employees = useMemo(() => {
+    return users.filter(u => ['technician', 'manager', 'admin'].includes(u.role) && (u.userType || 'member') === 'member');
+  }, [users]);
 
-  async function handlePasswordUpdate(e) {
-    e.preventDefault();
-    if (!newPassword || newPassword.length < 6) {
-      alert("Password must be at least 6 characters");
-      return;
-    }
+  // Load employee profile popup details
+  async function viewEmployeeProfile(employee) {
+    setSelectedEmployee(employee);
+    setLoadingDetails(true);
     try {
-      setUpdatingPassword(true);
-      const res = await fetch(`/api/v2/admin/users/${passwordChangeId}/password`, {
-        method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ newPassword }),
-      });
+      const res = await fetch(`/api/v2/admin/users/${employee._id || employee.id}`, { credentials: "include" });
       const payload = await res.json();
-      if (!res.ok) throw new Error(payload.message || "Failed to update password");
-      
-      alert("Password updated successfully");
-      setPasswordChangeId(null);
-      setNewPassword("");
+      if (res.ok) {
+        setEmployeeDetails(payload.data);
+      } else {
+        alert(payload.message || "Failed to load employee profile details");
+      }
     } catch (err) {
-      alert(err.message);
+      alert("Error loading profile details: " + err.message);
     } finally {
-      setUpdatingPassword(false);
+      setLoadingDetails(false);
     }
   }
 
@@ -233,23 +276,34 @@ export function TechniciansPage() {
       const url = editingId ? `/api/v2/admin/users/${editingId}` : "/api/v2/admin/users";
       const method = editingId ? "PUT" : "POST";
       
+      const payload = {
+        ...form,
+        skills: form.skills.split(',').map(s => s.trim()).filter(Boolean),
+        serviceCategories: form.specialty ? [form.specialty] : [],
+        userType: 'member'
+      };
+
       const res = await fetch(url, {
         method,
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, userType: 'member' }), // Admin creates members
+        body: JSON.stringify(payload),
       });
-      const payload = await res.json();
-      if (!res.ok) throw new Error(payload.message || "Failed to save user");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to save user");
       
       if (!editingId) {
-        alert(`Member created! Credentials:\nMobile: ${payload.data.mobileNumber}\nPassword: ${payload.data.password}`);
+        alert(`Employee created!\nMobile: ${data.data.mobileNumber}\nPassword: ${form.password}`);
       }
       
       await refreshUsers();
       setShowForm(false);
       setEditingId(null);
-      setForm({ name: "", mobileNumber: "", password: "", role: "technician", specialty: "", permissions: [] });
+      setForm({
+        name: "", mobileNumber: "", password: "", role: "technician", specialty: "",
+        address: "", pincode: "", skills: "", joiningDate: new Date().toISOString().split('T')[0],
+        employeeStatus: "Active"
+      });
     } catch (err) {
       setFormError(err.message);
     } finally {
@@ -257,14 +311,25 @@ export function TechniciansPage() {
     }
   }
 
-  function startEdit(user) {
-    setEditingId(user._id || user.id);
-    setForm({ name: user.name, mobileNumber: user.mobileNumber, role: user.role, password: "", specialty: user.specialty || "", permissions: user.permissions || [] });
+  function startEdit(emp) {
+    setEditingId(emp._id || emp.id);
+    setForm({
+      name: emp.name,
+      mobileNumber: emp.mobileNumber,
+      role: emp.role,
+      password: "",
+      specialty: emp.specialty || "",
+      address: emp.address || "",
+      pincode: emp.pincode || "",
+      skills: (emp.skills || []).join(', '),
+      joiningDate: emp.joiningDate ? new Date(emp.joiningDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      employeeStatus: emp.employeeStatus || "Active"
+    });
     setShowForm(true);
   }
 
   async function handleDelete(id) {
-    if (!window.confirm("Are you sure you want to delete this user?")) return;
+    if (!window.confirm("Are you sure you want to delete this employee?")) return;
     try {
       const res = await fetch(`/api/v2/admin/users/${id}`, { method: "DELETE", credentials: "include" });
       if (!res.ok) throw new Error("Failed to delete user");
@@ -277,136 +342,551 @@ export function TechniciansPage() {
   return (
     <div>
       <PageHeader 
-        title="User Classification" 
-        subtitle={`${filteredUsers.length} ${activeTab === 'member' ? 'members' : 'web users'} found`} 
-        actions={activeTab === 'member' && <ActionBtn icon={<PlusIcon />} onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({name: "", mobileNumber: "", password: "", role: "technician", specialty: "", permissions: []}); }} label={showForm ? "Close Form" : "Create Member"} primary />} 
+        title="Employee Management" 
+        subtitle={`${employees.length} staff members registered`} 
+        actions={<ActionBtn icon={<PlusIcon />} onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({ name: "", mobileNumber: "", password: "", role: "technician", specialty: "", address: "", pincode: "", skills: "", joiningDate: new Date().toISOString().split('T')[0], employeeStatus: "Active" }); }} label={showForm ? "Close Form" : "Register Employee"} primary />} 
       />
-
-      {/* Classification Tabs */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 24, padding: 4, background: "#e2e8f0", borderRadius: 12, width: "fit-content" }}>
-        {["member", "web_user"].map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            style={{
-              padding: "8px 20px",
-              borderRadius: 10,
-              border: "none",
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: "pointer",
-              transition: "all 0.2s",
-              background: activeTab === tab ? "#fff" : "transparent",
-              color: activeTab === tab ? "#1e293b" : "#64748b",
-              boxShadow: activeTab === tab ? "0 4px 6px -1px rgba(0,0,0,0.1)" : "none"
-            }}
-          >
-            {tab === "member" ? "Members (Staff)" : "Web Users (App)"}
-          </button>
-        ))}
-      </div>
 
       {showForm && (
         <Card style={{ padding: 20, marginBottom: 20 }}>
-          <SectionHeader title={editingId ? "Edit Staff Account" : "Register New Staff Member"} />
+          <SectionHeader title={editingId ? "Edit Employee Account" : "Register New Employee"} />
           <form onSubmit={handleSubmit} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <Field label="Full Name" value={form.name} onChange={(v) => setForm({...form, name: v})} />
             <Field label="Mobile Number" value={form.mobileNumber} onChange={(v) => setForm({...form, mobileNumber: v})} />
             {!editingId && <Field label="Password" value={form.password} onChange={(v) => setForm({...form, password: v})} />}
-            <Field label="Specialty (Optional)" value={form.specialty} onChange={(v) => setForm({...form, specialty: v})} />
+            <Field label="Specialty / Category" value={form.specialty} onChange={(v) => setForm({...form, specialty: v})} />
+            <Field label="Address" value={form.address} onChange={(v) => setForm({...form, address: v})} />
+            <Field label="Pincode" value={form.pincode} onChange={(v) => setForm({...form, pincode: v})} />
+            <Field label="Skills (Comma Separated)" value={form.skills} onChange={(v) => setForm({...form, skills: v})} />
+            <Field label="Joining Date" type="date" value={form.joiningDate} onChange={(v) => setForm({...form, joiningDate: v})} />
+            
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <label style={LABEL_STYLE}>Role</label>
               <select value={form.role} onChange={(e) => setForm({...form, role: e.target.value})} style={INPUT_STYLE}>
                 <option value="technician">Technician</option>
                 <option value="manager">Manager</option>
                 <option value="admin">Admin</option>
-                <option value="client">Client (App User)</option>
               </select>
             </div>
-            <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: 6, padding: "10px 14px", background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0" }}>
-              <label style={LABEL_STYLE}>RBAC Permissions</label>
-              <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-                {["canEditJobs", "canViewReports", "canManageUsers", "canApprovePayments", "canManageAttendance"].map(p => (
-                  <label key={p} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#475569", cursor: "pointer" }}>
-                    <input 
-                      type="checkbox" 
-                      checked={form.permissions.includes(p)} 
-                      onChange={(e) => {
-                        const newPerms = e.target.checked ? [...form.permissions, p] : form.permissions.filter(x => x !== p);
-                        setForm({...form, permissions: newPerms});
-                      }} 
-                    />
-                    {p === "canEditJobs" ? "EditProjects" : p.replace(/^can/, "")}
-                  </label>
-                ))}
-              </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label style={LABEL_STYLE}>Employee Status</label>
+              <select value={form.employeeStatus} onChange={(e) => setForm({...form, employeeStatus: e.target.value})} style={INPUT_STYLE}>
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+              </select>
             </div>
+
             <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ color: "#f43f5e", fontSize: 12 }}>{formError}</span>
-              <button type="submit" disabled={saving} style={primaryButton}>{saving ? "Saving..." : (editingId ? "Update Account" : "Create Account")}</button>
+              <button type="submit" disabled={saving} style={primaryButton}>{saving ? "Saving..." : (editingId ? "Update Employee" : "Register Employee")}</button>
             </div>
           </form>
         </Card>
       )}
 
-      <DataCard loading={loading} error={error} empty={!filteredUsers.length} emptyText={`No ${activeTab === 'member' ? 'members' : 'web users'} found.`}>
+      <DataCard loading={loading} error={error} empty={!employees.length} emptyText="No employees found.">
         <TableWrapper
-          headers={["User", "Role", "Type", "Status", "Actions"]}
-          rows={filteredUsers.map((u) => (
+          headers={["Employee ID / Code", "Employee Details", "Role", "Specialty", "Availability", "Status", "Actions"]}
+          rows={employees.map((u) => (
             <tr key={u._id || u.id} style={{ borderBottom: "1px solid #f8fafc" }}>
+              <td style={TD_STYLE}>
+                <div style={{ fontWeight: 800, color: "#1e293b" }}>{u.employeeId || "—"}</div>
+                <div style={{ fontSize: 11, color: "#64748b" }}>Code: {u.employeeCode || "—"}</div>
+              </td>
               <td style={TD_STYLE}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <Avatar initials={(u.name || "?").charAt(0)} size={34} />
                   <div>
-                    <div style={{ fontWeight: 700, color: "#0f172a" }}>{u.name}</div>
+                    <div style={{ fontWeight: 700, color: "#0f172a", cursor: "pointer", textDecoration: "underline" }} onClick={() => viewEmployeeProfile(u)}>{u.name}</div>
                     <div style={{ fontSize: 12, color: "#64748b" }}>{u.mobileNumber}</div>
                   </div>
                 </div>
               </td>
-              <td style={TD_STYLE}><span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: u.role === "manager" ? "#6366f1" : "#64748b" }}>{u.role}</span></td>
-              <td style={TD_STYLE}><span style={{ fontSize: 11, fontWeight: 700, color: (u.userType || 'member') === 'member' ? '#0ea5e9' : '#f59e0b' }}>{(u.userType || 'member').replace('_', ' ').toUpperCase()}</span></td>
-              <td style={TD_STYLE}><StatusBadge status={u.status} /></td>
+              <td style={TD_STYLE}><span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: u.role === "manager" ? "#6366f1" : (u.role === "admin" ? "#ef4444" : "#10b981") }}>{u.role}</span></td>
+              <td style={TD_STYLE}>{u.specialty || "—"}</td>
+              <td style={TD_STYLE}>
+                <span style={{
+                  padding: "4px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700,
+                  background: u.availabilityStatus === 'ONLINE' ? '#dcfce7' : (u.availabilityStatus === 'BUSY' ? '#fef9c3' : '#f1f5f9'),
+                  color: u.availabilityStatus === 'ONLINE' ? '#15803d' : (u.availabilityStatus === 'BUSY' ? '#854d0e' : '#475569')
+                }}>
+                  {u.availabilityStatus || 'OFFLINE'}
+                </span>
+              </td>
+              <td style={TD_STYLE}>
+                <span style={{
+                  padding: "4px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700,
+                  background: (u.employeeStatus || u.status) === 'Active' ? '#dcfce7' : '#fee2e2',
+                  color: (u.employeeStatus || u.status) === 'Active' ? '#15803d' : '#b91c1c'
+                }}>
+                  {u.employeeStatus || 'Active'}
+                </span>
+              </td>
               <td style={TD_STYLE}>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <button title="Change Password" onClick={() => { setPasswordChangeId(u._id || u.id); setNewPassword(""); }} style={{ border: "none", background: "none", cursor: "pointer", color: "#f59e0b" }}><KeyIcon /></button>
-                  {activeTab === 'member' && <button title="Edit" onClick={() => startEdit(u)} style={{ border: "none", background: "none", cursor: "pointer", color: "#64748b" }}><EditIcon /></button>}
+                  <button title="View Profile" onClick={() => viewEmployeeProfile(u)} style={{ border: "none", background: "none", cursor: "pointer", color: "#6366f1", fontSize: 12, fontWeight: 700 }}>Profile</button>
+                  <button title="Edit" onClick={() => startEdit(u)} style={{ border: "none", background: "none", cursor: "pointer", color: "#64748b" }}><EditIcon /></button>
                   <button title="Delete" onClick={() => handleDelete(u._id || u.id)} style={{ border: "none", background: "none", cursor: "pointer", color: "#f43f5e" }}><TrashIcon /></button>
                 </div>
-                {u.role === 'technician' && (
-                  <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <select value={u.status || 'offline'} onChange={(e) => updateTechnicianStatus(u._id || u.id, e.target.value)} style={{ padding: '6px 8px', borderRadius: 8 }}>
-                      <option value="available">Available</option>
-                      <option value="busy">Busy</option>
-                      <option value="offline">Offline</option>
-                    </select>
-                    <button onClick={() => adminClockIn(u._id || u.id)} style={{ padding: '6px 8px', borderRadius: 8, background: '#ecfccb', border: 'none' }}>Clock In</button>
-                    <button onClick={() => adminClockOut(u._id || u.id)} style={{ padding: '6px 8px', borderRadius: 8, background: '#fee2e2', border: 'none' }}>Clock Out</button>
-                  </div>
-                )}
-                {passwordChangeId === (u._id || u.id) && (
-                  <div style={{ position: "absolute", right: 20, background: "#fff", border: "1px solid #e2e8f0", padding: 12, borderRadius: 12, boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)", zIndex: 10 }}>
-                    <form onSubmit={handlePasswordUpdate} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b" }}>NEW PASSWORD</div>
-                      <input 
-                        type="text" 
-                        value={newPassword} 
-                        onChange={(e) => setNewPassword(e.target.value)} 
-                        placeholder="Min 6 chars" 
-                        autoFocus
-                        style={{ ...INPUT_STYLE, padding: "6px 10px", width: 140 }} 
-                      />
-                      <div style={{ display: "flex", gap: 6 }}>
-                        <button type="submit" disabled={updatingPassword} style={{ ...primaryButton, padding: "4px 8px", fontSize: 11 }}>{updatingPassword ? "..." : "Save"}</button>
-                        <button type="button" onClick={() => setPasswordChangeId(null)} style={{ border: "none", background: "#f1f5f9", color: "#475569", padding: "4px 8px", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>Cancel</button>
-                      </div>
-                    </form>
-                  </div>
-                )}
               </td>
             </tr>
           ))}
         />
       </DataCard>
+
+      {/* Employee Profile Popup Modal */}
+      {selectedEmployee && (
+        <Modal isOpen={!!selectedEmployee} onClose={() => setSelectedEmployee(null)} title={`Employee Profile: ${selectedEmployee.name}`}>
+          {loadingDetails ? (
+            <div style={{ padding: 40, textAlign: "center", color: "#64748b" }}>Loading detailed employee records...</div>
+          ) : employeeDetails ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 20, maxHeight: "80vh", overflowY: "auto", paddingRight: 10 }}>
+              {/* Header card */}
+              <div style={{ display: "flex", gap: 16, background: "#f8fafc", padding: 16, borderRadius: 12, border: "1px solid #e2e8f0" }}>
+                <Avatar initials={(employeeDetails.name || "?").charAt(0)} size={60} />
+                <div style={{ flex: 1 }}>
+                  <h3 style={{ margin: 0, color: "#0f172a", fontSize: 18, fontWeight: 800 }}>{employeeDetails.name}</h3>
+                  <div style={{ fontSize: 13, color: "#475569", marginTop: 4 }}>ID: <strong>{employeeDetails.employeeId || "—"}</strong> | Code: <strong>{employeeDetails.employeeCode || "—"}</strong></div>
+                  <div style={{ fontSize: 13, color: "#64748b" }}>Joined on: {employeeDetails.joiningDate ? new Date(employeeDetails.joiningDate).toLocaleDateString() : "—"}</div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: "#e0e7ff", color: "#4338ca", textTransform: "uppercase" }}>{employeeDetails.role}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: employeeDetails.availabilityStatus === 'ONLINE' ? '#dcfce7' : '#fee2e2', color: employeeDetails.availabilityStatus === 'ONLINE' ? '#166534' : '#991b1b' }}>{employeeDetails.availabilityStatus || 'OFFLINE'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid statistics */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+                <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: 12, borderRadius: 8, textAlign: "center" }}>
+                  <div style={{ fontSize: 12, color: "#64748b" }}>Completed Jobs</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: "#0f172a", marginTop: 4 }}>{employeeDetails.stats?.completedJobs || 0} / {employeeDetails.stats?.assignedJobs || 0}</div>
+                </div>
+                <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: 12, borderRadius: 8, textAlign: "center" }}>
+                  <div style={{ fontSize: 12, color: "#64748b" }}>Rating</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: "#eab308", marginTop: 4 }}>★ {employeeDetails.stats?.rating || "5.0"}</div>
+                </div>
+                <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: 12, borderRadius: 8, textAlign: "center" }}>
+                  <div style={{ fontSize: 12, color: "#64748b" }}>Total Earnings</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: "#16a34a", marginTop: 4 }}>₹{employeeDetails.stats?.totalEarnings || 0}</div>
+                </div>
+                <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: 12, borderRadius: 8, textAlign: "center" }}>
+                  <div style={{ fontSize: 12, color: "#64748b" }}>Active Penalties</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: "#dc2626", marginTop: 4 }}>{employeeDetails.stats?.penalties || 0}</div>
+                </div>
+              </div>
+
+              {/* Skills and Specialty */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#475569" }}>Skills & Specialties:</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {(employeeDetails.skills || []).map((s, idx) => (
+                    <span key={idx} style={{ padding: "4px 10px", background: "#f1f5f9", borderRadius: 8, fontSize: 12, color: "#334155" }}>{s}</span>
+                  ))}
+                  {(!employeeDetails.skills || employeeDetails.skills.length === 0) && <span style={{ fontSize: 12, color: "#94a3b8" }}>None specified</span>}
+                </div>
+              </div>
+
+              {/* Address and Coverage */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 12, color: "#64748b" }}>Residential Address</div>
+                  <div style={{ fontSize: 13, color: "#334155", marginTop: 4 }}>{employeeDetails.address || "No address stored"}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: "#64748b" }}>Pincode Coverage</div>
+                  <div style={{ fontSize: 13, color: "#334155", marginTop: 4 }}>{employeeDetails.pincode || "—"}</div>
+                </div>
+              </div>
+
+              {/* Attendance grid */}
+              <div>
+                <h4 style={{ margin: "0 0 10px 0", fontSize: 14, color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>Attendance Log</h4>
+                <div style={{ maxHeight: 150, overflowY: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                    <thead>
+                      <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#64748b", fontWeight: 700 }}>
+                        <th style={{ padding: 6, textAlign: "left" }}>Date</th>
+                        <th style={{ padding: 6, textAlign: "left" }}>Clock In</th>
+                        <th style={{ padding: 6, textAlign: "left" }}>Clock Out</th>
+                        <th style={{ padding: 6, textAlign: "right" }}>Working Hours</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(employeeDetails.attendanceHistory || []).map((att, idx) => (
+                        <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <td style={{ padding: 6 }}>{att.date}</td>
+                          <td style={{ padding: 6 }}>{new Date(att.loginTime).toLocaleTimeString()}</td>
+                          <td style={{ padding: 6 }}>{att.logoutTime ? new Date(att.logoutTime).toLocaleTimeString() : "—"}</td>
+                          <td style={{ padding: 6, textAlign: "right" }}>{att.workingHours?.toFixed(1) || 0} hrs</td>
+                        </tr>
+                      ))}
+                      {(!employeeDetails.attendanceHistory || employeeDetails.attendanceHistory.length === 0) && (
+                        <tr>
+                          <td colSpan={4} style={{ padding: 12, textAlign: "center", color: "#94a3b8" }}>No attendance history recorded.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Penalties */}
+              <div>
+                <h4 style={{ margin: "0 0 10px 0", fontSize: 14, color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>Penalties List</h4>
+                <div style={{ maxHeight: 120, overflowY: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                    <thead>
+                      <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#64748b", fontWeight: 700 }}>
+                        <th style={{ padding: 6, textAlign: "left" }}>Date</th>
+                        <th style={{ padding: 6, textAlign: "left" }}>Reason</th>
+                        <th style={{ padding: 6, textAlign: "right" }}>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(employeeDetails.penalties || []).map((p, idx) => (
+                        <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <td style={{ padding: 6 }}>{p.penaltyDate ? new Date(p.penaltyDate).toLocaleDateString() : "—"}</td>
+                          <td style={{ padding: 6 }}>{p.reason || "Auto Penalty"}</td>
+                          <td style={{ padding: 6, textAlign: "right", color: "#dc2626", fontWeight: 700 }}>₹{p.amount || 0}</td>
+                        </tr>
+                      ))}
+                      {(!employeeDetails.penalties || employeeDetails.penalties.length === 0) && (
+                        <tr>
+                          <td colSpan={3} style={{ padding: 12, textAlign: "center", color: "#94a3b8" }}>No penalties issued.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Job list */}
+              <div>
+                <h4 style={{ margin: "0 0 10px 0", fontSize: 14, color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>Assigned & Completed Jobs</h4>
+                <div style={{ maxHeight: 150, overflowY: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                    <thead>
+                      <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#64748b", fontWeight: 700 }}>
+                        <th style={{ padding: 6, textAlign: "left" }}>Booking #</th>
+                        <th style={{ padding: 6, textAlign: "left" }}>Service</th>
+                        <th style={{ padding: 6, textAlign: "left" }}>Status</th>
+                        <th style={{ padding: 6, textAlign: "right" }}>Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(employeeDetails.jobs || []).map((j, idx) => (
+                        <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <td style={{ padding: 6, fontWeight: 700 }}>{j.bookingNumber || j.bookingId || "—"}</td>
+                          <td style={{ padding: 6 }}>{j.serviceName || j.title}</td>
+                          <td style={{ padding: 6 }}><StatusBadge status={j.status} /></td>
+                          <td style={{ padding: 6, textAlign: "right", fontWeight: 700 }}>₹{j.price || j.amount || 0}</td>
+                        </tr>
+                      ))}
+                      {(!employeeDetails.jobs || employeeDetails.jobs.length === 0) && (
+                        <tr>
+                          <td colSpan={4} style={{ padding: 12, textAlign: "center", color: "#94a3b8" }}>No jobs assigned yet.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ padding: 40, textAlign: "center", color: "#ef4444" }}>Failed to load profile.</div>
+          )}
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+export function CustomerManagementPage() {
+  const { data: customers, loading, error, refresh: refreshCustomers } = useApiData("/api/v2/admin/customers");
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ name: "", email: "", mobileNumber: "", pincode: "", address: "" });
+  const [formError, setFormError] = useState("");
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [customerDetails, setCustomerDetails] = useState(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+
+  async function viewCustomerProfile(cust) {
+    setSelectedCustomer(cust);
+    setLoadingDetails(true);
+    try {
+      const res = await fetch(`/api/v2/admin/customers/${cust._id || cust.id}`, { credentials: "include" });
+      const payload = await res.json();
+      if (res.ok) {
+        setCustomerDetails(payload.data);
+      } else {
+        alert(payload.message || "Failed to load customer profile");
+      }
+    } catch (err) {
+      alert("Error loading customer profile: " + err.message);
+    } finally {
+      setLoadingDetails(false);
+    }
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    try {
+      setSaving(true);
+      setFormError("");
+      const url = editingId ? `/api/v2/admin/customers/${editingId}` : "/api/v2/admin/customers";
+      const method = editingId ? "PUT" : "POST";
+      
+      const res = await fetch(url, {
+        method,
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to save customer");
+      
+      await refreshCustomers();
+      setShowForm(false);
+      setEditingId(null);
+      setForm({ name: "", email: "", mobileNumber: "", pincode: "", address: "" });
+    } catch (err) {
+      setFormError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function startEdit(cust) {
+    setEditingId(cust._id || cust.id);
+    setForm({
+      name: cust.name,
+      email: cust.email || "",
+      mobileNumber: cust.mobileNumber,
+      pincode: "",
+      address: ""
+    });
+    setShowForm(true);
+  }
+
+  async function handleDelete(id) {
+    if (!window.confirm("Are you sure you want to delete this customer record?")) return;
+    try {
+      const res = await fetch(`/api/v2/admin/customers/${id}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) throw new Error("Failed to delete customer");
+      await refreshCustomers();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  return (
+    <div>
+      <PageHeader 
+        title="Customer Management" 
+        subtitle={`${customers.length} registered customers`} 
+        actions={<ActionBtn icon={<PlusIcon />} onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({ name: "", email: "", mobileNumber: "", pincode: "", address: "" }); }} label={showForm ? "Close Form" : "Create Customer"} primary />} 
+      />
+
+      {showForm && (
+        <Card style={{ padding: 20, marginBottom: 20 }}>
+          <SectionHeader title={editingId ? "Edit Customer Record" : "Register New Customer"} />
+          <form onSubmit={handleSubmit} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Field label="Full Name" value={form.name} onChange={(v) => setForm({...form, name: v})} />
+            <Field label="Mobile Number" value={form.mobileNumber} onChange={(v) => setForm({...form, mobileNumber: v})} />
+            <Field label="Email" value={form.email} onChange={(v) => setForm({...form, email: v})} />
+            {!editingId && <Field label="Residential Address" value={form.address} onChange={(v) => setForm({...form, address: v})} />}
+            {!editingId && <Field label="Pincode" value={form.pincode} onChange={(v) => setForm({...form, pincode: v})} />}
+            
+            <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ color: "#f43f5e", fontSize: 12 }}>{formError}</span>
+              <button type="submit" disabled={saving} style={primaryButton}>{saving ? "Saving..." : (editingId ? "Update Record" : "Create Customer")}</button>
+            </div>
+          </form>
+        </Card>
+      )}
+
+      <DataCard loading={loading} error={error} empty={!customers.length} emptyText="No customers found.">
+        <TableWrapper
+          headers={["Customer ID", "Customer Details", "Registered Email", "Registered On", "Actions"]}
+          rows={customers.map((c) => (
+            <tr key={c._id || c.id} style={{ borderBottom: "1px solid #f8fafc" }}>
+              <td style={TD_STYLE}>
+                <span style={{ fontWeight: 800, color: "#6366f1", cursor: "pointer", textDecoration: "underline" }} onClick={() => viewCustomerProfile(c)}>{c.customerId || "—"}</span>
+              </td>
+              <td style={TD_STYLE}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <Avatar initials={(c.name || "?").charAt(0)} size={34} />
+                  <div>
+                    <div style={{ fontWeight: 700, color: "#0f172a", cursor: "pointer" }} onClick={() => viewCustomerProfile(c)}>{c.name}</div>
+                    <div style={{ fontSize: 12, color: "#64748b" }}>{c.mobileNumber}</div>
+                  </div>
+                </div>
+              </td>
+              <td style={TD_STYLE}>{c.email || "—"}</td>
+              <td style={TD_STYLE}>{c.createdAt ? new Date(c.createdAt).toLocaleDateString() : "—"}</td>
+              <td style={TD_STYLE}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <button title="View Details" onClick={() => viewCustomerProfile(c)} style={{ border: "none", background: "none", cursor: "pointer", color: "#6366f1", fontSize: 12, fontWeight: 700 }}>History</button>
+                  <button title="Edit" onClick={() => startEdit(c)} style={{ border: "none", background: "none", cursor: "pointer", color: "#64748b" }}><EditIcon /></button>
+                  <button title="Delete" onClick={() => handleDelete(c._id || c.id)} style={{ border: "none", background: "none", cursor: "pointer", color: "#f43f5e" }}><TrashIcon /></button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        />
+      </DataCard>
+
+      {/* Customer profile / history Popup Modal */}
+      {selectedCustomer && (
+        <Modal isOpen={!!selectedCustomer} onClose={() => setSelectedCustomer(null)} title={`Customer Details: ${selectedCustomer.name}`}>
+          {loadingDetails ? (
+            <div style={{ padding: 40, textAlign: "center", color: "#64748b" }}>Loading customer history log...</div>
+          ) : customerDetails ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 20, maxHeight: "80vh", overflowY: "auto", paddingRight: 10 }}>
+              {/* Header card */}
+              <div style={{ display: "flex", gap: 16, background: "#f8fafc", padding: 16, borderRadius: 12, border: "1px solid #e2e8f0" }}>
+                <Avatar initials={(customerDetails.name || "?").charAt(0)} size={60} />
+                <div style={{ flex: 1 }}>
+                  <h3 style={{ margin: 0, color: "#0f172a", fontSize: 18, fontWeight: 800 }}>{customerDetails.name}</h3>
+                  <div style={{ fontSize: 13, color: "#475569", marginTop: 4 }}>ID: <strong>{customerDetails.customerId || "—"}</strong></div>
+                  <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>Phone: {customerDetails.mobileNumber} | Email: {customerDetails.email || "—"}</div>
+                </div>
+              </div>
+
+              {/* Addresses List */}
+              <div>
+                <h4 style={{ margin: "0 0 8px 0", fontSize: 14, color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>Addresses</h4>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {(customerDetails.addresses || []).map((addr, idx) => (
+                    <div key={idx} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: "8px 12px", borderRadius: 8, fontSize: 13, color: "#334155" }}>
+                      {addr.address || addr.addressLine1} {addr.city ? `, ${addr.city}` : ''} {addr.pincode ? ` - ${addr.pincode}` : ''}
+                    </div>
+                  ))}
+                  {(!customerDetails.addresses || customerDetails.addresses.length === 0) && (
+                    <div style={{ fontSize: 12, color: "#94a3b8", padding: 4 }}>No stored addresses.</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Booking History */}
+              <div>
+                <h4 style={{ margin: "0 0 10px 0", fontSize: 14, color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>Booking History</h4>
+                <div style={{ maxHeight: 150, overflowY: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                    <thead>
+                      <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#64748b", fontWeight: 700 }}>
+                        <th style={{ padding: 6, textAlign: "left" }}>Booking ID</th>
+                        <th style={{ padding: 6, textAlign: "left" }}>Service</th>
+                        <th style={{ padding: 6, textAlign: "left" }}>Status</th>
+                        <th style={{ padding: 6, textAlign: "right" }}>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(customerDetails.bookingHistory || []).map((b, idx) => (
+                        <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <td style={{ padding: 6, fontWeight: 700 }}>{b.bookingNumber || b.bookingId}</td>
+                          <td style={{ padding: 6 }}>{b.serviceName || b.title}</td>
+                          <td style={{ padding: 6 }}><StatusBadge status={b.status} /></td>
+                          <td style={{ padding: 6, textAlign: "right" }}>₹{b.price || b.amount || 0}</td>
+                        </tr>
+                      ))}
+                      {(!customerDetails.bookingHistory || customerDetails.bookingHistory.length === 0) && (
+                        <tr>
+                          <td colSpan={4} style={{ padding: 12, textAlign: "center", color: "#94a3b8" }}>No bookings recorded.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Cancellation History */}
+              <div>
+                <h4 style={{ margin: "0 0 10px 0", fontSize: 14, color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>Cancellation History</h4>
+                <div style={{ maxHeight: 120, overflowY: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                    <thead>
+                      <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#64748b", fontWeight: 700 }}>
+                        <th style={{ padding: 6, textAlign: "left" }}>Booking ID</th>
+                        <th style={{ padding: 6, textAlign: "left" }}>Cancelled At</th>
+                        <th style={{ padding: 6, textAlign: "left" }}>Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(customerDetails.cancellationHistory || []).map((c, idx) => (
+                        <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <td style={{ padding: 6, fontWeight: 700 }}>{c.bookingNumber || "—"}</td>
+                          <td style={{ padding: 6 }}>{c.cancelledAt ? new Date(c.cancelledAt).toLocaleDateString() : "—"}</td>
+                          <td style={{ padding: 6, color: "#b91c1c" }}>{c.reason || "Client Request"}</td>
+                        </tr>
+                      ))}
+                      {(!customerDetails.cancellationHistory || customerDetails.cancellationHistory.length === 0) && (
+                        <tr>
+                          <td colSpan={3} style={{ padding: 12, textAlign: "center", color: "#94a3b8" }}>No cancellations recorded.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Payment History */}
+              <div>
+                <h4 style={{ margin: "0 0 10px 0", fontSize: 14, color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>Payment History</h4>
+                <div style={{ maxHeight: 150, overflowY: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                    <thead>
+                      <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#64748b", fontWeight: 700 }}>
+                        <th style={{ padding: 6, textAlign: "left" }}>Order ID</th>
+                        <th style={{ padding: 6, textAlign: "left" }}>Status</th>
+                        <th style={{ padding: 6, textAlign: "right" }}>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(customerDetails.paymentHistory || []).map((p, idx) => (
+                        <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <td style={{ padding: 6 }}>{p.razorpayOrderId}</td>
+                          <td style={{ padding: 6 }}><span style={{ textTransform: "uppercase", fontSize: 11, fontWeight: 700, color: p.status === 'paid' ? '#16a34a' : '#475569' }}>{p.status}</span></td>
+                          <td style={{ padding: 6, textAlign: "right", fontWeight: 700 }}>₹{Math.round(p.amount / 100)}</td>
+                        </tr>
+                      ))}
+                      {(!customerDetails.paymentHistory || customerDetails.paymentHistory.length === 0) && (
+                        <tr>
+                          <td colSpan={3} style={{ padding: 12, textAlign: "center", color: "#94a3b8" }}>No payments recorded.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Feedbacks */}
+              <div>
+                <h4 style={{ margin: "0 0 10px 0", fontSize: 14, color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>Feedback History</h4>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {(customerDetails.feedbackHistory || []).map((f, idx) => (
+                    <div key={idx} style={{ border: "1px solid #e2e8f0", padding: 10, borderRadius: 8, fontSize: 13 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
+                        <span>Rating: <strong style={{ color: "#eab308" }}>★ {f.rating}</strong></span>
+                        <span style={{ color: "#94a3b8", fontSize: 11 }}>{f.createdAt ? new Date(f.createdAt).toLocaleDateString() : "—"}</span>
+                      </div>
+                      <div style={{ color: "#475569", marginTop: 4 }}>{f.comment || "No comment left"}</div>
+                    </div>
+                  ))}
+                  {(!customerDetails.feedbackHistory || customerDetails.feedbackHistory.length === 0) && (
+                    <div style={{ fontSize: 12, color: "#94a3b8", padding: 4 }}>No reviews/feedback submitted yet.</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ padding: 40, textAlign: "center", color: "#ef4444" }}>Failed to load profile.</div>
+          )}
+        </Modal>
+      )}
     </div>
   );
 }
