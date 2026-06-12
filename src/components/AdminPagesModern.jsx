@@ -2286,6 +2286,21 @@ export function ServiceRequestsPage() {
   const [assigning, setAssigning] = useState(false);
   const [assignError, setAssignError] = useState("");
 
+  useEffect(() => {
+    if (!selectedRequestId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const { data } = await apiFetch(`/api/v2/admin/service-requests/${selectedRequestId}`);
+        setViewModal(data);
+      } catch (err) {
+        console.error("Failed to poll service request details:", err.message);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [selectedRequestId]);
+
   const loadBookings = useCallback(async ({ showLoading = false } = {}) => {
     try {
       if (showLoading) setLoading(true);
