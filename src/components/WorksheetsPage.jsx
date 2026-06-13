@@ -19,6 +19,17 @@ export function WorksheetsPage() {
   // Lightbox overlay state
   const [activePhoto, setActivePhoto] = useState(null);
 
+  // Filtering & Search states
+  const [searchTerm, setSearchTerm] = useState("");
+  const [techSearch, setTechSearch] = useState("");
+  const [bookingSearch, setBookingSearch] = useState("");
+  const [jobSearch, setJobSearch] = useState("");
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
   useEffect(() => {
     fetchWorksheets();
   }, []);
@@ -85,8 +96,41 @@ export function WorksheetsPage() {
   };
 
   const filteredWorksheets = worksheets.filter((ws) => {
-    if (activeTab === "all") return true;
-    return ws.status === activeTab;
+    // Tab filter
+    if (activeTab !== "all") {
+      if (ws.status !== activeTab) return false;
+    }
+    // Worksheet Number search
+    if (searchTerm && !ws.worksheetNumber?.toLowerCase().includes(searchTerm.toLowerCase())) {
+      return false;
+    }
+    // Booking Number search
+    if (bookingSearch && !ws.bookingId?.toLowerCase().includes(bookingSearch.toLowerCase())) {
+      return false;
+    }
+    // Job ID search
+    if (jobSearch && !ws.jobId?._id?.toLowerCase().includes(jobSearch.toLowerCase()) && !ws.jobId?.toLowerCase().includes(jobSearch.toLowerCase())) {
+      return false;
+    }
+    // Customer Name search
+    if (customerSearch && !ws.customerName?.toLowerCase().includes(customerSearch.toLowerCase())) {
+      return false;
+    }
+    // Technician Name search
+    if (techSearch && !ws.technicianId?.name?.toLowerCase().includes(techSearch.toLowerCase())) {
+      return false;
+    }
+    // Date Range search
+    if (startDate || endDate) {
+      const wsDate = new Date(ws.createdAt);
+      if (startDate && wsDate < new Date(startDate)) return false;
+      if (endDate) {
+        const endLimit = new Date(endDate);
+        endLimit.setHours(23, 59, 59, 999);
+        if (wsDate > endLimit) return false;
+      }
+    }
+    return true;
   });
 
   const stats = {
@@ -95,6 +139,13 @@ export function WorksheetsPage() {
     approved: worksheets.filter(w => w.status === 'approved').length,
     drafts: worksheets.filter(w => w.status === 'draft' || w.status === 'in_progress').length,
   };
+
+  const totalItems = filteredWorksheets.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const paginatedWorksheets = filteredWorksheets.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   if (loading) {
     return (
@@ -121,7 +172,7 @@ export function WorksheetsPage() {
           {["all", "submitted", "approved", "draft", "in_progress"].map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => { setActiveTab(tab); setCurrentPage(1); }}
               style={{
                 padding: "16px 12px",
                 fontSize: "13px",
@@ -140,8 +191,80 @@ export function WorksheetsPage() {
           ))}
         </div>
 
+        {/* Filters and Searches (Phase 10 Requirement) */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "12px", padding: "16px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+          <div>
+            <label style={{ fontSize: "10px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>Worksheet #</label>
+            <input
+              type="text"
+              placeholder="e.g. WS-000001"
+              value={searchTerm}
+              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+              style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "12px", outline: "none" }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: "10px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>Booking Ref</label>
+            <input
+              type="text"
+              placeholder="e.g. BOOK-1234"
+              value={bookingSearch}
+              onChange={(e) => { setBookingSearch(e.target.value); setCurrentPage(1); }}
+              style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "12px", outline: "none" }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: "10px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>Job ID</label>
+            <input
+              type="text"
+              placeholder="e.g. 64a7c..."
+              value={jobSearch}
+              onChange={(e) => { setJobSearch(e.target.value); setCurrentPage(1); }}
+              style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "12px", outline: "none" }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: "10px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>Customer Name</label>
+            <input
+              type="text"
+              placeholder="Search customer..."
+              value={customerSearch}
+              onChange={(e) => { setCustomerSearch(e.target.value); setCurrentPage(1); }}
+              style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "12px", outline: "none" }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: "10px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>Technician Name</label>
+            <input
+              type="text"
+              placeholder="Search technician..."
+              value={techSearch}
+              onChange={(e) => { setTechSearch(e.target.value); setCurrentPage(1); }}
+              style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "12px", outline: "none" }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: "10px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>From Date</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }}
+              style={{ width: "100%", padding: "7px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "12px", outline: "none" }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: "10px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", display: "block", marginBottom: "4px" }}>To Date</label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }}
+              style={{ width: "100%", padding: "7px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "12px", outline: "none" }}
+            />
+          </div>
+        </div>
+
         {/* Table List */}
-        {filteredWorksheets.length === 0 ? (
+        {totalItems === 0 ? (
           <div style={{ padding: "40px", textAlign: "center", color: "#94a3b8", fontSize: "14px" }}>
             No worksheets found in this category.
           </div>
@@ -161,7 +284,7 @@ export function WorksheetsPage() {
                 </tr>
               </thead>
               <tbody style={{ color: "#334155" }}>
-                {filteredWorksheets.map((ws) => (
+                {paginatedWorksheets.map((ws) => (
                   <tr key={ws._id} style={{ borderBottom: "1px solid #f1f5f9", hover: { background: "#f8fafc" } }}>
                     <td style={{ padding: "12px 16px", fontWeight: 600, color: "#0f172a" }}>{ws.worksheetNumber}</td>
                     <td style={{ padding: "12px 16px", color: "#64748b" }}>{ws.bookingId}</td>
@@ -197,6 +320,49 @@ export function WorksheetsPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px", borderTop: "1px solid #e2e8f0", background: "#f8fafc" }}>
+            <span style={{ fontSize: "12px", color: "#64748b" }}>
+              Showing {Math.min(totalItems, (currentPage - 1) * itemsPerPage + 1)} to {Math.min(totalItems, currentPage * itemsPerPage)} of {totalItems} worksheets
+            </span>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: "6px",
+                  border: "1px solid #cbd5e1",
+                  background: currentPage === 1 ? "#f1f5f9" : "#fff",
+                  color: currentPage === 1 ? "#94a3b8" : "#334155",
+                  cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                  fontWeight: 600,
+                  fontSize: "12px"
+                }}
+              >
+                Previous
+              </button>
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: "6px",
+                  border: "1px solid #cbd5e1",
+                  background: currentPage === totalPages ? "#f1f5f9" : "#fff",
+                  color: currentPage === totalPages ? "#94a3b8" : "#334155",
+                  cursor: currentPage === totalPages ? "not-allowed" : "pointer",
+                  fontWeight: 600,
+                  fontSize: "12px"
+                }}
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -260,26 +426,28 @@ export function WorksheetsPage() {
                   <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "12px" }}>
                     <thead>
                       <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
-                        <th style={{ padding: "8px 12px" }}>Material Name / Brand</th>
-                        <th style={{ padding: "8px 12px" }}>Model / Serial</th>
+                        <th style={{ padding: "8px 12px" }}>Item Name</th>
+                        <th style={{ padding: "8px 12px" }}>Category</th>
                         <th style={{ padding: "8px 12px", textAlign: "center" }}>Qty</th>
-                        <th style={{ padding: "8px 12px", textAlign: "right" }}>Cost</th>
+                        <th style={{ padding: "8px 12px" }}>Unit</th>
+                        <th style={{ padding: "8px 12px", textAlign: "right" }}>Unit Price</th>
                         <th style={{ padding: "8px 12px", textAlign: "right" }}>Total</th>
                       </tr>
                     </thead>
                     <tbody>
                       {(!selectedWorksheet.materialsUsed || selectedWorksheet.materialsUsed.length === 0) ? (
                         <tr>
-                          <td colSpan={5} style={{ padding: "16px", textAlign: "center", color: "#94a3b8" }}>No materials reported.</td>
+                          <td colSpan={6} style={{ padding: "16px", textAlign: "center", color: "#94a3b8" }}>No materials reported.</td>
                         </tr>
                       ) : (
                         selectedWorksheet.materialsUsed.map((m, idx) => (
                           <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                            <td style={{ padding: "8px 12px", fontWeight: 600 }}>{m.name} <span style={{ fontSize: "10px", color: "#64748b", fontWeight: 400 }}>({m.brand || "-"})</span></td>
-                            <td style={{ padding: "8px 12px" }}>{m.model || "-"} <div style={{ fontSize: "10px", color: "#64748b" }}>S/N: {m.serialNumber || "-"}</div></td>
+                            <td style={{ padding: "8px 12px", fontWeight: 600 }}>{m.name}</td>
+                            <td style={{ padding: "8px 12px" }}>{m.category || m.brand || "-"}</td>
                             <td style={{ padding: "8px 12px", textAlign: "center" }}>{m.quantity}</td>
-                            <td style={{ padding: "8px 12px", textAlign: "right" }}>₹{m.unitCost}</td>
-                            <td style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700 }}>₹{m.totalCost}</td>
+                            <td style={{ padding: "8px 12px" }}>{m.unit || "Piece"}</td>
+                            <td style={{ padding: "8px 12px", textAlign: "right" }}>₹{m.unitPrice || m.unitCost || 0}</td>
+                            <td style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700 }}>₹{m.total || m.totalCost || 0}</td>
                           </tr>
                         ))
                       )}
