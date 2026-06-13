@@ -15,6 +15,7 @@ export const NAV_ITEMS = [
   { id: "tech-performance", label: "Technician Performance", icon: <ChartIcon /> },
   // ─── Operations ───────────────────────────────────────────────────────────
   { id: "requests", label: "Completion Requests", icon: <BellIcon /> },
+  { id: "worksheets", label: "Service Worksheets", icon: <BriefcaseIcon /> },
   { id: "reviews", label: "Technician Reviews", icon: <ChartIcon /> },
   { id: "services", label: "Services", icon: <WrenchIcon /> },
   { id: "addresses", label: "Address Management", icon: <MapPinIcon /> },

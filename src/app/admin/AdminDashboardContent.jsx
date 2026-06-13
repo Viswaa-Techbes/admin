@@ -29,6 +29,7 @@ import {
 import { DispatchMonitorPage, CancellationsPage, TechPerformancePage } from "../../components/DispatchAdminPages";
 import { AnalyticsPage } from "../../components/AnalyticsPage";
 import DomainAnalyticsPage from "../../components/analytics/DomainAnalyticsPage";
+import { WorksheetsPage } from "../../components/WorksheetsPage";
 import { wakeBackend, apiFetch } from "../../lib/apiClient";
 
 export default function AdminDashboardContent() {
@@ -91,6 +92,7 @@ export default function AdminDashboardContent() {
       else if (path.includes('/admin/analytics-members')) setActivePage('analytics-members');
       else if (path.includes('/admin/analytics-skills')) setActivePage('analytics-skills');
       else if (path.includes('/admin/analytics') || path.includes('/admin/reports')) setActivePage('reports');
+      else if (path.includes('/admin/worksheets')) setActivePage('worksheets');
       else if (path.includes('/admin/settings')) setActivePage('settings');
       else if (path === '/admin') setActivePage('dashboard');
     };
@@ -158,6 +160,7 @@ export default function AdminDashboardContent() {
     attendance: <AttendancePage />,
     notifications: <NotificationsPage />,
     reports: <AnalyticsPage />,
+    worksheets: <WorksheetsPage />,
     "analytics-main": <DomainAnalyticsPage domain="techbes.co.in" title="Main Website Analytics" />,
     "analytics-members": <DomainAnalyticsPage domain="members.techbes.co.in" title="Members Portal Analytics" />,
     "analytics-skills": <DomainAnalyticsPage domain="skills.techbes.co.in" title="Skills Portal Analytics" />,
@@ -179,6 +182,7 @@ export default function AdminDashboardContent() {
             'analytics-main': '/admin/analytics-main',
             'analytics-members': '/admin/analytics-members',
             'analytics-skills': '/admin/analytics-skills',
+            worksheets: '/admin/worksheets',
             settings: '/admin/settings',
             dashboard: '/admin'
           };
