@@ -243,6 +243,7 @@ export function EmployeeManagementPage() {
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [employeeDetails, setEmployeeDetails] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [modalTab, setModalTab] = useState("overview"); // overview | jobs | performance
 
   // Filter for staff members (technician, manager, admin)
   const employees = useMemo(() => {
@@ -252,6 +253,7 @@ export function EmployeeManagementPage() {
   // Load employee profile popup details
   async function viewEmployeeProfile(employee) {
     setSelectedEmployee(employee);
+    setModalTab("overview");
     setLoadingDetails(true);
     try {
       const res = await fetch(`/api/v2/admin/users/${employee._id || employee.id}`, { credentials: "include" });
@@ -265,6 +267,26 @@ export function EmployeeManagementPage() {
       alert("Error loading profile details: " + err.message);
     } finally {
       setLoadingDetails(false);
+    }
+  }
+
+  async function toggleEmployeeStatus(emp) {
+    const nextStatus = (emp.employeeStatus || 'Active') === 'Active' ? 'Inactive' : 'Active';
+    try {
+      const { payload } = await apiFetch(`/api/v2/admin/users/${emp._id || emp.id}`, {
+        method: "PUT",
+        body: { employeeStatus: nextStatus }
+      });
+      alert(`Employee status updated to ${nextStatus}`);
+      await refreshUsers();
+      // Reload details inside modal
+      const detailsRes = await fetch(`/api/v2/admin/users/${emp._id || emp.id}`, { credentials: "include" });
+      const detailsPayload = await detailsRes.json();
+      if (detailsRes.ok) {
+        setEmployeeDetails(detailsPayload.data);
+      }
+    } catch (err) {
+      alert("Error updating status: " + err.message);
     }
   }
 
@@ -437,7 +459,7 @@ export function EmployeeManagementPage() {
 
       {/* Employee Profile Popup Modal */}
       {selectedEmployee && (
-        <Modal isOpen={!!selectedEmployee} onClose={() => setSelectedEmployee(null)} title={`Employee Profile: ${selectedEmployee.name}`}>
+        <Modal open={!!selectedEmployee} onClose={() => setSelectedEmployee(null)} title={`Employee Profile: ${selectedEmployee.name}`}>
           {loadingDetails ? (
             <div style={{ padding: 40, textAlign: "center", color: "#64748b" }}>Loading detailed employee records...</div>
           ) : employeeDetails ? (
@@ -448,155 +470,321 @@ export function EmployeeManagementPage() {
                 <div style={{ flex: 1 }}>
                   <h3 style={{ margin: 0, color: "#0f172a", fontSize: 18, fontWeight: 800 }}>{employeeDetails.name}</h3>
                   <div style={{ fontSize: 13, color: "#475569", marginTop: 4 }}>ID: <strong>{employeeDetails.employeeId || "—"}</strong> | Code: <strong>{employeeDetails.employeeCode || "—"}</strong></div>
-                  <div style={{ fontSize: 13, color: "#64748b" }}>Joined on: {employeeDetails.joiningDate ? new Date(employeeDetails.joiningDate).toLocaleDateString() : "—"}</div>
+                  <div style={{ fontSize: 13, color: "#64748b" }}>Joined on: {employeeDetails.joiningDate ? formatDate(employeeDetails.joiningDate) : "—"}</div>
                   <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                     <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: "#e0e7ff", color: "#4338ca", textTransform: "uppercase" }}>{employeeDetails.role}</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: employeeDetails.availabilityStatus === 'ONLINE' ? '#dcfce7' : '#fee2e2', color: employeeDetails.availabilityStatus === 'ONLINE' ? '#166534' : '#991b1b' }}>{employeeDetails.availabilityStatus || 'OFFLINE'}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: employeeDetails.availabilityStatus === 'ONLINE' ? '#dcfce7' : (employeeDetails.availabilityStatus === 'BUSY' ? '#fef9c3' : '#f1f5f9'), color: employeeDetails.availabilityStatus === 'ONLINE' ? '#15803d' : (employeeDetails.availabilityStatus === 'BUSY' ? '#854d0e' : '#475569') }}>{employeeDetails.availabilityStatus || 'OFFLINE'}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: (employeeDetails.employeeStatus || 'Active') === 'Active' ? '#dcfce7' : '#fee2e2', color: (employeeDetails.employeeStatus || 'Active') === 'Active' ? '#15803d' : '#b91c1c' }}>{(employeeDetails.employeeStatus || 'Active')}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Grid statistics */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
-                <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: 12, borderRadius: 8, textAlign: "center" }}>
-                  <div style={{ fontSize: 12, color: "#64748b" }}>Completed Jobs</div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: "#0f172a", marginTop: 4 }}>{employeeDetails.stats?.completedJobs || 0} / {employeeDetails.stats?.assignedJobs || 0}</div>
-                </div>
-                <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: 12, borderRadius: 8, textAlign: "center" }}>
-                  <div style={{ fontSize: 12, color: "#64748b" }}>Rating</div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: "#eab308", marginTop: 4 }}>★ {employeeDetails.stats?.rating || "5.0"}</div>
-                </div>
-                <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: 12, borderRadius: 8, textAlign: "center" }}>
-                  <div style={{ fontSize: 12, color: "#64748b" }}>Total Earnings</div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: "#16a34a", marginTop: 4 }}>₹{employeeDetails.stats?.totalEarnings || 0}</div>
-                </div>
-                <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: 12, borderRadius: 8, textAlign: "center" }}>
-                  <div style={{ fontSize: 12, color: "#64748b" }}>Active Penalties</div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: "#dc2626", marginTop: 4 }}>{employeeDetails.stats?.penalties || 0}</div>
-                </div>
+              {/* Tab Navigation */}
+              <div style={{ display: "flex", gap: 10, borderBottom: "1px solid #cbd5e1", paddingBottom: 10 }}>
+                <button type="button" onClick={() => setModalTab("overview")} style={{
+                  padding: "8px 16px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 13,
+                  background: modalTab === "overview" ? "#4f46e5" : "none", color: modalTab === "overview" ? "#fff" : "#475569"
+                }}>Overview</button>
+                <button type="button" onClick={() => setModalTab("jobs")} style={{
+                  padding: "8px 16px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 13,
+                  background: modalTab === "jobs" ? "#4f46e5" : "none", color: modalTab === "jobs" ? "#fff" : "#475569"
+                }}>Job History</button>
+                <button type="button" onClick={() => setModalTab("performance")} style={{
+                  padding: "8px 16px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 13,
+                  background: modalTab === "performance" ? "#4f46e5" : "none", color: modalTab === "performance" ? "#fff" : "#475569"
+                }}>Performance & Attendance</button>
               </div>
 
-              {/* Skills and Specialty */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#475569" }}>Skills & Specialties:</div>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {(employeeDetails.skills || []).map((s, idx) => (
-                    <span key={idx} style={{ padding: "4px 10px", background: "#f1f5f9", borderRadius: 8, fontSize: 12, color: "#334155" }}>{s}</span>
-                  ))}
-                  {(!employeeDetails.skills || employeeDetails.skills.length === 0) && <span style={{ fontSize: 12, color: "#94a3b8" }}>None specified</span>}
-                </div>
-              </div>
+              {/* Tab Content */}
+              {modalTab === "overview" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                    <DetailField label="Employee ID" value={employeeDetails.employeeId} />
+                    <DetailField label="Employee Code" value={employeeDetails.employeeCode} />
+                    <DetailField label="Full Name" value={employeeDetails.name} />
+                    <DetailField label="Mobile Number" value={employeeDetails.mobileNumber} />
+                    <DetailField label="Email Address" value={employeeDetails.email} />
+                    <DetailField label="Role" value={employeeDetails.role} />
+                    <DetailField label="Specialty" value={employeeDetails.specialty || "None"} />
+                    <DetailField label="Availability Status" value={employeeDetails.availabilityStatus || 'OFFLINE'} />
+                    <DetailField label="Active/Inactive Status" value={employeeDetails.employeeStatus || "Active"} />
+                    <DetailField label="Joined Date" value={employeeDetails.joiningDate ? formatDate(employeeDetails.joiningDate) : "—"} />
+                    <DetailField label="Last Active Time" value={employeeDetails.lastSeen ? new Date(employeeDetails.lastSeen).toLocaleString("en-IN") : "—"} />
+                  </div>
 
-              {/* Address and Coverage */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <div style={{ fontSize: 12, color: "#64748b" }}>Residential Address</div>
-                  <div style={{ fontSize: 13, color: "#334155", marginTop: 4 }}>{employeeDetails.address || "No address stored"}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 12, color: "#64748b" }}>Pincode Coverage</div>
-                  <div style={{ fontSize: 13, color: "#334155", marginTop: 4 }}>{employeeDetails.pincode || "—"}</div>
-                </div>
-              </div>
-
-              {/* Attendance grid */}
-              <div>
-                <h4 style={{ margin: "0 0 10px 0", fontSize: 14, color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>Attendance Log</h4>
-                <div style={{ maxHeight: 150, overflowY: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-                    <thead>
-                      <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#64748b", fontWeight: 700 }}>
-                        <th style={{ padding: 6, textAlign: "left" }}>Date</th>
-                        <th style={{ padding: 6, textAlign: "left" }}>Clock In</th>
-                        <th style={{ padding: 6, textAlign: "left" }}>Clock Out</th>
-                        <th style={{ padding: 6, textAlign: "right" }}>Working Hours</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(employeeDetails.attendanceHistory || []).map((att, idx) => (
-                        <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                          <td style={{ padding: 6 }}>{att.date}</td>
-                          <td style={{ padding: 6 }}>{new Date(att.loginTime).toLocaleTimeString()}</td>
-                          <td style={{ padding: 6 }}>{att.logoutTime ? new Date(att.logoutTime).toLocaleTimeString() : "—"}</td>
-                          <td style={{ padding: 6, textAlign: "right" }}>{att.workingHours?.toFixed(1) || 0} hrs</td>
-                        </tr>
+                  {/* Skills and Specialty */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#475569" }}>Skills:</div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {(employeeDetails.skills || []).map((s, idx) => (
+                        <span key={idx} style={{ padding: "4px 10px", background: "#f1f5f9", borderRadius: 8, fontSize: 12, color: "#334155", fontWeight: 600 }}>{s}</span>
                       ))}
-                      {(!employeeDetails.attendanceHistory || employeeDetails.attendanceHistory.length === 0) && (
-                        <tr>
-                          <td colSpan={4} style={{ padding: 12, textAlign: "center", color: "#94a3b8" }}>No attendance history recorded.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                      {(!employeeDetails.skills || employeeDetails.skills.length === 0) && <span style={{ fontSize: 12, color: "#94a3b8" }}>None specified</span>}
+                    </div>
+                  </div>
 
-              {/* Penalties */}
-              <div>
-                <h4 style={{ margin: "0 0 10px 0", fontSize: 14, color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>Penalties List</h4>
-                <div style={{ maxHeight: 120, overflowY: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-                    <thead>
-                      <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#64748b", fontWeight: 700 }}>
-                        <th style={{ padding: 6, textAlign: "left" }}>Date</th>
-                        <th style={{ padding: 6, textAlign: "left" }}>Reason</th>
-                        <th style={{ padding: 6, textAlign: "right" }}>Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(employeeDetails.penalties || []).map((p, idx) => (
-                        <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                          <td style={{ padding: 6 }}>{p.penaltyDate ? new Date(p.penaltyDate).toLocaleDateString() : "—"}</td>
-                          <td style={{ padding: 6 }}>{p.reason || "Auto Penalty"}</td>
-                          <td style={{ padding: 6, textAlign: "right", color: "#dc2626", fontWeight: 700 }}>₹{p.amount || 0}</td>
-                        </tr>
-                      ))}
-                      {(!employeeDetails.penalties || employeeDetails.penalties.length === 0) && (
-                        <tr>
-                          <td colSpan={3} style={{ padding: 12, textAlign: "center", color: "#94a3b8" }}>No penalties issued.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                  {/* Address and Coverage */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>Residential Address</div>
+                      <div style={{ fontSize: 13, color: "#334155", marginTop: 4 }}>{employeeDetails.address || "No address stored"}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>Pincode Coverage</div>
+                      <div style={{ fontSize: 13, color: "#334155", marginTop: 4 }}>{employeeDetails.pincode || "—"}</div>
+                    </div>
+                  </div>
 
-              {/* Job list */}
-              <div>
-                <h4 style={{ margin: "0 0 10px 0", fontSize: 14, color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>Assigned & Completed Jobs</h4>
-                <div style={{ maxHeight: 150, overflowY: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-                    <thead>
-                      <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#64748b", fontWeight: 700 }}>
-                        <th style={{ padding: 6, textAlign: "left" }}>Booking #</th>
-                        <th style={{ padding: 6, textAlign: "left" }}>Service</th>
-                        <th style={{ padding: 6, textAlign: "left" }}>Status</th>
-                        <th style={{ padding: 6, textAlign: "right" }}>Value</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(employeeDetails.jobs || []).map((j, idx) => (
-                        <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                          <td style={{ padding: 6, fontWeight: 700 }}>{j.bookingNumber || j.bookingId || "—"}</td>
-                          <td style={{ padding: 6 }}>{j.serviceName || j.title}</td>
-                          <td style={{ padding: 6 }}><StatusBadge status={j.status} /></td>
-                          <td style={{ padding: 6, textAlign: "right", fontWeight: 700 }}>₹{j.price || j.amount || 0}</td>
-                        </tr>
-                      ))}
-                      {(!employeeDetails.jobs || employeeDetails.jobs.length === 0) && (
-                        <tr>
-                          <td colSpan={4} style={{ padding: 12, textAlign: "center", color: "#94a3b8" }}>No jobs assigned yet.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+                  {/* Current Active Job */}
+                  <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", padding: 16, borderRadius: 12 }}>
+                    <h4 style={{ margin: "0 0 8px 0", fontSize: 14, color: "#1e3a8a", fontWeight: 700 }}>Current Active Job</h4>
+                    {(() => {
+                      const activeJob = (employeeDetails.jobs || []).find(j => 
+                        j._id === employeeDetails.activeJobId || 
+                        (typeof employeeDetails.activeJobId === 'object' && employeeDetails.activeJobId?._id === j._id) ||
+                        ['accepted', 'travelling', 'arrived', 'working', 'in_progress', 'started'].includes(j.status)
+                      );
+                      if (activeJob) {
+                        return (
+                          <div>
+                            <div style={{ fontWeight: 700, color: "#1e40af", fontSize: 13 }}>{activeJob.title || activeJob.serviceName}</div>
+                            <div style={{ fontSize: 12, color: "#3b82f6", marginTop: 4 }}>
+                              Booking ID: <strong>{activeJob.bookingNumber || activeJob.bookingId || activeJob._id}</strong> | Status: <StatusBadge status={activeJob.status} />
+                            </div>
+                          </div>
+                        );
+                      }
+                      return <div style={{ fontSize: 13, color: "#1e40af" }}>No active job currently assigned.</div>;
+                    })()}
+                  </div>
+
+                  {/* Action buttons inside Overview */}
+                  <div style={{ display: "flex", gap: 12, marginTop: 10, flexWrap: "wrap" }}>
+                    <button type="button" onClick={() => { startEdit(employeeDetails); setSelectedEmployee(null); }} style={primaryButton}>Edit Employee</button>
+                    <button type="button" onClick={() => toggleEmployeeStatus(employeeDetails)} style={{
+                      border: "none", borderRadius: 12, fontWeight: 700, padding: "10px 16px", cursor: "pointer",
+                      background: (employeeDetails.employeeStatus || 'Active') === 'Active' ? '#fee2e2' : '#dcfce7',
+                      color: (employeeDetails.employeeStatus || 'Active') === 'Active' ? '#b91c1c' : '#15803d'
+                    }}>
+                      {(employeeDetails.employeeStatus || 'Active') === 'Active' ? "Disable Employee" : "Enable Employee"}
+                    </button>
+                    <button type="button" onClick={() => setModalTab("jobs")} style={{ border: "1px solid #cbd5e1", borderRadius: 12, background: "#fff", color: "#475569", fontWeight: 700, padding: "10px 16px", cursor: "pointer" }}>View Job History</button>
+                    <button type="button" onClick={() => setModalTab("performance")} style={{ border: "1px solid #cbd5e1", borderRadius: 12, background: "#fff", color: "#475569", fontWeight: 700, padding: "10px 16px", cursor: "pointer" }}>View Performance History</button>
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {modalTab === "jobs" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  {/* Grid statistics */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+                    <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: 12, borderRadius: 8, textAlign: "center" }}>
+                      <div style={{ fontSize: 12, color: "#64748b" }}>Assigned Jobs</div>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: "#0f172a", marginTop: 4 }}>{employeeDetails.stats?.assignedJobs || 0}</div>
+                    </div>
+                    <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: 12, borderRadius: 8, textAlign: "center" }}>
+                      <div style={{ fontSize: 12, color: "#64748b" }}>Completed Jobs</div>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: "#16a34a", marginTop: 4 }}>{employeeDetails.stats?.completedJobs || 0}</div>
+                    </div>
+                    <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: 12, borderRadius: 8, textAlign: "center" }}>
+                      <div style={{ fontSize: 12, color: "#64748b" }}>Cancelled Jobs</div>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: "#dc2626", marginTop: 4 }}>
+                        {(employeeDetails.jobs || []).filter(j => j.status === 'cancelled').length}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 style={{ margin: "0 0 10px 0", fontSize: 14, color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>Assigned & Completed Jobs</h4>
+                    <div style={{ maxHeight: 300, overflowY: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                        <thead>
+                          <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#64748b", fontWeight: 700 }}>
+                            <th style={{ padding: 8, textAlign: "left" }}>Booking #</th>
+                            <th style={{ padding: 8, textAlign: "left" }}>Service</th>
+                            <th style={{ padding: 8, textAlign: "left" }}>Status</th>
+                            <th style={{ padding: 8, textAlign: "left" }}>Completed Date</th>
+                            <th style={{ padding: 8, textAlign: "right" }}>Value</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(employeeDetails.jobs || []).map((j, idx) => (
+                            <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                              <td style={{ padding: 8, fontWeight: 700 }}>{j.bookingNumber || j.bookingId || "—"}</td>
+                              <td style={{ padding: 8 }}>{j.serviceName || j.title}</td>
+                              <td style={{ padding: 8 }}><StatusBadge status={j.status} /></td>
+                              <td style={{ padding: 8 }}>{j.completedAt ? formatDate(j.completedAt) : "—"}</td>
+                              <td style={{ padding: 8, textAlign: "right", fontWeight: 700 }}>₹{j.price || j.amount || 0}</td>
+                            </tr>
+                          ))}
+                          {(!employeeDetails.jobs || employeeDetails.jobs.length === 0) && (
+                            <tr>
+                              <td colSpan={5} style={{ padding: 12, textAlign: "center", color: "#94a3b8" }}>No jobs assigned yet.</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {modalTab === "performance" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                  {/* Grid metrics */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+                    <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: 12, borderRadius: 8, textAlign: "center" }}>
+                      <div style={{ fontSize: 12, color: "#64748b" }}>Performance Score</div>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: (employeeDetails.performanceScore || 100) >= 80 ? "#16a34a" : ((employeeDetails.performanceScore || 100) >= 50 ? "#eab308" : "#dc2626"), marginTop: 4 }}>
+                        {employeeDetails.performanceScore ?? 100}
+                      </div>
+                    </div>
+                    <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: 12, borderRadius: 8, textAlign: "center" }}>
+                      <div style={{ fontSize: 12, color: "#64748b" }}>Customer Ratings</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: "#eab308", marginTop: 4, display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                        ★ {employeeDetails.stats?.rating || "5.0"}
+                      </div>
+                    </div>
+                    <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: 12, borderRadius: 8, textAlign: "center" }}>
+                      <div style={{ fontSize: 12, color: "#64748b" }}>Penalty Points</div>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: (employeeDetails.penaltyPoints || 0) > 0 ? "#dc2626" : "#475569", marginTop: 4 }}>
+                        {employeeDetails.penaltyPoints ?? 0}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Attendance log */}
+                  <div>
+                    <h4 style={{ margin: "0 0 10px 0", fontSize: 14, color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>Attendance Log</h4>
+                    <div style={{ maxHeight: 150, overflowY: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                        <thead>
+                          <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#64748b", fontWeight: 700 }}>
+                            <th style={{ padding: 6, textAlign: "left" }}>Date</th>
+                            <th style={{ padding: 6, textAlign: "left" }}>Clock In</th>
+                            <th style={{ padding: 6, textAlign: "left" }}>Clock Out</th>
+                            <th style={{ padding: 6, textAlign: "right" }}>Working Hours</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(employeeDetails.attendanceHistory || []).map((att, idx) => (
+                            <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                              <td style={{ padding: 6 }}>{att.date}</td>
+                              <td style={{ padding: 6 }}>{new Date(att.loginTime).toLocaleTimeString()}</td>
+                              <td style={{ padding: 6 }}>{att.logoutTime ? new Date(att.logoutTime).toLocaleTimeString() : "—"}</td>
+                              <td style={{ padding: 6, textAlign: "right" }}>{att.workingHours?.toFixed(1) || 0} hrs</td>
+                            </tr>
+                          ))}
+                          {(!employeeDetails.attendanceHistory || employeeDetails.attendanceHistory.length === 0) && (
+                            <tr>
+                              <td colSpan={4} style={{ padding: 12, textAlign: "center", color: "#94a3b8" }}>No attendance history recorded.</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Penalties */}
+                  <div>
+                    <h4 style={{ margin: "0 0 10px 0", fontSize: 14, color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>Penalties List</h4>
+                    <div style={{ maxHeight: 120, overflowY: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                        <thead>
+                          <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#64748b", fontWeight: 700 }}>
+                            <th style={{ padding: 6, textAlign: "left" }}>Date</th>
+                            <th style={{ padding: 6, textAlign: "left" }}>Reason</th>
+                            <th style={{ padding: 6, textAlign: "right" }}>Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(employeeDetails.penalties || []).map((p, idx) => (
+                            <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                              <td style={{ padding: 6 }}>{p.penaltyDate ? new Date(p.penaltyDate).toLocaleDateString() : "—"}</td>
+                              <td style={{ padding: 6 }}>{p.reason || "Auto Penalty"}</td>
+                              <td style={{ padding: 6, textAlign: "right", color: "#dc2626", fontWeight: 700 }}>₹{p.amount || 0}</td>
+                            </tr>
+                          ))}
+                          {(!employeeDetails.penalties || employeeDetails.penalties.length === 0) && (
+                            <tr>
+                              <td colSpan={3} style={{ padding: 12, textAlign: "center", color: "#94a3b8" }}>No penalties issued.</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Feedbacks / Reviews */}
+                  <div>
+                    <h4 style={{ margin: "0 0 10px 0", fontSize: 14, color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>Customer Reviews</h4>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 150, overflowY: "auto" }}>
+                      {(employeeDetails.reviews || []).map((f, idx) => (
+                        <div key={idx} style={{ border: "1px solid #e2e8f0", padding: 10, borderRadius: 8, fontSize: 13 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
+                            <span>Rating: <strong style={{ color: "#eab308" }}>★ {f.rating}</strong></span>
+                            <span style={{ color: "#94a3b8", fontSize: 11 }}>{f.createdAt ? formatDate(f.createdAt) : "—"}</span>
+                          </div>
+                          <div style={{ color: "#475569", marginTop: 4 }}>{f.comment || "No comment left"}</div>
+                        </div>
+                      ))}
+                      {(!employeeDetails.reviews || employeeDetails.reviews.length === 0) && (
+                        <div style={{ fontSize: 12, color: "#94a3b8", padding: 4, textAlign: "center" }}>No reviews submitted yet.</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div style={{ padding: 40, textAlign: "center", color: "#ef4444" }}>Failed to load profile.</div>
           )}
         </Modal>
+      )}
+    </div>
+  );
+}
+
+function StatusChip({ status }) {
+  const styles = {
+    submitted: { bg: "#fef3c7", text: "#d97706" }, // Amber
+    approved: { bg: "#d1fae5", text: "#059669" }, // Emerald
+    draft: { bg: "#f1f5f9", text: "#475569" }, // Gray
+    in_progress: { bg: "#eff6ff", text: "#2563eb" }, // Blue
+  };
+  const current = styles[status] || styles.draft;
+  return (
+    <span style={{
+      padding: "4px 10px",
+      borderRadius: "9999px",
+      fontSize: "11px",
+      fontWeight: 700,
+      background: current.bg,
+      color: current.text,
+      textTransform: "uppercase",
+      letterSpacing: "0.5px"
+    }}>
+      {status === "in_progress" ? "In Progress" : status}
+    </span>
+  );
+}
+
+function PhotoCategoryBox({ title, urls, onView }) {
+  const photo = urls && urls.length > 0 ? urls[0] : null;
+  return (
+    <div style={{ border: "1px solid #e2e8f0", padding: "10px", borderRadius: "12px", background: "#f8fafc", textAlign: "center" }}>
+      <span style={{ fontSize: "10px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", display: "block", marginBottom: "8px" }}>{title}</span>
+      {photo ? (
+        <div 
+          onClick={() => onView(photo)}
+          style={{ height: "100px", borderRadius: "8px", overflow: "hidden", cursor: "pointer", background: "#fff", border: "1px solid #e2e8f0" }}
+        >
+          <img src={photo} alt={title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        </div>
+      ) : (
+        <div style={{ height: "100px", border: "1px dashed #cbd5e1", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontSize: "11px" }}>
+          No photo
+        </div>
       )}
     </div>
   );
@@ -612,9 +800,13 @@ export function CustomerManagementPage() {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [customerDetails, setCustomerDetails] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [customerModalTab, setCustomerModalTab] = useState("overview"); // overview | bookings | timeline
+  const [activeWorksheet, setActiveWorksheet] = useState(null);
+  const [activePhoto, setActivePhoto] = useState(null);
 
   async function viewCustomerProfile(cust) {
     setSelectedCustomer(cust);
+    setCustomerModalTab("overview");
     setLoadingDetails(true);
     try {
       const res = await fetch(`/api/v2/admin/customers/${cust._id || cust.id}`, { credentials: "include" });
@@ -741,7 +933,7 @@ export function CustomerManagementPage() {
 
       {/* Customer profile / history Popup Modal */}
       {selectedCustomer && (
-        <Modal isOpen={!!selectedCustomer} onClose={() => setSelectedCustomer(null)} title={`Customer Details: ${selectedCustomer.name}`}>
+        <Modal open={!!selectedCustomer} onClose={() => setSelectedCustomer(null)} title={`Customer Details: ${selectedCustomer.name}`}>
           {loadingDetails ? (
             <div style={{ padding: 40, textAlign: "center", color: "#64748b" }}>Loading customer history log...</div>
           ) : customerDetails ? (
@@ -753,140 +945,378 @@ export function CustomerManagementPage() {
                   <h3 style={{ margin: 0, color: "#0f172a", fontSize: 18, fontWeight: 800 }}>{customerDetails.name}</h3>
                   <div style={{ fontSize: 13, color: "#475569", marginTop: 4 }}>ID: <strong>{customerDetails.customerId || "—"}</strong></div>
                   <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>Phone: {customerDetails.mobileNumber} | Email: {customerDetails.email || "—"}</div>
+                  <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>Registered: {customerDetails.createdAt ? formatDate(customerDetails.createdAt) : "—"}</div>
                 </div>
               </div>
 
-              {/* Addresses List */}
-              <div>
-                <h4 style={{ margin: "0 0 8px 0", fontSize: 14, color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>Addresses</h4>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {(customerDetails.addresses || []).map((addr, idx) => (
-                    <div key={idx} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: "8px 12px", borderRadius: 8, fontSize: 13, color: "#334155" }}>
-                      {addr.address || addr.addressLine1} {addr.city ? `, ${addr.city}` : ''} {addr.pincode ? ` - ${addr.pincode}` : ''}
-                    </div>
-                  ))}
-                  {(!customerDetails.addresses || customerDetails.addresses.length === 0) && (
-                    <div style={{ fontSize: 12, color: "#94a3b8", padding: 4 }}>No stored addresses.</div>
-                  )}
-                </div>
+              {/* Tab Navigation */}
+              <div style={{ display: "flex", gap: 10, borderBottom: "1px solid #cbd5e1", paddingBottom: 10 }}>
+                <button type="button" onClick={() => setCustomerModalTab("overview")} style={{
+                  padding: "8px 16px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 13,
+                  background: customerModalTab === "overview" ? "#4f46e5" : "none", color: customerModalTab === "overview" ? "#fff" : "#475569"
+                }}>Customer Info & Financials</button>
+                <button type="button" onClick={() => setCustomerModalTab("bookings")} style={{
+                  padding: "8px 16px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 13,
+                  background: customerModalTab === "bookings" ? "#4f46e5" : "none", color: customerModalTab === "bookings" ? "#fff" : "#475569"
+                }}>Bookings & Reports</button>
+                <button type="button" onClick={() => setCustomerModalTab("timeline")} style={{
+                  padding: "8px 16px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 13,
+                  background: customerModalTab === "timeline" ? "#4f46e5" : "none", color: customerModalTab === "timeline" ? "#fff" : "#475569"
+                }}>Activity Timeline</button>
               </div>
 
-              {/* Booking History */}
-              <div>
-                <h4 style={{ margin: "0 0 10px 0", fontSize: 14, color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>Booking History</h4>
-                <div style={{ maxHeight: 150, overflowY: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-                    <thead>
-                      <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#64748b", fontWeight: 700 }}>
-                        <th style={{ padding: 6, textAlign: "left" }}>Booking ID</th>
-                        <th style={{ padding: 6, textAlign: "left" }}>Service</th>
-                        <th style={{ padding: 6, textAlign: "left" }}>Status</th>
-                        <th style={{ padding: 6, textAlign: "right" }}>Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(customerDetails.bookingHistory || []).map((b, idx) => (
-                        <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                          <td style={{ padding: 6, fontWeight: 700 }}>{b.bookingNumber || b.bookingId}</td>
-                          <td style={{ padding: 6 }}>{b.serviceName || b.title}</td>
-                          <td style={{ padding: 6 }}><StatusBadge status={b.status} /></td>
-                          <td style={{ padding: 6, textAlign: "right" }}>₹{b.price || b.amount || 0}</td>
-                        </tr>
-                      ))}
-                      {(!customerDetails.bookingHistory || customerDetails.bookingHistory.length === 0) && (
-                        <tr>
-                          <td colSpan={4} style={{ padding: 12, textAlign: "center", color: "#94a3b8" }}>No bookings recorded.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Cancellation History */}
-              <div>
-                <h4 style={{ margin: "0 0 10px 0", fontSize: 14, color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>Cancellation History</h4>
-                <div style={{ maxHeight: 120, overflowY: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-                    <thead>
-                      <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#64748b", fontWeight: 700 }}>
-                        <th style={{ padding: 6, textAlign: "left" }}>Booking ID</th>
-                        <th style={{ padding: 6, textAlign: "left" }}>Cancelled At</th>
-                        <th style={{ padding: 6, textAlign: "left" }}>Reason</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(customerDetails.cancellationHistory || []).map((c, idx) => (
-                        <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                          <td style={{ padding: 6, fontWeight: 700 }}>{c.bookingNumber || "—"}</td>
-                          <td style={{ padding: 6 }}>{c.cancelledAt ? new Date(c.cancelledAt).toLocaleDateString() : "—"}</td>
-                          <td style={{ padding: 6, color: "#b91c1c" }}>{c.reason || "Client Request"}</td>
-                        </tr>
-                      ))}
-                      {(!customerDetails.cancellationHistory || customerDetails.cancellationHistory.length === 0) && (
-                        <tr>
-                          <td colSpan={3} style={{ padding: 12, textAlign: "center", color: "#94a3b8" }}>No cancellations recorded.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Payment History */}
-              <div>
-                <h4 style={{ margin: "0 0 10px 0", fontSize: 14, color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>Payment History</h4>
-                <div style={{ maxHeight: 150, overflowY: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-                    <thead>
-                      <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#64748b", fontWeight: 700 }}>
-                        <th style={{ padding: 6, textAlign: "left" }}>Order ID</th>
-                        <th style={{ padding: 6, textAlign: "left" }}>Status</th>
-                        <th style={{ padding: 6, textAlign: "right" }}>Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(customerDetails.paymentHistory || []).map((p, idx) => (
-                        <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                          <td style={{ padding: 6 }}>{p.razorpayOrderId}</td>
-                          <td style={{ padding: 6 }}><span style={{ textTransform: "uppercase", fontSize: 11, fontWeight: 700, color: p.status === 'paid' ? '#16a34a' : '#475569' }}>{p.status}</span></td>
-                          <td style={{ padding: 6, textAlign: "right", fontWeight: 700 }}>₹{Math.round(p.amount / 100)}</td>
-                        </tr>
-                      ))}
-                      {(!customerDetails.paymentHistory || customerDetails.paymentHistory.length === 0) && (
-                        <tr>
-                          <td colSpan={3} style={{ padding: 12, textAlign: "center", color: "#94a3b8" }}>No payments recorded.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Feedbacks */}
-              <div>
-                <h4 style={{ margin: "0 0 10px 0", fontSize: 14, color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>Feedback History</h4>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {(customerDetails.feedbackHistory || []).map((f, idx) => (
-                    <div key={idx} style={{ border: "1px solid #e2e8f0", padding: 10, borderRadius: 8, fontSize: 13 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
-                        <span>Rating: <strong style={{ color: "#eab308" }}>★ {f.rating}</strong></span>
-                        <span style={{ color: "#94a3b8", fontSize: 11 }}>{f.createdAt ? new Date(f.createdAt).toLocaleDateString() : "—"}</span>
+              {/* Tab Content */}
+              {customerModalTab === "overview" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                  
+                  {/* Financial Summary */}
+                  <div>
+                    <h4 style={{ margin: "0 0 10px 0", fontSize: 14, color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>Financial Summary</h4>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+                      <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: 12, borderRadius: 8, textAlign: "center" }}>
+                        <div style={{ fontSize: 12, color: "#64748b" }}>Total Bookings</div>
+                        <div style={{ fontSize: 20, fontWeight: 800, color: "#0f172a", marginTop: 4 }}>
+                          {customerDetails.financialSummary?.totalBookings || 0}
+                        </div>
                       </div>
-                      <div style={{ color: "#475569", marginTop: 4 }}>{f.comment || "No comment left"}</div>
+                      <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: 12, borderRadius: 8, textAlign: "center" }}>
+                        <div style={{ fontSize: 12, color: "#64748b" }}>Total Revenue</div>
+                        <div style={{ fontSize: 20, fontWeight: 800, color: "#16a34a", marginTop: 4 }}>
+                          ₹{customerDetails.financialSummary?.totalRevenueGenerated || 0}
+                        </div>
+                      </div>
+                      <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: 12, borderRadius: 8, textAlign: "center" }}>
+                        <div style={{ fontSize: 12, color: "#64748b" }}>Pending Payments</div>
+                        <div style={{ fontSize: 20, fontWeight: 800, color: (customerDetails.financialSummary?.pendingPayments || 0) > 0 ? "#dc2626" : "#475569", marginTop: 4 }}>
+                          ₹{customerDetails.financialSummary?.pendingPayments || 0}
+                        </div>
+                      </div>
+                      <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: 12, borderRadius: 8, textAlign: "center" }}>
+                        <div style={{ fontSize: 12, color: "#64748b" }}>Refunds</div>
+                        <div style={{ fontSize: 20, fontWeight: 800, color: "#475569", marginTop: 4 }}>
+                          ₹{customerDetails.financialSummary?.refunds || 0}
+                        </div>
+                      </div>
                     </div>
-                  ))}
-                  {(!customerDetails.feedbackHistory || customerDetails.feedbackHistory.length === 0) && (
-                    <div style={{ fontSize: 12, color: "#94a3b8", padding: 4 }}>No reviews/feedback submitted yet.</div>
-                  )}
+                  </div>
+
+                  {/* Customer Details info */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                    <DetailField label="Customer ID" value={customerDetails.customerId} />
+                    <DetailField label="Full Name" value={customerDetails.name} />
+                    <DetailField label="Phone Number" value={customerDetails.mobileNumber} />
+                    <DetailField label="Email Address" value={customerDetails.email} />
+                    <DetailField label="Registration Date" value={customerDetails.createdAt ? formatDate(customerDetails.createdAt) : "—"} />
+                  </div>
+
+                  {/* Addresses List */}
+                  <div>
+                    <h4 style={{ margin: "0 0 8px 0", fontSize: 14, color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>Stored Addresses</h4>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {(customerDetails.addresses || []).map((addr, idx) => (
+                        <div key={idx} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", padding: "8px 12px", borderRadius: 8, fontSize: 13, color: "#334155" }}>
+                          {addr.address || addr.addressLine1} {addr.city ? `, ${addr.city}` : ''} {addr.pincode ? ` - ${addr.pincode}` : ''}
+                        </div>
+                      ))}
+                      {(!customerDetails.addresses || customerDetails.addresses.length === 0) && (
+                        <div style={{ fontSize: 12, color: "#94a3b8", padding: 4 }}>No stored addresses.</div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {customerModalTab === "bookings" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                  {/* Booking History Table */}
+                  <div>
+                    <h4 style={{ margin: "0 0 10px 0", fontSize: 14, color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>Booking History</h4>
+                    <div style={{ maxHeight: 200, overflowY: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                        <thead>
+                          <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#64748b", fontWeight: 700 }}>
+                            <th style={{ padding: 6, textAlign: "left" }}>Booking ID</th>
+                            <th style={{ padding: 6, textAlign: "left" }}>Service</th>
+                            <th style={{ padding: 6, textAlign: "left" }}>Booking Date</th>
+                            <th style={{ padding: 6, textAlign: "left" }}>Scheduled Date</th>
+                            <th style={{ padding: 6, textAlign: "left" }}>Payment Status</th>
+                            <th style={{ padding: 6, textAlign: "left" }}>Status</th>
+                            <th style={{ padding: 6, textAlign: "left" }}>Assigned Tech</th>
+                            <th style={{ padding: 6, textAlign: "left" }}>Completion Date</th>
+                            <th style={{ padding: 6, textAlign: "right" }}>Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(customerDetails.bookingHistory || []).map((b, idx) => (
+                            <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                              <td style={{ padding: 6, fontWeight: 700 }}>{b.bookingNumber || b.bookingId}</td>
+                              <td style={{ padding: 6 }}>{b.serviceName || b.title}</td>
+                              <td style={{ padding: 6 }}>{b.createdAt ? formatDate(b.createdAt) : "—"}</td>
+                              <td style={{ padding: 6 }}>{b.scheduledTime || b.scheduledDate || "ASAP"}</td>
+                              <td style={{ padding: 6 }}>
+                                <span style={{ textTransform: "uppercase", fontSize: 11, fontWeight: 700, color: b.paymentStatus === 'paid' ? '#16a34a' : '#ef4444' }}>
+                                  {b.paymentStatus || 'pending'}
+                                </span>
+                              </td>
+                              <td style={{ padding: 6 }}><StatusBadge status={b.status} /></td>
+                              <td style={{ padding: 6 }}>{b.assignedTechnician?.name || "Unassigned"}</td>
+                              <td style={{ padding: 6 }}>{b.completedAt ? formatDate(b.completedAt) : "—"}</td>
+                              <td style={{ padding: 6, textAlign: "right", fontWeight: 700 }}>₹{b.price || b.amount || 0}</td>
+                            </tr>
+                          ))}
+                          {(!customerDetails.bookingHistory || customerDetails.bookingHistory.length === 0) && (
+                            <tr>
+                              <td colSpan={9} style={{ padding: 12, textAlign: "center", color: "#94a3b8" }}>No bookings recorded.</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Service Reports (Worksheets) */}
+                  <div>
+                    <h4 style={{ margin: "0 0 10px 0", fontSize: 14, color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>Service Reports (Worksheets)</h4>
+                    <div style={{ maxHeight: 200, overflowY: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                        <thead>
+                          <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#64748b", fontWeight: 700 }}>
+                            <th style={{ padding: 6, textAlign: "left" }}>Worksheet #</th>
+                            <th style={{ padding: 6, textAlign: "left" }}>Service</th>
+                            <th style={{ padding: 6, textAlign: "left" }}>Status</th>
+                            <th style={{ padding: 6, textAlign: "center" }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(customerDetails.worksheets || []).map((ws, idx) => (
+                            <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                              <td style={{ padding: 6, fontWeight: 700 }}>{ws.worksheetNumber}</td>
+                              <td style={{ padding: 6 }}>{ws.serviceCategory || ws.serviceType}</td>
+                              <td style={{ padding: 6 }}>
+                                <StatusChip status={ws.status} />
+                              </td>
+                              <td style={{ padding: 6, textAlign: "center" }}>
+                                <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+                                  <button type="button" onClick={() => setActiveWorksheet(ws)} style={{ border: "none", background: "none", cursor: "pointer", color: "#6366f1", fontSize: 12, fontWeight: 700 }}>View Worksheet</button>
+                                  <button type="button" onClick={() => {
+                                    if (ws.pdfUrl) {
+                                      window.open(ws.pdfUrl, '_blank');
+                                    } else {
+                                      alert("PDF report is not available for this worksheet (needs status APPROVED)");
+                                    }
+                                  }} style={{ border: "none", background: "none", cursor: "pointer", color: ws.pdfUrl ? "#10b981" : "#94a3b8", fontSize: 12, fontWeight: 700 }} disabled={!ws.pdfUrl}>View PDF</button>
+                                  <button type="button" onClick={() => {
+                                    if (ws.pdfUrl) {
+                                      const link = document.createElement('a');
+                                      link.href = ws.pdfUrl;
+                                      link.target = '_blank';
+                                      link.download = `Worksheet_${ws.worksheetNumber}.pdf`;
+                                      link.click();
+                                    } else {
+                                      alert("PDF report is not available for this worksheet (needs status APPROVED)");
+                                    }
+                                  }} style={{ border: "none", background: "none", cursor: "pointer", color: ws.pdfUrl ? "#059669" : "#94a3b8", fontSize: 12, fontWeight: 700 }} disabled={!ws.pdfUrl}>Download</button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                          {(!customerDetails.worksheets || customerDetails.worksheets.length === 0) && (
+                            <tr>
+                              <td colSpan={4} style={{ padding: 12, textAlign: "center", color: "#94a3b8" }}>No worksheets generated for this customer.</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {customerModalTab === "timeline" && (
+                <div>
+                  <h4 style={{ margin: "0 0 16px 0", fontSize: 14, color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: 6 }}>Customer Activity Timeline</h4>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 16, paddingLeft: 12, borderLeft: "2px solid #e2e8f0", position: "relative" }}>
+                    {(customerDetails.timeline || []).map((t, idx) => (
+                      <div key={idx} style={{ position: "relative", marginBottom: 6 }}>
+                        {/* Bullet */}
+                        <div style={{
+                          width: 8, height: 8, borderRadius: "50%", background: "#4f46e5",
+                          position: "absolute", left: -17, top: 5, border: "2px solid #fff"
+                        }} />
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                          <span style={{ fontWeight: 700, fontSize: 13, color: "#1e293b" }}>{t.type}</span>
+                          <span style={{ fontSize: 11, color: "#94a3b8" }}>{t.date ? new Date(t.date).toLocaleString("en-IN") : "—"}</span>
+                        </div>
+                        <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>{t.description}</div>
+                      </div>
+                    ))}
+                    {(!customerDetails.timeline || customerDetails.timeline.length === 0) && (
+                      <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "center" }}>No activity recorded yet.</div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div style={{ padding: 40, textAlign: "center", color: "#ef4444" }}>Failed to load profile.</div>
           )}
         </Modal>
       )}
+
+      {/* Nested Service Worksheet viewer */}
+      {activeWorksheet && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 3000, background: "rgba(15,23,42,0.6)", backdropFilter: "blur(4px)", display: "flex", justifyContent: "center", alignItems: "center", padding: "24px" }}>
+          <div style={{ background: "#fff", width: "100%", maxWidth: "800px", maxHeight: "90vh", borderRadius: "24px", overflowY: "auto", display: "flex", flexDirection: "column", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)" }}>
+            
+            {/* Modal Header */}
+            <div style={{ background: "#0f172a", color: "#fff", padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <h3 style={{ fontSize: "18px", fontWeight: 700, margin: 0 }}>Worksheet {activeWorksheet.worksheetNumber}</h3>
+                <span style={{ fontSize: "12px", color: "#94a3b8" }}>Booking Reference: {activeWorksheet.bookingId}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveWorksheet(null)}
+                style={{ background: "none", border: "none", color: "#fff", fontSize: "20px", cursor: "pointer", outline: "none" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: "24px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "24px", fontSize: "13px" }}>
+              
+              {/* Customer and Technician Details */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                <div style={{ background: "#f8fafc", padding: "16px", borderRadius: "16px", border: "1px solid #f1f5f9" }}>
+                  <h4 style={{ fontWeight: 700, color: "#475569", marginBottom: "8px", textTransform: "uppercase", fontSize: "11px", letterSpacing: "1px" }}>Customer Details</h4>
+                  <p style={{ margin: "4px 0" }}><strong>Name:</strong> {activeWorksheet.customerName}</p>
+                  <p style={{ margin: "4px 0" }}><strong>Mobile:</strong> {activeWorksheet.customerMobile}</p>
+                  <p style={{ margin: "4px 0" }}><strong>Address:</strong> {activeWorksheet.customerAddress}</p>
+                </div>
+
+                <div style={{ background: "#f8fafc", padding: "16px", borderRadius: "16px", border: "1px solid #f1f5f9" }}>
+                  <h4 style={{ fontWeight: 700, color: "#475569", marginBottom: "8px", textTransform: "uppercase", fontSize: "11px", letterSpacing: "1px" }}>Technician Details</h4>
+                  <p style={{ margin: "4px 0" }}><strong>Name:</strong> {activeWorksheet.technicianId?.name || "N/A"}</p>
+                  <p style={{ margin: "4px 0" }}><strong>Phone:</strong> {activeWorksheet.technicianId?.phone || activeWorksheet.technicianId?.mobileNumber || "N/A"}</p>
+                  <p style={{ margin: "4px 0" }}><strong>Specialty:</strong> {activeWorksheet.technicianId?.specialty || "N/A"}</p>
+                </div>
+              </div>
+
+              {/* Service description findings */}
+              <div style={{ background: "#f8fafc", padding: "16px", borderRadius: "16px", border: "1px solid #f1f5f9" }}>
+                <h4 style={{ fontWeight: 700, color: "#475569", marginBottom: "8px", textTransform: "uppercase", fontSize: "11px", letterSpacing: "1px" }}>Service Description & Field Observations</h4>
+                <div style={{ marginBottom: "12px" }}>
+                  <strong style={{ fontSize: "11px", color: "#64748b" }}>Requested Description:</strong>
+                  <p style={{ margin: "4px 0 0", color: "#1e293b", background: "#fff", padding: "8px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>{activeWorksheet.requestedWorkDescription || "N/A"}</p>
+                </div>
+                <div>
+                  <strong style={{ fontSize: "11px", color: "#64748b" }}>Field Findings:</strong>
+                  <p style={{ margin: "4px 0 0", color: "#1e293b", background: "#fff", padding: "8px", borderRadius: "8px", border: "1px solid #e2e8f0", fontWeight: 500 }}>{activeWorksheet.technicianObservations || "N/A"}</p>
+                </div>
+              </div>
+
+              {/* Materials Table */}
+              <div>
+                <h4 style={{ fontWeight: 700, color: "#0f172a", marginBottom: "12px", fontSize: "14px" }}>Materials Used</h4>
+                <div style={{ border: "1px solid #e2e8f0", borderRadius: "12px", overflow: "hidden" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "12px" }}>
+                    <thead>
+                      <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                        <th style={{ padding: "8px 12px" }}>Item Name</th>
+                        <th style={{ padding: "8px 12px" }}>Category</th>
+                        <th style={{ padding: "8px 12px", textAlign: "center" }}>Qty</th>
+                        <th style={{ padding: "8px 12px" }}>Unit</th>
+                        <th style={{ padding: "8px 12px", textAlign: "right" }}>Unit Price</th>
+                        <th style={{ padding: "8px 12px", textAlign: "right" }}>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(!activeWorksheet.materialsUsed || activeWorksheet.materialsUsed.length === 0) ? (
+                        <tr>
+                          <td colSpan={6} style={{ padding: "16px", textAlign: "center", color: "#94a3b8" }}>No materials reported.</td>
+                        </tr>
+                      ) : (
+                        activeWorksheet.materialsUsed.map((m, idx) => (
+                          <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                            <td style={{ padding: "8px 12px", fontWeight: 600 }}>{m.name}</td>
+                            <td style={{ padding: "8px 12px" }}>{m.category || m.brand || "-"}</td>
+                            <td style={{ padding: "8px 12px", textAlign: "center" }}>{m.quantity}</td>
+                            <td style={{ padding: "8px 12px" }}>{m.unit || "Piece"}</td>
+                            <td style={{ padding: "8px 12px", textAlign: "right" }}>₹{m.unitPrice || m.unitCost || 0}</td>
+                            <td style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700 }}>₹{m.total || m.totalCost || 0}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Photos Gallery */}
+              <div>
+                <h4 style={{ fontWeight: 700, color: "#0f172a", marginBottom: "12px", fontSize: "14px" }}>Site Photos Gallery</h4>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
+                  <PhotoCategoryBox 
+                    title="Before Work" 
+                    urls={activeWorksheet.beforePhotos} 
+                    onView={setActivePhoto} 
+                  />
+                  <PhotoCategoryBox 
+                    title="During Work" 
+                    urls={activeWorksheet.duringPhotos} 
+                    onView={setActivePhoto} 
+                  />
+                  <PhotoCategoryBox 
+                    title="After Work" 
+                    urls={activeWorksheet.afterPhotos} 
+                    onView={setActivePhoto} 
+                  />
+                </div>
+              </div>
+
+              {/* Signatures display */}
+              <div>
+                <h4 style={{ fontWeight: 700, color: "#0f172a", marginBottom: "12px", fontSize: "14px" }}>Signatures</h4>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                  <div style={{ border: "1px solid #e2e8f0", padding: "12px", borderRadius: "12px", background: "#f8fafc", textAlign: "center" }}>
+                    <span style={{ fontSize: "11px", fontWeight: 600, color: "#64748b", textTransform: "uppercase", display: "block", marginBottom: "8px" }}>Customer</span>
+                    {activeWorksheet.customerSignatureUrl ? (
+                      <img src={activeWorksheet.customerSignatureUrl} alt="Customer Signature" style={{ height: "60px", margin: "0 auto", objectFit: "contain" }} />
+                    ) : (
+                      <span style={{ color: "#ef4444", fontSize: "11px" }}>Awaiting customer signature</span>
+                    )}
+                  </div>
+                  <div style={{ border: "1px solid #e2e8f0", padding: "12px", borderRadius: "12px", background: "#f8fafc", textAlign: "center" }}>
+                    <span style={{ fontSize: "11px", fontWeight: 600, color: "#64748b", textTransform: "uppercase", display: "block", marginBottom: "8px" }}>Technician</span>
+                    {activeWorksheet.technicianSignatureUrl ? (
+                      <img src={activeWorksheet.technicianSignatureUrl} alt="Technician Signature" style={{ height: "60px", margin: "0 auto", objectFit: "contain" }} />
+                    ) : (
+                      <span style={{ color: "#ef4444", fontSize: "11px" }}>Awaiting technician signature</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Active Photo Zoom Modal */}
+      {activePhoto && (
+        <div 
+          onClick={() => setActivePhoto(null)}
+          style={{ position: "fixed", inset: 0, zIndex: 4000, background: "rgba(15,23,42,0.8)", display: "flex", justifyContent: "center", alignItems: "center", padding: "24px" }}
+        >
+          <div style={{ maxWidth: "800px", maxHeight: "80vh", position: "relative" }}>
+            <img src={activePhoto} alt="Zoomed View" style={{ maxWidth: "100%", maxHeight: "80vh", borderRadius: "8px", objectFit: "contain", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.55)" }} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
     </div>
   );
 }
