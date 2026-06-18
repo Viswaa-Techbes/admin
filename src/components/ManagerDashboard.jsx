@@ -4,12 +4,12 @@ import * as Icons from "./Icons";
 import { apiFetch } from "../lib/apiClient";
 
 const STAT_META = [
-  { key: "totalUsers", label: "Total Users", icon: <Icons.UsersIcon />, color: "#6366f1", bg: "#eef2ff", target: "technicians" },
-  { key: "totalLeads", label: "Total Leads", icon: <Icons.UsersIcon />, color: "#3b82f6", bg: "#eff6ff", target: "members" },
-  { key: "totalBookings", label: "Total Bookings", icon: <Icons.BriefcaseIcon />, color: "#10b981", bg: "#ecfdf5", target: "service-requests" },
-  { key: "totalRevenue", label: "Total Revenue", icon: <Icons.CreditCardIcon />, color: "#8b5cf6", bg: "#f5f3ff", target: "payments", money: true },
-  { key: "pendingPayments", label: "Pending Payments", icon: <Icons.BellIcon />, color: "#f43f5e", bg: "#fff1f2", target: "payments" },
-  { key: "upcomingJobs", label: "Upcoming Jobs", icon: <Icons.WrenchIcon />, color: "#0f766e", bg: "#ecfeff", target: "jobs" },
+  { key: "pendingRequests", label: "Pending Requests", icon: <Icons.BriefcaseIcon />, color: "#3b82f6", bg: "#eff6ff", target: "service-requests" },
+  { key: "assignedJobs", label: "Assigned Jobs", icon: <Icons.UsersIcon />, color: "#6366f1", bg: "#eef2ff", target: "jobs" },
+  { key: "inProgressJobs", label: "In Progress Jobs", icon: <Icons.WrenchIcon />, color: "#06b6d4", bg: "#ecfeff", target: "jobs" },
+  { key: "completedJobs", label: "Completed Jobs", icon: <Icons.BriefcaseIcon />, color: "#10b981", bg: "#ecfdf5", target: "jobs" },
+  { key: "cancelledJobs", label: "Cancelled Jobs", icon: <Icons.BellIcon />, color: "#f43f5e", bg: "#fff1f2", target: "cancellations" },
+  { key: "penalties", label: "Total Penalties", icon: <Icons.BellIcon />, color: "#be123c", bg: "#ffe4e6", target: "penalties" },
 ];
 
 export function DashboardPage({ onNavigate }) {

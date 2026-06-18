@@ -26,7 +26,8 @@ import {
   CourseAssignmentPage,
   AdmissionAnalyticsPage
 } from "../../components/AdminPagesModern";
-import { DispatchMonitorPage, CancellationsPage, TechPerformancePage } from "../../components/DispatchAdminPages";
+import { io } from "socket.io-client";
+import { DispatchMonitorPage, CancellationsPage, TechPerformancePage, PenaltiesPage } from "../../components/DispatchAdminPages";
 import { AnalyticsPage } from "../../components/AnalyticsPage";
 import DomainAnalyticsPage from "../../components/analytics/DomainAnalyticsPage";
 import { WorksheetsPage } from "../../components/WorksheetsPage";
@@ -44,6 +45,37 @@ export default function AdminDashboardContent() {
   const [selectedId, setSelectedId] = useState(null);
   const [user, setUser] = useState({ name: "Admin", role: "admin" });
   const [notifCount, setNotifCount] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    if (!mounted) return;
+    
+    // Connect to Socket.io backend for real-time dashboard updates
+    const socket = io(process.env.NEXT_PUBLIC_API_BASE_URL || window.location.origin || "", {
+      path: "/socket.io",
+      transports: ["websocket", "polling"]
+    });
+
+    socket.on("connect", () => {
+      console.log("[Admin Socket] Connected successfully");
+      socket.emit("join_admin");
+    });
+
+    const handleUpdate = (data) => {
+      console.log("[Admin Socket] Received real-time update event:", data);
+      setRefreshKey(k => k + 1);
+    };
+
+    socket.on("newBooking", handleUpdate);
+    socket.on("jobStatusUpdated", handleUpdate);
+    socket.on("technicianStatusUpdate", handleUpdate);
+    socket.on("technicianLocationUpdate", handleUpdate);
+    socket.on("bookingAssigned", handleUpdate);
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [mounted]);
 
   useEffect(() => {
     let wakeTimeout = setTimeout(() => {
@@ -94,6 +126,7 @@ export default function AdminDashboardContent() {
       else if (path.includes('/admin/analytics') || path.includes('/admin/reports')) setActivePage('reports');
       else if (path.includes('/admin/worksheets')) setActivePage('worksheets');
       else if (path.includes('/admin/settings')) setActivePage('settings');
+      else if (path.includes('/admin/penalties')) setActivePage('penalties');
       else if (path === '/admin') setActivePage('dashboard');
     };
 
@@ -146,6 +179,7 @@ export default function AdminDashboardContent() {
     "dispatch-monitor": <DispatchMonitorPage />,
     cancellations: <CancellationsPage />,
     "tech-performance": <TechPerformancePage />,
+    penalties: <PenaltiesPage />,
     requests: <RequestsPage />,
     reviews: <ReviewsPage />,
     services: <ServicesPage />,
@@ -184,6 +218,7 @@ export default function AdminDashboardContent() {
             'analytics-skills': '/admin/analytics-skills',
             worksheets: '/admin/worksheets',
             settings: '/admin/settings',
+            penalties: '/admin/penalties',
             dashboard: '/admin'
           };
           const newPath = mapping[page] || '/admin';
@@ -205,7 +240,7 @@ export default function AdminDashboardContent() {
             onNotifClick={() => setActivePage("notifications")}
           />
           
-          <main style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
+          <main key={refreshKey} style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
             <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
               {pages[activePage] || pages.dashboard}
             </div>

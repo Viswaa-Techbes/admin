@@ -640,3 +640,133 @@ export function TechPerformancePage() {
     </div>
   );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PENALTIES MANAGEMENT PAGE
+// ═══════════════════════════════════════════════════════════════════════════════
+export function PenaltiesPage() {
+  const { data, loading, error, refresh } = useApiData("/api/v2/cancellations/technician-penalties");
+
+  // Flatten the penalties across all technicians
+  const allPenalties = useMemo(() => {
+    const list = [];
+    data.forEach((tech) => {
+      if (tech.penalties && Array.isArray(tech.penalties)) {
+        tech.penalties.forEach((penalty) => {
+          list.push({
+            ...penalty,
+            technicianName: tech.name,
+            technicianPhone: tech.phone,
+          });
+        });
+      }
+    });
+    // Sort by penaltyDate descending
+    return list.sort((a, b) => new Date(b.penaltyDate) - new Date(a.penaltyDate));
+  }, [data]);
+
+  // Calculations for dashboard cards
+  const stats = useMemo(() => {
+    let totalCount = 0;
+    let pendingCount = 0;
+    let totalAmount = 0;
+
+    allPenalties.forEach((p) => {
+      totalCount++;
+      if (p.status !== "paid" && p.status !== "waived") {
+        pendingCount++;
+      }
+      totalAmount += p.amount || 0;
+    });
+
+    return { totalCount, pendingCount, totalAmount };
+  }, [allPenalties]);
+
+  return (
+    <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 24 }}>
+      <PageHeader title="Technician Penalty Management" subtitle="Track and review penalties applied to technicians" />
+
+      {/* Stats Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
+        <Card>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <div style={{ fontSize: 13, color: "#64748b", fontWeight: 600 }}>Total Penalties</div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: "#0f172a", marginTop: 4 }}>{stats.totalCount}</div>
+            </div>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: "#ede9fe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>⚠️</div>
+          </div>
+        </Card>
+        <Card>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <div style={{ fontSize: 13, color: "#64748b", fontWeight: 600 }}>Pending Penalties</div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: "#be123c", marginTop: 4 }}>{stats.pendingCount}</div>
+            </div>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: "#ffe4e6", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>⏳</div>
+          </div>
+        </Card>
+        <Card>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <div style={{ fontSize: 13, color: "#64748b", fontWeight: 600 }}>Total Penalty Amount</div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: "#0f172a", marginTop: 4 }}>₹{stats.totalAmount}</div>
+            </div>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: "#dcfce7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>💰</div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Penalties History List */}
+      <Card>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <SectionHeader title="Penalty Records" />
+          <button onClick={refresh} style={{ ...primaryButton, padding: "8px 14px", fontSize: 12.5 }}>Refresh Data</button>
+        </div>
+
+        {loading ? (
+          <div style={{ padding: "40px 0", textAlign: "center", color: "#64748b" }}>Loading penalty data...</div>
+        ) : error ? (
+          <div style={{ padding: "40px 0", textAlign: "center", color: "#ef4444" }}>Error loading data: {error}</div>
+        ) : allPenalties.length === 0 ? (
+          <div style={{ padding: "40px 0", textAlign: "center", color: "#64748b" }}>No penalty records found.</div>
+        ) : (
+          <TableWrapper headers={["Date", "Technician", "Project ID", "Customer", "Reason", "Amount", "Status"]}>
+            {allPenalties.map((p, idx) => {
+              const job = p.jobId || {};
+              const bookingNumber = job.bookingNumber || "—";
+              const customerName = job.customerName || "—";
+              return (
+                <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                  <td style={TD_STYLE}>{formatDate(p.penaltyDate)}</td>
+                  <td style={TD_STYLE}>
+                    <div style={{ fontWeight: 600, color: "#0f172a" }}>{p.technicianName}</div>
+                    <div style={{ fontSize: 11, color: "#64748b" }}>{p.technicianPhone}</div>
+                  </td>
+                  <td style={TD_STYLE}>
+                    <span style={{ fontFamily: "monospace", fontWeight: 700, color: "#4f46e5" }}>{bookingNumber}</span>
+                  </td>
+                  <td style={TD_STYLE}>{customerName}</td>
+                  <td style={TD_STYLE}>{p.reason || "Cancellation"}</td>
+                  <td style={{ ...TD_STYLE, fontWeight: 700 }}>₹{p.amount}</td>
+                  <td style={TD_STYLE}>
+                    <span style={{
+                      padding: "4px 10px",
+                      borderRadius: 12,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      background: p.status === "paid" ? "#dcfce7" : p.status === "waived" ? "#f1f5f9" : "#fee2e2",
+                      color: p.status === "paid" ? "#15803d" : p.status === "waived" ? "#475569" : "#b91c1c"
+                    }}>
+                      {(p.status || "pending").toUpperCase()}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </TableWrapper>
+        )}
+      </Card>
+    </div>
+  );
+}

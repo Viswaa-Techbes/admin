@@ -13,6 +13,7 @@ export const NAV_ITEMS = [
   { id: "dispatch-monitor", label: "Dispatch Monitor", icon: <MapPinIcon /> },
   { id: "cancellations", label: "Cancellations", icon: <BellIcon /> },
   { id: "tech-performance", label: "Technician Performance", icon: <ChartIcon /> },
+  { id: "penalties", label: "Penalties", icon: <CreditCardIcon /> },
   // ─── Operations ───────────────────────────────────────────────────────────
   { id: "requests", label: "Completion Requests", icon: <BellIcon /> },
   { id: "worksheets", label: "Service Worksheets", icon: <BriefcaseIcon /> },
@@ -98,6 +99,7 @@ export function TopNavbar({ page, notifCount, user, onLogout, onNotifClick }) {
     "dispatch-monitor": "Dispatch Monitor",
     cancellations: "Cancellations",
     "tech-performance": "Technician Performance",
+    penalties: "Penalties",
     requests: "Completion Requests",
     reviews: "Technician Reviews",
     services: "Services",
