@@ -1317,9 +1317,6 @@ export function CustomerManagementPage() {
     </div>
   );
 }
-    </div>
-  );
-}
 
 // ─── Admissions / Course Management Pages ───────────────────────────────────
 
