@@ -4054,3 +4054,298 @@ const approveButton = { border: "none", borderRadius: 10, background: "#dcfce7",
 const rejectButton = { border: "none", borderRadius: 10, background: "#fee2e2", color: "#b91c1c", fontWeight: 700, padding: "8px 12px", cursor: "pointer" };
 const pillButton = (active) => ({ padding: "6px 14px", borderRadius: 99, background: active ? "#6366f1" : "#fff", color: active ? "#fff" : "#64748b", fontWeight: 700, cursor: "pointer" });
 
+// ─── Category Management Page ─────────────────────────────────────────────────
+
+const EMPTY_CAT = { name: "", slug: "", description: "", icon: "Wrench", color: "#3B82F6", gradient: "", isActive: true, sortOrder: 0 };
+const EMPTY_SUB = { name: "", slug: "", description: "", icon: "", isActive: true, sortOrder: 0, categoryId: "" };
+
+function autoSlug(name) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
+export function CategoryManagementPage() {
+  const [view, setView] = React.useState("categories"); // categories | subcategories
+  const [categories, setCategories] = React.useState([]);
+  const [subcategories, setSubcategories] = React.useState([]);
+  const [selectedCatId, setSelectedCatId] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState("");
+
+  // Category form
+  const [showCatForm, setShowCatForm] = React.useState(false);
+  const [editingCat, setEditingCat] = React.useState(null);
+  const [catForm, setCatForm] = React.useState({ ...EMPTY_CAT });
+
+  // Subcategory form
+  const [showSubForm, setShowSubForm] = React.useState(false);
+  const [editingSub, setEditingSub] = React.useState(null);
+  const [subForm, setSubForm] = React.useState({ ...EMPTY_SUB });
+
+  const loadCategories = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/v2/admin/catalog/categories", { credentials: "include" });
+      const data = await res.json();
+      setCategories(data.data || []);
+    } catch (e) { setError(e.message); } finally { setLoading(false); }
+  }, []);
+
+  const loadSubcategories = React.useCallback(async (catId) => {
+    setLoading(true);
+    try {
+      const url = catId ? `/api/v2/admin/catalog/subcategories?categoryId=${catId}` : "/api/v2/admin/catalog/subcategories";
+      const res = await fetch(url, { credentials: "include" });
+      const data = await res.json();
+      setSubcategories(data.data || []);
+    } catch (e) { setError(e.message); } finally { setLoading(false); }
+  }, []);
+
+  React.useEffect(() => { loadCategories(); }, []);
+  React.useEffect(() => { if (view === "subcategories") loadSubcategories(selectedCatId); }, [view, selectedCatId]);
+
+  // Save category
+  async function saveCat(e) {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      const url = editingCat ? `/api/v2/admin/catalog/categories/${editingCat._id}` : "/api/v2/admin/catalog/categories";
+      const method = editingCat ? "PUT" : "POST";
+      const res = await fetch(url, { method, credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(catForm) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      setShowCatForm(false);
+      setEditingCat(null);
+      setCatForm({ ...EMPTY_CAT });
+      await loadCategories();
+    } catch (e) { setError(e.message); } finally { setSaving(false); }
+  }
+
+  async function deleteCat(id) {
+    if (!confirm("Delete this category and ALL its subcategories?")) return;
+    await fetch(`/api/v2/admin/catalog/categories/${id}`, { method: "DELETE", credentials: "include" });
+    await loadCategories();
+  }
+
+  // Save subcategory
+  async function saveSub(e) {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      const payload = { ...subForm, categoryId: selectedCatId || subForm.categoryId };
+      const url = editingSub ? `/api/v2/admin/catalog/subcategories/${editingSub._id}` : "/api/v2/admin/catalog/subcategories";
+      const method = editingSub ? "PUT" : "POST";
+      const res = await fetch(url, { method, credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      setShowSubForm(false);
+      setEditingSub(null);
+      setSubForm({ ...EMPTY_SUB });
+      await loadSubcategories(selectedCatId);
+    } catch (e) { setError(e.message); } finally { setSaving(false); }
+  }
+
+  async function deleteSub(id) {
+    if (!confirm("Delete this subcategory?")) return;
+    await fetch(`/api/v2/admin/catalog/subcategories/${id}`, { method: "DELETE", credentials: "include" });
+    await loadSubcategories(selectedCatId);
+  }
+
+  const S = { card: { background: "#fff", borderRadius: 16, padding: 24, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", marginBottom: 16 } };
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: "#0f172a" }}>Catalog Management</h1>
+          <p style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>Manage service categories, subcategories, packages and booking questions.</p>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => setView("categories")} style={pillButton(view === "categories")}>Categories</button>
+          <button onClick={() => setView("subcategories")} style={pillButton(view === "subcategories")}>Subcategories</button>
+        </div>
+      </div>
+
+      {error && <div style={{ background: "#fee2e2", color: "#b91c1c", borderRadius: 12, padding: "10px 16px", marginBottom: 16, fontSize: 13, fontWeight: 600 }}>{error}</div>}
+
+      {/* ── Categories View ── */}
+      {view === "categories" && (
+        <div style={S.card}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: "#1e293b" }}>Service Categories</h2>
+            <button style={primaryButton} onClick={() => { setEditingCat(null); setCatForm({ ...EMPTY_CAT }); setShowCatForm(true); }}>+ Add Category</button>
+          </div>
+
+          {showCatForm && (
+            <form onSubmit={saveCat} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 12, padding: 20, marginBottom: 20 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                <div>
+                  <label style={LABEL_STYLE}>Name *</label>
+                  <input style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }} value={catForm.name} onChange={e => setCatForm(f => ({ ...f, name: e.target.value, slug: autoSlug(e.target.value) }))} required />
+                </div>
+                <div>
+                  <label style={LABEL_STYLE}>Slug *</label>
+                  <input style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }} value={catForm.slug} onChange={e => setCatForm(f => ({ ...f, slug: e.target.value }))} required />
+                </div>
+                <div style={{ gridColumn: "1/-1" }}>
+                  <label style={LABEL_STYLE}>Description</label>
+                  <textarea style={{ ...INPUT_STYLE, width: "100%", marginTop: 4, resize: "vertical" }} rows={2} value={catForm.description} onChange={e => setCatForm(f => ({ ...f, description: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={LABEL_STYLE}>Icon (Lucide name)</label>
+                  <input style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }} value={catForm.icon} onChange={e => setCatForm(f => ({ ...f, icon: e.target.value }))} placeholder="Camera, Network, Laptop..." />
+                </div>
+                <div>
+                  <label style={LABEL_STYLE}>Color</label>
+                  <input type="color" style={{ height: 42, width: "100%", borderRadius: 12, border: "1px solid #cbd5e1", marginTop: 4 }} value={catForm.color} onChange={e => setCatForm(f => ({ ...f, color: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={LABEL_STYLE}>Sort Order</label>
+                  <input type="number" style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }} value={catForm.sortOrder} onChange={e => setCatForm(f => ({ ...f, sortOrder: parseInt(e.target.value) || 0 }))} />
+                </div>
+                <div>
+                  <label style={LABEL_STYLE}>Active</label>
+                  <select style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }} value={catForm.isActive ? "true" : "false"} onChange={e => setCatForm(f => ({ ...f, isActive: e.target.value === "true" }))}>
+                    <option value="true">Yes</option>
+                    <option value="false">No</option>
+                  </select>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button type="submit" style={primaryButton} disabled={saving}>{saving ? "Saving..." : editingCat ? "Update Category" : "Create Category"}</button>
+                <button type="button" style={{ ...primaryButton, background: "#e2e8f0", color: "#475569" }} onClick={() => { setShowCatForm(false); setEditingCat(null); }}>Cancel</button>
+              </div>
+            </form>
+          )}
+
+          {loading ? <div style={{ textAlign: "center", padding: 24, color: "#64748b" }}>Loading...</div> : (
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ borderBottom: "2px solid #f1f5f9" }}>
+                  {["Name", "Slug", "Icon", "Color", "Order", "Active", "Actions"].map(h => (
+                    <th key={h} style={{ ...TD_STYLE, fontWeight: 700, color: "#475569", textAlign: "left" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {categories.map(cat => (
+                  <tr key={cat._id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                    <td style={{ ...TD_STYLE, fontWeight: 700, color: "#1e293b" }}>{cat.name}</td>
+                    <td style={TD_STYLE}><code style={{ fontSize: 11, background: "#f1f5f9", padding: "2px 6px", borderRadius: 6 }}>{cat.slug}</code></td>
+                    <td style={TD_STYLE}>{cat.icon}</td>
+                    <td style={TD_STYLE}><div style={{ width: 20, height: 20, borderRadius: 6, background: cat.color, border: "1px solid #e2e8f0" }} /></td>
+                    <td style={TD_STYLE}>{cat.sortOrder}</td>
+                    <td style={TD_STYLE}>
+                      <span style={{ padding: "2px 8px", borderRadius: 99, background: cat.isActive ? "#dcfce7" : "#fee2e2", color: cat.isActive ? "#15803d" : "#b91c1c", fontSize: 11, fontWeight: 700 }}>
+                        {cat.isActive ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+                    <td style={{ ...TD_STYLE, display: "flex", gap: 6 }}>
+                      <button style={approveButton} onClick={() => { setEditingCat(cat); setCatForm({ name: cat.name, slug: cat.slug, description: cat.description || "", icon: cat.icon || "", color: cat.color || "#3B82F6", gradient: cat.gradient || "", isActive: cat.isActive, sortOrder: cat.sortOrder || 0 }); setShowCatForm(true); }}>Edit</button>
+                      <button style={rejectButton} onClick={() => deleteCat(cat._id)}>Delete</button>
+                      <button style={{ ...approveButton, background: "#e0f2fe", color: "#0369a1" }} onClick={() => { setSelectedCatId(cat._id); setView("subcategories"); }}>Subs</button>
+                    </td>
+                  </tr>
+                ))}
+                {categories.length === 0 && <tr><td colSpan={7} style={{ textAlign: "center", padding: 32, color: "#94a3b8" }}>No categories yet. Click "+ Add Category" to create the first one.</td></tr>}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {/* ── Subcategories View ── */}
+      {view === "subcategories" && (
+        <div style={S.card}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: "#1e293b" }}>Subcategories</h2>
+              <select style={{ ...INPUT_STYLE, minWidth: 200 }} value={selectedCatId} onChange={e => setSelectedCatId(e.target.value)}>
+                <option value="">All Categories</option>
+                {categories.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+              </select>
+            </div>
+            <button style={primaryButton} onClick={() => { setEditingSub(null); setSubForm({ ...EMPTY_SUB, categoryId: selectedCatId }); setShowSubForm(true); }}>+ Add Subcategory</button>
+          </div>
+
+          {showSubForm && (
+            <form onSubmit={saveSub} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 12, padding: 20, marginBottom: 20 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                <div>
+                  <label style={LABEL_STYLE}>Category *</label>
+                  <select style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }} value={subForm.categoryId} onChange={e => setSubForm(f => ({ ...f, categoryId: e.target.value }))} required>
+                    <option value="">Select Category</option>
+                    {categories.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={LABEL_STYLE}>Name *</label>
+                  <input style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }} value={subForm.name} onChange={e => setSubForm(f => ({ ...f, name: e.target.value, slug: autoSlug(e.target.value) }))} required />
+                </div>
+                <div>
+                  <label style={LABEL_STYLE}>Slug *</label>
+                  <input style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }} value={subForm.slug} onChange={e => setSubForm(f => ({ ...f, slug: e.target.value }))} required />
+                </div>
+                <div>
+                  <label style={LABEL_STYLE}>Sort Order</label>
+                  <input type="number" style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }} value={subForm.sortOrder} onChange={e => setSubForm(f => ({ ...f, sortOrder: parseInt(e.target.value) || 0 }))} />
+                </div>
+                <div style={{ gridColumn: "1/-1" }}>
+                  <label style={LABEL_STYLE}>Description</label>
+                  <textarea style={{ ...INPUT_STYLE, width: "100%", marginTop: 4, resize: "vertical" }} rows={2} value={subForm.description} onChange={e => setSubForm(f => ({ ...f, description: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={LABEL_STYLE}>Active</label>
+                  <select style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }} value={subForm.isActive ? "true" : "false"} onChange={e => setSubForm(f => ({ ...f, isActive: e.target.value === "true" }))}>
+                    <option value="true">Yes</option>
+                    <option value="false">No</option>
+                  </select>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button type="submit" style={primaryButton} disabled={saving}>{saving ? "Saving..." : editingSub ? "Update" : "Create Subcategory"}</button>
+                <button type="button" style={{ ...primaryButton, background: "#e2e8f0", color: "#475569" }} onClick={() => { setShowSubForm(false); setEditingSub(null); }}>Cancel</button>
+              </div>
+            </form>
+          )}
+
+          {loading ? <div style={{ textAlign: "center", padding: 24, color: "#64748b" }}>Loading...</div> : (
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ borderBottom: "2px solid #f1f5f9" }}>
+                  {["Name", "Slug", "Category", "Order", "Packages", "Questions", "Active", "Actions"].map(h => (
+                    <th key={h} style={{ ...TD_STYLE, fontWeight: 700, color: "#475569", textAlign: "left" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {subcategories.map(sub => (
+                  <tr key={sub._id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                    <td style={{ ...TD_STYLE, fontWeight: 700, color: "#1e293b" }}>{sub.name}</td>
+                    <td style={TD_STYLE}><code style={{ fontSize: 11, background: "#f1f5f9", padding: "2px 6px", borderRadius: 6 }}>{sub.slug}</code></td>
+                    <td style={TD_STYLE}>{typeof sub.categoryId === "object" ? sub.categoryId?.name : categories.find(c => c._id === sub.categoryId)?.name || "—"}</td>
+                    <td style={TD_STYLE}>{sub.sortOrder}</td>
+                    <td style={TD_STYLE}>{(sub.packages || []).length}</td>
+                    <td style={TD_STYLE}>{(sub.bookingQuestions || []).length}</td>
+                    <td style={TD_STYLE}>
+                      <span style={{ padding: "2px 8px", borderRadius: 99, background: sub.isActive ? "#dcfce7" : "#fee2e2", color: sub.isActive ? "#15803d" : "#b91c1c", fontSize: 11, fontWeight: 700 }}>
+                        {sub.isActive ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+                    <td style={{ ...TD_STYLE, display: "flex", gap: 6 }}>
+                      <button style={approveButton} onClick={() => { setEditingSub(sub); setSubForm({ name: sub.name, slug: sub.slug, description: sub.description || "", icon: sub.icon || "", isActive: sub.isActive, sortOrder: sub.sortOrder || 0, categoryId: typeof sub.categoryId === "object" ? sub.categoryId._id : sub.categoryId }); setShowSubForm(true); }}>Edit</button>
+                      <button style={rejectButton} onClick={() => deleteSub(sub._id)}>Delete</button>
+                    </td>
+                  </tr>
+                ))}
+                {subcategories.length === 0 && <tr><td colSpan={8} style={{ textAlign: "center", padding: 32, color: "#94a3b8" }}>No subcategories found. Select a category and click "+ Add Subcategory".</td></tr>}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

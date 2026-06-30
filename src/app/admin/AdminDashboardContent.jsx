@@ -24,7 +24,8 @@ import {
   StudentProfilesPage,
   AdmissionPaymentsPage,
   CourseAssignmentPage,
-  AdmissionAnalyticsPage
+  AdmissionAnalyticsPage,
+  CategoryManagementPage
 } from "../../components/AdminPagesModern";
 import { io } from "socket.io-client";
 import { DispatchMonitorPage, CancellationsPage, TechPerformancePage, PenaltiesPage } from "../../components/DispatchAdminPages";
@@ -199,6 +200,7 @@ export default function AdminDashboardContent() {
     "analytics-members": <DomainAnalyticsPage domain="members.techbes.co.in" title="Members Portal Analytics" />,
     "analytics-skills": <DomainAnalyticsPage domain="skills.techbes.co.in" title="Skills Portal Analytics" />,
     settings: <SettingsPage />,
+    catalog: <CategoryManagementPage />,
   };
 
   return (
