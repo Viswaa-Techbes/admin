@@ -32,6 +32,7 @@ import { DispatchMonitorPage, CancellationsPage, TechPerformancePage, PenaltiesP
 import { AnalyticsPage } from "../../components/AnalyticsPage";
 import DomainAnalyticsPage from "../../components/analytics/DomainAnalyticsPage";
 import { WorksheetsPage } from "../../components/WorksheetsPage";
+import { KycApprovalsPage } from "../../components/KycApprovalsPage";
 import { wakeBackend, apiFetch } from "../../lib/apiClient";
 
 export default function AdminDashboardContent() {
@@ -126,6 +127,7 @@ export default function AdminDashboardContent() {
       else if (path.includes('/admin/analytics-skills')) setActivePage('analytics-skills');
       else if (path.includes('/admin/analytics') || path.includes('/admin/reports')) setActivePage('reports');
       else if (path.includes('/admin/worksheets')) setActivePage('worksheets');
+      else if (path.includes('/admin/kyc-approvals')) setActivePage('kyc-approvals');
       else if (path.includes('/admin/settings')) setActivePage('settings');
       else if (path.includes('/admin/penalties')) setActivePage('penalties');
       else if (path === '/admin') setActivePage('dashboard');
@@ -199,6 +201,7 @@ export default function AdminDashboardContent() {
     "analytics-main": <DomainAnalyticsPage domain="techbes.co.in" title="Main Website Analytics" />,
     "analytics-members": <DomainAnalyticsPage domain="members.techbes.co.in" title="Members Portal Analytics" />,
     "analytics-skills": <DomainAnalyticsPage domain="skills.techbes.co.in" title="Skills Portal Analytics" />,
+    "kyc-approvals": <KycApprovalsPage />,
     settings: <SettingsPage />,
     catalog: <CategoryManagementPage />,
   };
@@ -218,6 +221,7 @@ export default function AdminDashboardContent() {
             'analytics-main': '/admin/analytics-main',
             'analytics-members': '/admin/analytics-members',
             'analytics-skills': '/admin/analytics-skills',
+            'kyc-approvals': '/admin/kyc-approvals',
             worksheets: '/admin/worksheets',
             settings: '/admin/settings',
             penalties: '/admin/penalties',

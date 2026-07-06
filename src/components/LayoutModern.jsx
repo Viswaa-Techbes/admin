@@ -11,6 +11,7 @@ export const NAV_ITEMS = [
   { id: "service-requests", label: "Service Requests", icon: <BellIcon />, badge: null },
   // ─── Phase 2: Dispatch ────────────────────────────────────────────────────
   { id: "dispatch-monitor", label: "Dispatch Monitor", icon: <MapPinIcon /> },
+  { id: "kyc-approvals", label: "Technician KYC Approvals", icon: <UsersIcon /> },
   { id: "cancellations", label: "Cancellations", icon: <BellIcon /> },
   { id: "tech-performance", label: "Technician Performance", icon: <ChartIcon /> },
   { id: "penalties", label: "Penalties", icon: <CreditCardIcon /> },
