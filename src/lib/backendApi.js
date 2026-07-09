@@ -4,7 +4,7 @@ export const RENDER_BACKEND_URL =
   process.env.BACKEND_API_URL ||
   process.env.NEXT_PUBLIC_API_BASE_URL ||
   process.env.NEXT_PUBLIC_BACKEND_API_URL ||
-  'https://technician-app.onrender.com';
+  'https://api.techbes.co.in';
 
 const API_BASE_URL = RENDER_BACKEND_URL;
 const FETCH_TIMEOUT_MS = 90000;
@@ -90,13 +90,13 @@ export async function fetchBackend(
 
       if (err.name === 'AbortError') {
         throw new Error(
-          'Backend request timed out. The Render server may be waking up — please wait 60–90 seconds and try again.'
+          'Backend request timed out. The server may be restarting — please wait and try again.'
         );
       }
 
       throw new Error(
         err.message ||
-          `Failed to reach Render backend (${RENDER_BACKEND_URL}). Check your connection and try again.`
+          `Failed to reach backend (${RENDER_BACKEND_URL}). Check your connection and try again.`
       );
     }
   }

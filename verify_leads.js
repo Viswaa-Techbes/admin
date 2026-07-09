@@ -1,7 +1,7 @@
 const axios = require('axios');
 
 async function verifyLeads() {
-  const baseUrl = 'https://technician-app.onrender.com/leads';
+  const baseUrl = 'https://api.techbes.co.in/leads';
   
   console.log('--- Testing POST /api/leads ---');
   try {

@@ -1,6 +1,6 @@
 import https from 'https';
 
-const backendUrl = new URL(process.env.BACKEND_API_URL || 'https://technician-app.onrender.com');
+const backendUrl = new URL(process.env.BACKEND_API_URL || 'https://api.techbes.co.in');
 backendUrl.pathname = '/health';
 
 const req = https.request(backendUrl, (res) => {

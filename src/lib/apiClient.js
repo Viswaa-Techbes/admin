@@ -1,12 +1,12 @@
 /**
  * Client-side API helper — always sends auth cookies to the Next.js proxy,
- * which forwards requests to the Render backend.
+ * which forwards requests to the production backend.
  */
 
 export const RENDER_BACKEND_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ||
   process.env.NEXT_PUBLIC_BACKEND_API_URL ||
-  'https://technician-app.onrender.com';
+  'https://api.techbes.co.in';
 
 export async function apiFetch(path, options = {}) {
   const { body, headers = {}, method = 'GET', ...rest } = options;
@@ -41,7 +41,7 @@ export async function apiFetch(path, options = {}) {
       (res.status === 401
         ? 'Authentication required. Please log in again.'
         : res.status === 503
-          ? 'Backend is waking up on Render. Please wait and try again.'
+          ? 'Backend is waking up. Please wait and try again.'
           : `Request failed (${res.status})`);
     throw new Error(message);
   }
@@ -49,7 +49,7 @@ export async function apiFetch(path, options = {}) {
   return { res, payload, data: payload.data ?? payload };
 }
 
-/** Ping Render via the Next.js health proxy to reduce cold-start failures. */
+/** Ping backend via the Next.js health proxy. */
 export async function wakeBackend() {
   try {
     await fetch('/api/health', { credentials: 'include', cache: 'no-store' });
