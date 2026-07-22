@@ -27,6 +27,7 @@ import {
   AdmissionAnalyticsPage,
   CategoryManagementPage
 } from "../../components/AdminPagesModern";
+import { CctvPricingManagementPage } from "../../components/CctvPricingManagementPage";
 import { io } from "socket.io-client";
 import { DispatchMonitorPage, CancellationsPage, TechPerformancePage, PenaltiesPage } from "../../components/DispatchAdminPages";
 import { AnalyticsPage } from "../../components/AnalyticsPage";
@@ -126,6 +127,7 @@ export default function AdminDashboardContent() {
       else if (path.includes('/admin/analytics-members')) setActivePage('analytics-members');
       else if (path.includes('/admin/analytics-skills')) setActivePage('analytics-skills');
       else if (path.includes('/admin/analytics') || path.includes('/admin/reports')) setActivePage('reports');
+      else if (path.includes('/admin/cctv-pricing')) setActivePage('cctv-pricing');
       else if (path.includes('/admin/worksheets')) setActivePage('worksheets');
       else if (path.includes('/admin/kyc-approvals')) setActivePage('kyc-approvals');
       else if (path.includes('/admin/settings')) setActivePage('settings');
@@ -204,6 +206,7 @@ export default function AdminDashboardContent() {
     "kyc-approvals": <KycApprovalsPage />,
     settings: <SettingsPage />,
     catalog: <CategoryManagementPage />,
+    "cctv-pricing": <CctvPricingManagementPage />,
   };
 
   return (
@@ -222,6 +225,7 @@ export default function AdminDashboardContent() {
             'analytics-members': '/admin/analytics-members',
             'analytics-skills': '/admin/analytics-skills',
             'kyc-approvals': '/admin/kyc-approvals',
+            'cctv-pricing': '/admin/cctv-pricing',
             worksheets: '/admin/worksheets',
             settings: '/admin/settings',
             penalties: '/admin/penalties',

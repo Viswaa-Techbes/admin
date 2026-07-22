@@ -21,6 +21,7 @@ export const NAV_ITEMS = [
   { id: "reviews", label: "Technician Reviews", icon: <ChartIcon /> },
   { id: "services", label: "Services", icon: <WrenchIcon /> },
   { id: "catalog", label: "Catalog Management", icon: <WrenchIcon /> },
+  { id: "cctv-pricing", label: "CCTV Pricing", icon: <CreditCardIcon /> },
   { id: "addresses", label: "Address Management", icon: <MapPinIcon /> },
   { id: "payments", label: "Payments", icon: <CreditCardIcon /> },
   { id: "tracking", label: "Live Tracking", icon: <MapPinIcon /> },
