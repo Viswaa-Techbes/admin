@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect } from "react";
 import { apiFetch } from "../lib/apiClient";
 import { PageHeader, Card, ActionBtn, Modal } from "./UI";

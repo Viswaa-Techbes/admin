@@ -1,3 +1,5 @@
+"use client";
+
 import React from "react";
 import { 
   StarIcon, SearchIcon, EditIcon, TrashIcon, EyeIcon, PlusIcon, 

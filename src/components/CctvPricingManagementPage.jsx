@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect, useMemo } from "react";
 import { PageHeader, Card, TableWrapper, ActionBtn, SectionHeader, useToast } from "./UI";
 import { PlusIcon, EditIcon, TrashIcon } from "./Icons";

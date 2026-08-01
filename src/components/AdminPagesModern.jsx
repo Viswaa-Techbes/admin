@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from 'next/dynamic';
 import { io } from 'socket.io-client';
@@ -3156,6 +3158,7 @@ export function ServiceRequestsPage() {
             const isActive = selectedRequestId === booking.id;
             const dscColors = {
               pending_dispatch: { bg: "#fef3c7", color: "#92400e" },
+              pending_admin_assignment: { bg: "#fee2e2", color: "#b91c1c" },
               dispatching: { bg: "#dbeafe", color: "#1e40af" },
               assigned: { bg: "#d1fae5", color: "#065f46" },
               no_tech_found: { bg: "#fee2e2", color: "#991b1b" },
