@@ -42,6 +42,121 @@ export const NAV_ITEMS = [
 ];
 
 export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLogout }) {
+  const groups = [
+    {
+      id: "dashboard",
+      title: "Dashboard",
+      items: [
+        { id: "dashboard", label: "Dashboard", icon: <GridIcon /> }
+      ]
+    },
+    {
+      id: "customers",
+      title: "Customer Management",
+      items: [
+        { id: "technicians", label: "Customers", icon: <UsersIcon /> },
+        { id: "leads", label: "Leads", icon: <BriefcaseIcon /> },
+        { id: "service-requests", label: "Bookings", icon: <BellIcon /> },
+        { id: "cancellations", label: "Cancellations", icon: <BellIcon /> }
+      ]
+    },
+    {
+      id: "services",
+      title: "Services",
+      items: [
+        { id: "services", label: "Services", icon: <WrenchIcon /> },
+        { id: "catalog", label: "Catalog", icon: <WrenchIcon /> },
+        { id: "cctv-pricing", label: "CCTV Pricing", icon: <CreditCardIcon /> }
+      ]
+    },
+    {
+      id: "dispatch",
+      title: "Dispatch",
+      items: [
+        { id: "dispatch-monitor", label: "Dispatch Monitor", icon: <MapPinIcon /> },
+        { id: "tracking", label: "Live Tracking", icon: <MapPinIcon /> },
+        { id: "attendance", label: "Attendance", icon: <MapPinIcon /> },
+        { id: "tech-performance", label: "Technician Performance", icon: <ChartIcon /> },
+        { id: "requests", label: "Completion Requests", icon: <BellIcon /> },
+        { id: "worksheets", label: "Service Worksheets", icon: <BriefcaseIcon /> }
+      ]
+    },
+    {
+      id: "technicians",
+      title: "Technician Management",
+      items: [
+        { id: "members", label: "Employees", icon: <HardHatIcon /> },
+        { id: "kyc-approvals", label: "KYC", icon: <UsersIcon /> },
+        { id: "reviews", label: "Reviews", icon: <ChartIcon /> },
+        { id: "penalties", label: "Penalties", icon: <CreditCardIcon /> }
+      ]
+    },
+    {
+      id: "academic",
+      title: "Academic Admissions",
+      items: [
+        { id: "admissions", label: "Applications", icon: <UsersIcon /> },
+        { id: "student-profiles", label: "Students", icon: <UsersIcon /> },
+        { id: "admission-payments", label: "Payments", icon: <CreditCardIcon /> },
+        { id: "course-assignment", label: "Assignments", icon: <BriefcaseIcon /> },
+        { id: "admission-analytics", label: "Analytics", icon: <ChartIcon /> }
+      ]
+    },
+    {
+      id: "visitor-analytics",
+      title: "Visitor Analytics",
+      items: [
+        { id: "analytics-main", label: "Main Website", icon: <ChartIcon /> },
+        { id: "analytics-members", label: "Members Portal", icon: <ChartIcon /> },
+        { id: "analytics-skills", label: "Skills Portal", icon: <ChartIcon /> }
+      ]
+    },
+    {
+      id: "finance",
+      title: "Finance",
+      items: [
+        { id: "payments", label: "Payments", icon: <CreditCardIcon /> },
+        { id: "reports", label: "Reports", icon: <ChartIcon /> }
+      ]
+    },
+    {
+      id: "settings",
+      title: "Settings",
+      items: [
+        { id: "addresses", label: "Address Management", icon: <MapPinIcon /> },
+        { id: "notifications", label: "Notifications", icon: <BellIcon /> },
+        { id: "settings", label: "Settings", icon: <SettingsIcon /> }
+      ]
+    }
+  ];
+
+  const [expandedGroups, setExpandedGroups] = React.useState({});
+
+  // Auto-expand group containing the active page
+  React.useEffect(() => {
+    groups.forEach(g => {
+      if (g.items.some(i => i.id === active)) {
+        setExpandedGroups(prev => ({ ...prev, [g.id]: true }));
+      }
+    });
+  }, [active]);
+
+  const toggleGroup = (groupId) => {
+    setExpandedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
+  };
+
+  const flatItems = React.useMemo(() => {
+    const list = [];
+    groups.forEach(g => {
+      g.items.forEach(i => {
+        if (!list.some(existing => existing.id === i.id)) {
+          list.push(i);
+        }
+      });
+    });
+    return list;
+  }, []);
+
   return (
     <aside style={{ width: collapsed ? 64 : 240, background: "#0c0e16", display: "flex", flexDirection: "column", transition: "width .22s cubic-bezier(.4,0,.2,1)", flexShrink: 0, position: "relative", zIndex: 50, boxShadow: "1px 0 0 rgba(255,255,255,0.04)" }}>
       <div style={{ padding: collapsed ? "20px 14px" : "20px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 10, overflow: "hidden" }}>
@@ -55,21 +170,123 @@ export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLo
       </div>
 
       <nav style={{ flex: 1, padding: "12px 8px", overflowY: "auto", overflowX: "hidden" }}>
-        {!collapsed && <div style={{ fontSize: 10, fontWeight: 600, color: "#334155", letterSpacing: "1px", textTransform: "uppercase", padding: "4px 12px 8px" }}>Main Menu</div>}
-        {NAV_ITEMS.map((item, idx) => {
-          if (item.isHeader) {
-            return !collapsed ? <div key={`header-${idx}`} style={{ fontSize: 10, fontWeight: 600, color: "#334155", letterSpacing: "1px", textTransform: "uppercase", padding: "16px 12px 8px", marginTop: 8, borderTop: "1px solid rgba(255,255,255,0.06)" }}>{item.label}</div> : <div key={`header-${idx}`} style={{height: 1, background: "rgba(255,255,255,0.06)", margin: "8px 0"}} />;
-          }
-          const isActive = active === item.id;
-          return (
-            <button key={item.id + idx} onClick={() => setActive(item.id)} title={collapsed ? item.label : ""} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: collapsed ? "10px 18px" : "9px 12px", paddingLeft: !collapsed && item.isSub ? "24px" : (collapsed ? "18px" : "12px"), marginBottom: 1, borderRadius: 10, border: "none", cursor: "pointer", color: isActive ? "#fff" : "#64748b", background: isActive ? "linear-gradient(90deg,rgba(99,102,241,0.2),rgba(99,102,241,0.05))" : "transparent", fontSize: 13, fontWeight: isActive ? 600 : 400, transition: "all .15s", justifyContent: collapsed ? "center" : "flex-start", position: "relative", textAlign: "left", whiteSpace: "nowrap", overflow: "hidden" }}>
-              {isActive ? <span style={{ position: "absolute", left: 0, top: "18%", height: "64%", width: 3, background: "#6366f1", borderRadius: "0 3px 3px 0" }} /> : null}
-              <span style={{ color: isActive ? "#818cf8" : "#475569", flexShrink: 0 }}>{item.icon}</span>
-              {!collapsed ? <span style={{ flex: 1 }}>{item.label}</span> : null}
-              {!collapsed && item.badge ? <span style={{ background: "#f43f5e", color: "#fff", fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 99, flexShrink: 0 }}>{item.badge}</span> : null}
-            </button>
-          );
-        })}
+        {collapsed ? (
+          flatItems.map((item, idx) => {
+            const isActive = active === item.id;
+            return (
+              <button
+                key={item.id + idx}
+                onClick={() => setActive(item.id)}
+                title={item.label}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "100%",
+                  padding: "12px",
+                  marginBottom: 4,
+                  borderRadius: 10,
+                  border: "none",
+                  cursor: "pointer",
+                  color: isActive ? "#fff" : "#64748b",
+                  background: isActive ? "linear-gradient(90deg,rgba(99,102,241,0.2),rgba(99,102,241,0.05))" : "transparent",
+                  transition: "all .15s"
+                }}
+              >
+                <span style={{ color: isActive ? "#818cf8" : "#475569" }}>{item.icon}</span>
+              </button>
+            );
+          })
+        ) : (
+          groups.map((group) => {
+            const isExpanded = expandedGroups[group.id] || false;
+            const hasActiveItem = group.items.some(i => i.id === active);
+            return (
+              <div key={group.id} style={{ marginBottom: 8 }}>
+                {/* Group Header */}
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group.id)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    width: "100%",
+                    padding: "8px 12px",
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    color: hasActiveItem ? "#818cf8" : "#475569",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: "0.8px",
+                    textTransform: "uppercase"
+                  }}
+                >
+                  <span style={{ flex: 1 }}>{group.title}</span>
+                  <span style={{
+                    transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                    transition: "transform 0.15s",
+                    fontSize: 9,
+                    color: "#475569"
+                  }}>
+                    &gt;
+                  </span>
+                </button>
+
+                {/* Group Items */}
+                {isExpanded && (
+                  <div style={{ marginTop: 2, paddingLeft: 4 }}>
+                    {group.items.map((item, idx) => {
+                      const isActive = active === item.id;
+                      return (
+                        <button
+                          key={item.id + idx}
+                          onClick={() => setActive(item.id)}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            width: "100%",
+                            padding: "8px 12px",
+                            marginBottom: 2,
+                            borderRadius: 8,
+                            border: "none",
+                            cursor: "pointer",
+                            color: isActive ? "#fff" : "#64748b",
+                            background: isActive ? "linear-gradient(90deg,rgba(99,102,241,0.15),rgba(99,102,241,0.02))" : "transparent",
+                            fontSize: 13,
+                            fontWeight: isActive ? 600 : 400,
+                            transition: "all .15s",
+                            position: "relative",
+                            textAlign: "left"
+                          }}
+                        >
+                          {isActive && (
+                            <span style={{
+                              position: "absolute",
+                              left: 0,
+                              top: "20%",
+                              height: "60%",
+                              width: 3,
+                              background: "#6366f1",
+                              borderRadius: "0 3px 3px 0"
+                            }} />
+                          )}
+                          <span style={{ color: isActive ? "#818cf8" : "#475569", flexShrink: 0 }}>
+                            {item.icon}
+                          </span>
+                          <span style={{ flex: 1 }}>{item.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
       </nav>
 
       <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: "12px 8px" }}>
