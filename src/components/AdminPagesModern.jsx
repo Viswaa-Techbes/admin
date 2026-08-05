@@ -3021,7 +3021,18 @@ export function ServiceRequestsPage() {
             <InfoSection title="Service Information">
               <DetailField label="Service Name" value={viewModal.serviceName} isEditing={false} />
               <DetailField label="Service Category" value={viewModal.serviceCategory || viewModal.cctvDetails?.category?.name} isEditing={false} />
-              <DetailField label="Subcategory" value={viewModal.serviceSubcategory || viewModal.cctvDetails?.subcategory?.name} isEditing={false} />
+              <DetailField 
+                label="Subcategory" 
+                value={
+                  <span>
+                    {viewModal.serviceSubcategory || viewModal.cctvDetails?.subcategory?.name}
+                    {viewModal.cctvDetails?.cameraCount > 16 && (
+                      <span style={{ marginLeft: 8, background: "#e0f2fe", color: "#0369a1", padding: "2px 6px", borderRadius: 4, fontSize: 10, fontWeight: 800 }}>ENTERPRISE</span>
+                    )}
+                  </span>
+                } 
+                isEditing={false} 
+              />
               <DetailField label="Labour Charges" value={viewModal.labourCharges ? `₹${viewModal.labourCharges}` : "—"} isEditing={false} />
               <DetailField label="Total Amount" value={`₹${viewModal.totalAmount || viewModal.grandTotal || 0}`} isEditing={false} />
               <DetailField label="Status" value={editForm.status} type="select" options={bookingStatusOptions} isEditing onChange={(v) => updateEditField("status", v)} />
@@ -3051,6 +3062,21 @@ export function ServiceRequestsPage() {
                   </div>
                 ) : <div style={{ color: "#94a3b8", fontSize: 13, marginTop: 4 }}>No materials selected</div>}
               </div>
+
+              {viewModal.cctvDetails && (
+                <div style={{ gridColumn: "1 / -1", marginTop: 10, background: "#f8fafc", padding: 12, borderRadius: 12, border: "1px solid #e2e8f0" }}>
+                  <h4 style={{ margin: "0 0 8px 0", fontSize: 13, fontWeight: 700, color: "#0f172a" }}>CCTV Installation Specifications</h4>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+                    <DetailField label="Property Type" value={viewModal.cctvDetails.propertyType || "—"} isEditing={false} />
+                    <DetailField label="Total Cameras" value={viewModal.cctvDetails.cameraCount || "—"} isEditing={false} />
+                    <DetailField label="Recommended Recorder" value={viewModal.cctvDetails.recommendedDvrChannels || "—"} isEditing={false} />
+                    <DetailField label="Selected Recorder" value={viewModal.cctvDetails.selectedDvrChannels || "—"} isEditing={false} />
+                    <DetailField label="Cable Type" value={viewModal.cctvDetails.cableType || "—"} isEditing={false} />
+                    <DetailField label="Cable Length" value={viewModal.cctvDetails.cableLength ? `${viewModal.cctvDetails.cableLength} meters` : "—"} isEditing={false} />
+                    <DetailField label="Miscellaneous Charges" value={viewModal.cctvDetails.priceBreakdown?.miscCharges ? `₹${viewModal.cctvDetails.priceBreakdown.miscCharges}` : "₹0"} isEditing={false} />
+                  </div>
+                </div>
+              )}
               {viewModal.description && (
                 <div style={{ gridColumn: "1 / -1" }}>
                   <DetailField label="Description" value={viewModal.description} isEditing={false} />
@@ -3193,16 +3219,21 @@ export function ServiceRequestsPage() {
                   {booking.customerEmail && <div style={{ fontSize: 11, color: "#94a3b8" }}>{booking.customerEmail}</div>}
                 </td>
                 <td style={TD_STYLE}>
-                  <div style={{ fontWeight: 600, color: "#0f172a" }}>{booking.serviceName}</div>
+                  <div style={{ fontWeight: 600, color: "#0f172a", display: "flex", alignItems: "center", gap: 6 }}>
+                    {booking.serviceName}
+                    {(booking.cctvDetails?.cameraCount > 16) && (
+                      <span style={{ background: "#f0f9ff", color: "#0369a1", border: "1px solid #bae6fd", padding: "2px 6px", borderRadius: 4, fontSize: 9, fontWeight: 800 }}>ENTERPRISE</span>
+                    )}
+                  </div>
                   {booking.serviceCategory && <div style={{ fontSize: 11, color: "#94a3b8" }}>{booking.serviceCategory}</div>}
                   {booking.address && <div style={{ fontSize: 11, color: "#94a3b8" }}>{booking.address}</div>}
                 </td>
                 <td style={TD_STYLE}>
-                  {booking.cctvDetails?.cameraType?.name ? (
+                  {booking.cctvDetails?.cameraType?.name || booking.cctvDetails?.cameraTypes?.length || booking.cctvDetails?.cameraCount ? (
                     <div style={{ fontSize: 11, lineHeight: 1.6 }}>
                       <div><b>{booking.cctvDetails.subcategory?.name || booking.serviceSubcategory}</b></div>
-                      <div>{booking.cctvDetails.cameraType.name} · {booking.cctvDetails.cameraCount} cams</div>
-                      <div>{booking.cctvDetails.installationArea} · {booking.cctvDetails.wireLength}m · ₹{booking.grandTotal || booking.totalAmount}</div>
+                      <div>{booking.cctvDetails.cameraCount || 0} cams {(booking.cctvDetails?.cameraCount > 16) && <span style={{ color: "#0369a1", fontWeight: 700 }}>(Enterprise)</span>}</div>
+                      <div>{booking.cctvDetails.installationRequired || booking.cctvDetails.installationArea ? "Labour included" : "Self-install"} · {booking.cctvDetails.cableLength || booking.cctvDetails.wireLength || 0}m · ₹{booking.grandTotal || booking.totalAmount}</div>
                     </div>
                   ) : <span style={{ color: "#94a3b8" }}>—</span>}
                 </td>
