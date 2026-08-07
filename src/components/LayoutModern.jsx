@@ -9,6 +9,7 @@ export const NAV_ITEMS = [
   { id: "leads", label: "Lead Management", icon: <BriefcaseIcon /> },
   { id: "jobs", label: "Projects", icon: <BriefcaseIcon /> },
   { id: "service-requests", label: "Service Requests", icon: <BellIcon />, badge: null },
+  { id: "amc", label: "AMC Management", icon: <BriefcaseIcon /> },
   // ─── Phase 2: Dispatch ────────────────────────────────────────────────────
   { id: "dispatch-monitor", label: "Dispatch Monitor", icon: <MapPinIcon /> },
   { id: "kyc-approvals", label: "Technician KYC Approvals", icon: <UsersIcon /> },
@@ -57,6 +58,7 @@ export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLo
         { id: "technicians", label: "Customers", icon: <UsersIcon /> },
         { id: "leads", label: "Leads", icon: <BriefcaseIcon /> },
         { id: "service-requests", label: "Bookings", icon: <BellIcon /> },
+        { id: "amc", label: "AMC Management", icon: <BriefcaseIcon /> },
         { id: "cancellations", label: "Cancellations", icon: <BellIcon /> }
       ]
     },
