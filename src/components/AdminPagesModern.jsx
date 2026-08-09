@@ -3073,6 +3073,8 @@ export function ServiceRequestsPage() {
                     <DetailField label="Selected Recorder" value={viewModal.cctvDetails.selectedDvrChannels || "—"} isEditing={false} />
                     <DetailField label="Cable Type" value={viewModal.cctvDetails.cableType || "—"} isEditing={false} />
                     <DetailField label="Cable Length" value={viewModal.cctvDetails.cableLength ? `${viewModal.cctvDetails.cableLength} meters` : "—"} isEditing={false} />
+                    <DetailField label="HDD Capacity" value={viewModal.cctvDetails.hddCapacity ? `${viewModal.cctvDetails.hddCapacity} (₹${viewModal.cctvDetails.priceBreakdown?.hddTotal || 0})` : "—"} isEditing={false} />
+                    <DetailField label="Rack Type" value={viewModal.cctvDetails.rackType ? `${viewModal.cctvDetails.rackType} (₹${viewModal.cctvDetails.priceBreakdown?.rackSelectedTotal || 0})` : "—"} isEditing={false} />
                     <DetailField label="Miscellaneous Charges" value={viewModal.cctvDetails.priceBreakdown?.miscCharges ? `₹${viewModal.cctvDetails.priceBreakdown.miscCharges}` : "₹0"} isEditing={false} />
                   </div>
                 </div>

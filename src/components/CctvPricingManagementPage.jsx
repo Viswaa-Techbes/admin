@@ -28,6 +28,8 @@ export function CctvPricingManagementPage() {
   const [brands, setBrands] = useState([]);
   const [models, setModels] = useState([]);
   const [sdCards, setSdCards] = useState([]);
+  const [hdds, setHdds] = useState([]);
+  const [racks, setRacks] = useState([]);
   const [cables, setCables] = useState([]);
   const [installation, setInstallation] = useState([]);
   const [accessories, setAccessories] = useState([]);
@@ -41,7 +43,7 @@ export function CctvPricingManagementPage() {
   async function loadData() {
     setLoading(true);
     try {
-      const [bRes, mRes, sdRes, cRes, instRes, accRes, confRes] = await Promise.all([
+      const [bRes, mRes, sdRes, cRes, instRes, accRes, confRes, hddRes, rackRes] = await Promise.all([
         fetch("/api/v2/admin/services/cctv/brands").then(r => r.json()),
         fetch("/api/v2/admin/services/cctv/models").then(r => r.json()),
         fetch("/api/v2/admin/services/cctv/sd-cards").then(r => r.json()),
@@ -49,6 +51,8 @@ export function CctvPricingManagementPage() {
         fetch("/api/v2/admin/services/cctv/installation-charges").then(r => r.json()),
         fetch("/api/v2/admin/services/cctv/accessories").then(r => r.json()),
         fetch("/api/v2/admin/services/cctv/pricing-config").then(r => r.json()),
+        fetch("/api/v2/admin/services/cctv/hdds").then(r => r.json()),
+        fetch("/api/v2/admin/services/cctv/racks").then(r => r.json()),
       ]);
 
       if (bRes.success) setBrands(bRes.data || []);
@@ -57,6 +61,8 @@ export function CctvPricingManagementPage() {
       if (cRes.success) setCables(cRes.data || []);
       if (instRes.success) setInstallation(instRes.data || []);
       if (accRes.success) setAccessories(accRes.data || []);
+      if (hddRes.success) setHdds(hddRes.data || []);
+      if (rackRes.success) setRacks(rackRes.data || []);
       if (confRes.success) {
         setPricingConfig(confRes.data || null);
         if (tab === "general") {
@@ -92,6 +98,8 @@ export function CctvPricingManagementPage() {
     brands: "/api/v2/admin/services/cctv/brands",
     models: "/api/v2/admin/services/cctv/models",
     sdcards: "/api/v2/admin/services/cctv/sd-cards",
+    hdds: "/api/v2/admin/services/cctv/hdds",
+    racks: "/api/v2/admin/services/cctv/racks",
     cables: "/api/v2/admin/services/cctv/cable-pricings",
     installation: "/api/v2/admin/services/cctv/installation-charges",
     accessories: "/api/v2/admin/services/cctv/accessories"
@@ -169,6 +177,8 @@ export function CctvPricingManagementPage() {
     { id: "brands", label: "Brands" },
     { id: "models", label: "Models & Prices" },
     { id: "sdcards", label: "SD Cards" },
+    { id: "hdds", label: "HDD / Storage" },
+    { id: "racks", label: "Racks" },
     { id: "cables", label: "Cables" },
     { id: "installation", label: "Installation Fitting" },
     { id: "accessories", label: "Accessories/Mounts" },
@@ -314,6 +324,58 @@ export function CctvPricingManagementPage() {
               </>
             )}
 
+            {tab === "hdds" && (
+              <>
+                <div>
+                  <label style={LABEL_STYLE}>Capacity</label>
+                  <input
+                    style={INPUT_STYLE}
+                    value={form.capacity || ""}
+                    onChange={(e) => setForm({ ...form, capacity: e.target.value })}
+                    placeholder="e.g. 1TB"
+                    required
+                  />
+                </div>
+                <div>
+                  <label style={LABEL_STYLE}>Price (₹)</label>
+                  <input
+                    type="number"
+                    style={INPUT_STYLE}
+                    value={form.price || ""}
+                    onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
+                    placeholder="e.g. 4000"
+                    required
+                  />
+                </div>
+              </>
+            )}
+
+            {tab === "racks" && (
+              <>
+                <div>
+                  <label style={LABEL_STYLE}>Type</label>
+                  <input
+                    style={INPUT_STYLE}
+                    value={form.type || ""}
+                    onChange={(e) => setForm({ ...form, type: e.target.value })}
+                    placeholder="e.g. Mini 2U"
+                    required
+                  />
+                </div>
+                <div>
+                  <label style={LABEL_STYLE}>Price (₹)</label>
+                  <input
+                    type="number"
+                    style={INPUT_STYLE}
+                    value={form.price || ""}
+                    onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
+                    placeholder="e.g. 950"
+                    required
+                  />
+                </div>
+              </>
+            )}
+
             {(tab === "cables" || tab === "installation" || tab === "accessories") && (
               <>
                 <div>
@@ -442,6 +504,20 @@ export function CctvPricingManagementPage() {
                         <th style={{ ...TH_STYLE, textAlign: "left" }}>Status</th>
                       </>
                     )}
+                    {tab === "hdds" && (
+                      <>
+                        <th style={{ ...TH_STYLE, textAlign: "left" }}>Capacity</th>
+                        <th style={{ ...TH_STYLE, textAlign: "right" }}>Price</th>
+                        <th style={{ ...TH_STYLE, textAlign: "left" }}>Status</th>
+                      </>
+                    )}
+                    {tab === "racks" && (
+                      <>
+                        <th style={{ ...TH_STYLE, textAlign: "left" }}>Type</th>
+                        <th style={{ ...TH_STYLE, textAlign: "right" }}>Price</th>
+                        <th style={{ ...TH_STYLE, textAlign: "left" }}>Status</th>
+                      </>
+                    )}
                     {(tab === "cables" || tab === "installation" || tab === "accessories") && (
                       <>
                         <th style={{ ...TH_STYLE, textAlign: "left" }}>Name</th>
@@ -551,6 +627,66 @@ export function CctvPricingManagementPage() {
                     </tr>
                   ))}
 
+                  {tab === "hdds" && hdds.map((hdd) => (
+                    <tr key={hdd._id}>
+                      <td style={TD_STYLE}><b>{hdd.capacity}</b></td>
+                      <td style={{ ...TD_STYLE, textAlign: "right" }}>₹{hdd.price.toLocaleString("en-IN")}</td>
+                      <td style={TD_STYLE}>
+                        <span style={{ color: hdd.status === "active" ? "#16a34a" : "#dc2626", fontWeight: 700 }}>
+                          {hdd.status.toUpperCase()}
+                        </span>
+                      </td>
+                      <td style={{ ...TD_STYLE, textAlign: "center" }}>
+                        <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                          <button
+                            onClick={() => { setForm(hdd); setShowForm(true); }}
+                            style={{ border: "none", background: "none", cursor: "pointer", color: "#6366f1" }}
+                            title="Edit"
+                          >
+                            <EditIcon />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(hdd._id)}
+                            style={{ border: "none", background: "none", cursor: "pointer", color: "#ef4444" }}
+                            title="Delete"
+                          >
+                            <TrashIcon />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {tab === "racks" && racks.map((rack) => (
+                    <tr key={rack._id}>
+                      <td style={TD_STYLE}><b>{rack.type}</b></td>
+                      <td style={{ ...TD_STYLE, textAlign: "right" }}>₹{rack.price.toLocaleString("en-IN")}</td>
+                      <td style={TD_STYLE}>
+                        <span style={{ color: rack.status === "active" ? "#16a34a" : "#dc2626", fontWeight: 700 }}>
+                          {rack.status.toUpperCase()}
+                        </span>
+                      </td>
+                      <td style={{ ...TD_STYLE, textAlign: "center" }}>
+                        <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                          <button
+                            onClick={() => { setForm(rack); setShowForm(true); }}
+                            style={{ border: "none", background: "none", cursor: "pointer", color: "#6366f1" }}
+                            title="Edit"
+                          >
+                            <EditIcon />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(rack._id)}
+                            style={{ border: "none", background: "none", cursor: "pointer", color: "#ef4444" }}
+                            title="Delete"
+                          >
+                            <TrashIcon />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+
                   {((tab === "cables" && cables) || (tab === "installation" && installation) || (tab === "accessories" && accessories)).map((item) => (
                     <tr key={item._id}>
                       <td style={TD_STYLE}><b>{item.name}</b></td>
@@ -584,6 +720,8 @@ export function CctvPricingManagementPage() {
                   {((tab === "brands" && brands.length === 0) ||
                     (tab === "models" && models.length === 0) ||
                     (tab === "sdcards" && sdCards.length === 0) ||
+                    (tab === "hdds" && hdds.length === 0) ||
+                    (tab === "racks" && racks.length === 0) ||
                     (tab === "cables" && cables.length === 0) ||
                     (tab === "installation" && installation.length === 0) ||
                     (tab === "accessories" && accessories.length === 0)) && (
