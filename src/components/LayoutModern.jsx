@@ -105,6 +105,13 @@ export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLo
       ]
     },
     {
+      id: "masterclasses",
+      title: "Masterclasses",
+      items: [
+        { id: "cctv-masterclass", label: "CCTV Masterclass", icon: <BriefcaseIcon /> }
+      ]
+    },
+    {
       id: "visitor-analytics",
       title: "Visitor Analytics",
       items: [
@@ -339,6 +346,7 @@ export function TopNavbar({ page, notifCount, user, onLogout, onNotifClick }) {
     "analytics-main": "Main Website Analytics",
     "analytics-members": "Members Portal Analytics",
     "analytics-skills": "Skills Portal Analytics",
+    "cctv-masterclass": "CCTV Masterclass Registrations",
     settings: "Settings",
   };
 
