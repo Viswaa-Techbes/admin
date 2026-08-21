@@ -5,14 +5,12 @@ import {
   PageHeader, 
   Card, 
   StatusBadge, 
-  ActionBtn, 
   useToast, 
   Modal 
 } from "./UI";
 import { apiFetch } from "../lib/apiClient";
-import { SearchIcon, EditIcon, PlusIcon } from "./Icons";
 
-// Custom API helper inside this file for simplicity
+// Custom API helper
 function useApiData(url, initial = []) {
   const [data, setData] = useState(initial);
   const [loading, setLoading] = useState(true);
@@ -49,8 +47,7 @@ export function QuoteRequestsPage() {
   // Filters State
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [propertyFilter, setPropertyFilter] = useState("All");
-  const [requirementFilter, setRequirementFilter] = useState("All");
+  const [categoryFilter, setCategoryFilter] = useState("All");
   const [areaFilter, setAreaFilter] = useState("All");
   const [dateFilter, setDateFilter] = useState("");
   const [staffFilter, setStaffFilter] = useState("All");
@@ -83,7 +80,7 @@ export function QuoteRequestsPage() {
     }
   }, [selectedQuote]);
 
-  // Filter logic
+  // Client-side filtering logic
   const filteredQuotes = useMemo(() => {
     return quotes.filter(q => {
       // 1. Search Query
@@ -95,29 +92,28 @@ export function QuoteRequestsPage() {
           String(q.mobile || "").toLowerCase().includes(query) ||
           String(q.email || "").toLowerCase().includes(query) ||
           String(q.locality || "").toLowerCase().includes(query) ||
-          String(q.address || "").toLowerCase().includes(query);
+          String(q.address || "").toLowerCase().includes(query) ||
+          String(q.serviceCategory || "").toLowerCase().includes(query) ||
+          String(q.companyName || "").toLowerCase().includes(query);
         if (!matchesSearch) return false;
       }
 
       // 2. Status
       if (statusFilter !== "All" && q.status !== statusFilter) return false;
 
-      // 3. Property Type
-      if (propertyFilter !== "All" && q.propertyType !== propertyFilter) return false;
+      // 3. Service Category
+      if (categoryFilter !== "All" && (q.serviceCategory || "CCTV") !== categoryFilter) return false;
 
-      // 4. Requirement Type
-      if (requirementFilter !== "All" && q.requirementType !== requirementFilter) return false;
-
-      // 5. Area/Locality
+      // 4. Area/Locality
       if (areaFilter !== "All" && q.locality !== areaFilter) return false;
 
-      // 6. Assigned Staff
+      // 5. Assigned Staff
       if (staffFilter !== "All") {
         const staffId = q.assignedTo?._id || q.assignedTo;
         if (staffId !== staffFilter) return false;
       }
 
-      // 7. Created Date
+      // 6. Created Date
       if (dateFilter) {
         const qDate = new Date(q.createdAt).toISOString().split('T')[0];
         if (qDate !== dateFilter) return false;
@@ -125,7 +121,7 @@ export function QuoteRequestsPage() {
 
       return true;
     });
-  }, [quotes, searchQuery, statusFilter, propertyFilter, requirementFilter, areaFilter, staffFilter, dateFilter]);
+  }, [quotes, searchQuery, statusFilter, categoryFilter, areaFilter, staffFilter, dateFilter]);
 
   // Submit updates to quote
   async function handleUpdateQuoteDetails(e) {
@@ -163,7 +159,7 @@ export function QuoteRequestsPage() {
   // Convert Quote request to booking
   async function handleConvertQuote() {
     if (!selectedQuote) return;
-    if (!window.confirm("Convert this CCTV Quote Request into a Job Booking?")) return;
+    if (!window.confirm("Convert this Quote Request into a Job Booking?")) return;
 
     setConverting(true);
     try {
@@ -178,7 +174,7 @@ export function QuoteRequestsPage() {
       await refreshQuotes();
       setShowDetailModal(false);
       
-      toast.show("Booking Created", `Successfully converted quote request to Job: ${payload.data?.job?._id || ''}`);
+      toast.show("Booking Created", `Successfully converted to Job: ${payload.data?.job?._id || ''}`);
     } catch (err) {
       alert(err.message);
     } finally {
@@ -186,20 +182,19 @@ export function QuoteRequestsPage() {
     }
   }
 
-  // Quick actions
   const makeCall = (phone) => {
     window.open(`tel:${phone}`, "_self");
   };
 
   const openWhatsApp = (phone, name, requestId) => {
-    const text = encodeURIComponent(`Hi ${name}, I am contacting you regarding your CCTV Quote Request #${requestId} on TechBes.`);
+    const text = encodeURIComponent(`Hi ${name}, I am contacting you regarding your TechBes Quote Request #${requestId}.`);
     window.open(`https://wa.me/${phone.replace(/[\s+-]/g, '')}?text=${text}`, "_blank");
   };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <PageHeader 
-        title="CCTV Quote Requests" 
+        title="Quote Requests" 
         subtitle={`${filteredQuotes.length} active requests found`} 
       />
 
@@ -210,18 +205,33 @@ export function QuoteRequestsPage() {
           {/* Search bar */}
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b" }}>SEARCH REQUESTS</span>
-            <div style={{ position: "relative" }}>
-              <input 
-                type="text" 
-                placeholder="ID, Name, Mobile, Location..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                style={{
-                  width: "100%", height: 38, padding: "0 12px", border: "1px solid #cbd5e1", 
-                  borderRadius: 10, fontSize: 12, outline: "none", color: "#1e293b", fontWeight: 500
-                }}
-              />
-            </div>
+            <input 
+              type="text" 
+              placeholder="ID, Name, Mobile, Company..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              style={{
+                width: "100%", height: 38, padding: "0 12px", border: "1px solid #cbd5e1", 
+                borderRadius: 10, fontSize: 12, outline: "none", color: "#1e293b", fontWeight: 500
+              }}
+            />
+          </div>
+
+          {/* Service Category Filter */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b" }}>SERVICE CATEGORY</span>
+            <select
+              value={categoryFilter}
+              onChange={e => setCategoryFilter(e.target.value)}
+              style={{
+                height: 38, padding: "0 8px", border: "1px solid #cbd5e1", 
+                borderRadius: 10, fontSize: 12, outline: "none", background: "#fff", fontWeight: 600, color: "#475569"
+              }}
+            >
+              {["All", "CCTV", "Networking", "Laptop", "Desktop", "Server", "Other"].map(opt => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
           </div>
 
           {/* Status Filter */}
@@ -235,41 +245,7 @@ export function QuoteRequestsPage() {
                 borderRadius: 10, fontSize: 12, outline: "none", background: "#fff", fontWeight: 600, color: "#475569"
               }}
             >
-              {["All", "New", "Contacted", "Requirement Verified", "Site Survey Scheduled", "Quote Prepared", "Quote Sent", "Accepted", "Converted to Booking", "Rejected", "Cancelled"].map(opt => (
-                <option key={opt} value={opt}>{opt}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Property Type Filter */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b" }}>PROPERTY TYPE</span>
-            <select
-              value={propertyFilter}
-              onChange={e => setPropertyFilter(e.target.value)}
-              style={{
-                height: 38, padding: "0 8px", border: "1px solid #cbd5e1", 
-                borderRadius: 10, fontSize: 12, outline: "none", background: "#fff", fontWeight: 600, color: "#475569"
-              }}
-            >
-              {["All", "Home", "Apartment", "Office", "Shop", "Warehouse", "School", "Other"].map(opt => (
-                <option key={opt} value={opt}>{opt}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Requirement Type Filter */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b" }}>REQUIREMENT</span>
-            <select
-              value={requirementFilter}
-              onChange={e => setRequirementFilter(e.target.value)}
-              style={{
-                height: 38, padding: "0 8px", border: "1px solid #cbd5e1", 
-                borderRadius: 10, fontSize: 12, outline: "none", background: "#fff", fontWeight: 600, color: "#475569"
-              }}
-            >
-              {["All", "New CCTV Installation", "Existing CCTV Upgrade", "CCTV Repair", "CCTV Replacement", "AMC", "Other"].map(opt => (
+              {["All", "New", "Contacted", "Site Survey Scheduled", "Quotation Sent", "Converted", "Closed", "Cancelled"].map(opt => (
                 <option key={opt} value={opt}>{opt}</option>
               ))}
             </select>
@@ -339,13 +315,13 @@ export function QuoteRequestsPage() {
           </div>
         ) : filteredQuotes.length === 0 ? (
           <div style={{ padding: 40, textAlign: "center", color: "#64748b", fontSize: 13, fontWeight: 500 }}>
-            No CCTV Quote Requests found matching current filter parameters.
+            No Quote Requests found matching current filter parameters.
           </div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
             <thead>
               <tr style={{ background: "#f8fafc" }}>
-                {["Request ID", "Customer", "Mobile", "Location", "Property", "Requirement", "Placements", "Status", "Assigned Staff", "Created Date", "Action"].map(h => (
+                {["Request ID", "Customer", "Service", "Mobile", "Area / Locality", "Status", "Assigned Staff", "Created Date", "Action"].map(h => (
                   <th key={h} style={{
                     padding: "14px 18px", textAlign: "left", fontSize: 11, fontWeight: 700, 
                     color: "#475569", borderBottom: "1px solid #e2e8f0", textTransform: "uppercase", letterSpacing: ".5px"
@@ -366,12 +342,13 @@ export function QuoteRequestsPage() {
                     borderBottom: "1px solid #e2e8f0"
                   }}>
                     <td style={{ padding: "14px 18px", fontSize: 12, fontWeight: 700, color: "#1e293b", fontFamily: "monospace" }}>{q.requestId}</td>
-                    <td style={{ padding: "14px 18px", fontSize: 12, fontWeight: 600, color: "#334155" }}>{q.fullName}</td>
+                    <td style={{ padding: "14px 18px", fontSize: 12, fontWeight: 600, color: "#334155" }}>
+                      {q.fullName}
+                      {q.companyName && <span style={{ display: "block", fontSize: 10, color: "#94a3b8", fontWeight: 500 }}>{q.companyName}</span>}
+                    </td>
+                    <td style={{ padding: "14px 18px", fontSize: 12, fontWeight: 700, color: "#4f46e5" }}>{q.serviceCategory || "CCTV"}</td>
                     <td style={{ padding: "14px 18px", fontSize: 12, color: "#64748b" }}>{q.mobile}</td>
-                    <td style={{ padding: "14px 18px", fontSize: 11, color: "#64748b", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{q.locality}</td>
-                    <td style={{ padding: "14px 18px", fontSize: 11, color: "#475569", fontWeight: 500 }}>{q.propertyType}</td>
-                    <td style={{ padding: "14px 18px", fontSize: 11, color: "#475569", fontWeight: 500 }}>{q.requirementType}</td>
-                    <td style={{ padding: "14px 18px", fontSize: 11, color: "#64748b" }}>{q.cameraCount} cams</td>
+                    <td style={{ padding: "14px 18px", fontSize: 11, color: "#64748b" }}>{q.locality}</td>
                     <td style={{ padding: "14px 18px" }}><StatusBadge status={q.status} /></td>
                     <td style={{ padding: "14px 18px", fontSize: 11, color: "#334155", fontWeight: 600 }}>{assignedName}</td>
                     <td style={{ padding: "14px 18px", fontSize: 11, color: "#64748b" }}>{createdDate}</td>
@@ -412,20 +389,24 @@ export function QuoteRequestsPage() {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 12 }}>
                   <div><strong style={{ color: "#64748b" }}>Full Name:</strong> <span style={{ color: "#1e293b", fontWeight: 600 }}>{selectedQuote.fullName}</span></div>
                   <div><strong style={{ color: "#64748b" }}>Mobile Phone:</strong> <span style={{ color: "#1e293b", fontWeight: 600 }}>{selectedQuote.mobile}</span></div>
-                  <div><strong style={{ color: "#64748b" }}>Email address:</strong> <span>{selectedQuote.email || "—"}</span></div>
+                  <div><strong style={{ color: "#64748b" }}>Email:</strong> <span>{selectedQuote.email || "—"}</span></div>
                   <div><strong style={{ color: "#64748b" }}>WhatsApp:</strong> <span>{selectedQuote.whatsapp || "—"}</span></div>
-                  <div style={{ gridColumn: "span 2" }}><strong style={{ color: "#64748b" }}>Locality / Area:</strong> <span>{selectedQuote.locality} (Pincode: {selectedQuote.pincode || "—"})</span></div>
-                  <div style={{ gridColumn: "span 2" }}><strong style={{ color: "#64748b" }}>Address:</strong> <span style={{ lineHeight: 1.4 }}>{selectedQuote.address}</span></div>
+                  {selectedQuote.companyName && (
+                    <div style={{ gridColumn: "span 2" }}><strong style={{ color: "#64748b" }}>Company:</strong> <span style={{ color: "#1e293b", fontWeight: 600 }}>{selectedQuote.companyName}</span></div>
+                  )}
+                  <div style={{ gridColumn: "span 2" }}><strong style={{ color: "#64748b" }}>Area / Locality:</strong> <span>{selectedQuote.locality} (Pincode: {selectedQuote.pincode || "—"})</span></div>
+                  <div style={{ gridColumn: "span 2" }}><strong style={{ color: "#64748b" }}>Full Address:</strong> <span style={{ lineHeight: 1.4 }}>{selectedQuote.address}</span></div>
                   
-                  {selectedQuote.latitude && selectedQuote.longitude && (
+                  {/* Google maps or location link */}
+                  {(selectedQuote.googleMapsUrl || (selectedQuote.latitude && selectedQuote.longitude)) && (
                     <div style={{ gridColumn: "span 2", marginTop: 4 }}>
                       <a 
-                        href={`https://www.google.com/maps?q=${selectedQuote.latitude},${selectedQuote.longitude}`}
+                        href={selectedQuote.googleMapsUrl || `https://www.google.com/maps?q=${selectedQuote.latitude},${selectedQuote.longitude}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{ color: "#4f46e5", fontWeight: 750, textDecoration: "underline", display: "inline-flex", gap: 4 }}
                       >
-                        📍 View Map Coordinates ({selectedQuote.latitude.toFixed(5)}, {selectedQuote.longitude.toFixed(5)})
+                        📍 Open Maps Location Link
                       </a>
                     </div>
                   )}
@@ -434,31 +415,40 @@ export function QuoteRequestsPage() {
 
               {/* Requirement Specifications */}
               <div style={{ background: "#f8fafc", padding: 16, borderRadius: 16, border: "1px solid #e2e8f0" }}>
-                <h4 style={{ margin: "0 0 12px 0", fontSize: 12, color: "#1e293b", fontWeight: 800, textTransform: "uppercase" }}>CCTV Requirements</h4>
+                <h4 style={{ margin: "0 0 12px 0", fontSize: 12, color: "#1e293b", fontWeight: 800, textTransform: "uppercase" }}>Requirement Specifications</h4>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 12 }}>
-                  <div><strong style={{ color: "#64748b" }}>Property:</strong> <span style={{ fontWeight: 600, color: "#334155" }}>{selectedQuote.propertyType}</span></div>
-                  <div><strong style={{ color: "#64748b" }}>Requirement:</strong> <span style={{ fontWeight: 600, color: "#334155" }}>{selectedQuote.requirementType}</span></div>
-                  <div><strong style={{ color: "#64748b" }}>Camera Count:</strong> <span>{selectedQuote.cameraCount}</span></div>
-                  <div><strong style={{ color: "#64748b" }}>Placement:</strong> <span>{selectedQuote.cameraRequirement}</span></div>
-                  <div><strong style={{ color: "#64748b" }}>Recorder:</strong> <span>{selectedQuote.recorder || "—"}</span></div>
-                  <div><strong style={{ color: "#64748b" }}>Storage Capacity:</strong> <span>{selectedQuote.storage || "—"}</span></div>
+                  <div><strong style={{ color: "#64748b" }}>Service Category:</strong> <span style={{ fontWeight: 750, color: "#4f46e5" }}>{selectedQuote.serviceCategory || "CCTV"}</span></div>
+                  <div><strong style={{ color: "#64748b" }}>Submission Source:</strong> <span>{selectedQuote.source || "Website"}</span></div>
+
+                  {/* CCTV Specific Details */}
+                  {(selectedQuote.serviceCategory || "CCTV") === "CCTV" && (
+                    <>
+                      <div style={{ gridColumn: "span 2" }}><hr style={{ border: "none", borderTop: "1px solid #e2e8f0" }} /></div>
+                      <div><strong style={{ color: "#64748b" }}>CCTV Property:</strong> <span>{selectedQuote.propertyType || "—"}</span></div>
+                      <div><strong style={{ color: "#64748b" }}>CCTV Requirement:</strong> <span>{selectedQuote.requirementType || "—"}</span></div>
+                      <div><strong style={{ color: "#64748b" }}>Camera Count:</strong> <span>{selectedQuote.cameraCount || "—"}</span></div>
+                      <div><strong style={{ color: "#64748b" }}>Camera Placement:</strong> <span>{selectedQuote.cameraRequirement || "—"}</span></div>
+                      <div><strong style={{ color: "#64748b" }}>Recorder:</strong> <span>{selectedQuote.recorder || "—"}</span></div>
+                      <div><strong style={{ color: "#64748b" }}>Storage:</strong> <span>{selectedQuote.storage || "—"}</span></div>
+                      
+                      <div style={{ gridColumn: "span 2" }}>
+                        <strong style={{ color: "#64748b" }}>Requested Features:</strong>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
+                          {(selectedQuote.features || []).length === 0 ? (
+                            <span style={{ color: "#94a3b8", fontStyle: "italic" }}>No features specified</span>
+                          ) : (
+                            selectedQuote.features.map(f => (
+                              <span key={f} style={{ background: "#e0e7ff", color: "#4338ca", fontSize: 10, padding: "2px 8px", borderRadius: 99, fontWeight: 700 }}>{f}</span>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
                   
                   <div style={{ gridColumn: "span 2" }}>
-                    <strong style={{ color: "#64748b" }}>Requested Features:</strong>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
-                      {(selectedQuote.features || []).length === 0 ? (
-                        <span style={{ color: "#94a3b8", fontStyle: "italic" }}>No specific features selected</span>
-                      ) : (
-                        selectedQuote.features.map(f => (
-                          <span key={f} style={{ background: "#e0e7ff", color: "#4338ca", fontSize: 10, padding: "2px 8px", borderRadius: 99, fontWeight: 700 }}>{f}</span>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div style={{ gridColumn: "span 2" }}>
-                    <strong style={{ color: "#64748b" }}>Additional Requirements:</strong>
-                    <p style={{ margin: "4px 0 0 0", fontStyle: "italic", color: "#475569", background: "#fff", padding: 8, borderRadius: 8, border: "1px solid #cbd5e1/40" }}>
+                    <strong style={{ color: "#64748b" }}>Detailed Requirement / Message:</strong>
+                    <p style={{ margin: "4px 0 0 0", color: "#334155", background: "#fff", padding: 10, borderRadius: 8, border: "1px solid #e2e8f0", lineHeight: 1.4 }}>
                       {selectedQuote.additionalRequirements || "None provided"}
                     </p>
                   </div>
@@ -502,7 +492,7 @@ export function QuoteRequestsPage() {
                       borderRadius: 10, fontSize: 12, outline: "none", background: "#fff", fontWeight: 600, color: "#475569"
                     }}
                   >
-                    {["New", "Contacted", "Requirement Verified", "Site Survey Scheduled", "Quote Prepared", "Quote Sent", "Accepted", "Converted to Booking", "Rejected", "Cancelled"].map(opt => (
+                    {["New", "Contacted", "Site Survey Scheduled", "Quotation Sent", "Converted", "Closed", "Cancelled"].map(opt => (
                       <option key={opt} value={opt}>{opt}</option>
                     ))}
                   </select>
@@ -562,7 +552,7 @@ export function QuoteRequestsPage() {
                   style={{
                     background: "linear-gradient(135deg,#6366f1,#4f46e5)", color: "#fff",
                     border: "none", borderRadius: 10, height: 38, fontSize: 12, fontWeight: 700,
-                    cursor: "pointer", shadow: "0 4px 6px rgba(0,0,0,0.05)"
+                    cursor: "pointer"
                   }}
                 >
                   {savingNotes ? "Saving Changes..." : "Save Details"}
@@ -599,7 +589,7 @@ export function QuoteRequestsPage() {
                 </div>
 
                 {/* CONVERT TO BOOKING BUTTON */}
-                {selectedQuote.status !== 'Converted to Booking' ? (
+                {selectedQuote.status !== 'Converted to Booking' && selectedQuote.status !== 'Converted' ? (
                   <button
                     type="button"
                     onClick={handleConvertQuote}
