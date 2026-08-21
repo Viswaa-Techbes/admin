@@ -131,4 +131,13 @@ export const STATUS_BADGE = {
   "Active": { bg: "rgba(16,185,129,0.12)", color: "#10b981", dot: "#10b981" },
   "Available": { bg: "rgba(16,185,129,0.12)", color: "#10b981", dot: "#10b981" },
   "Offline": { bg: "rgba(100,116,139,0.12)", color: "#64748b", dot: "#64748b" },
+  "New": { bg: "rgba(99,102,241,0.12)", color: "#6366f1", dot: "#6366f1" },
+  "Contacted": { bg: "rgba(6,182,212,0.12)", color: "#0891b2", dot: "#06b6d4" },
+  "Requirement Verified": { bg: "rgba(16,185,129,0.12)", color: "#10b981", dot: "#10b981" },
+  "Site Survey Scheduled": { bg: "rgba(139,92,246,0.12)", color: "#8b5cf6", dot: "#8b5cf6" },
+  "Quote Prepared": { bg: "rgba(245,158,11,0.12)", color: "#f59e0b", dot: "#f59e0b" },
+  "Quote Sent": { bg: "rgba(236,72,153,0.12)", color: "#ec4899", dot: "#ec4899" },
+  "Accepted": { bg: "rgba(16,185,129,0.12)", color: "#10b981", dot: "#10b981" },
+  "Converted to Booking": { bg: "rgba(16,185,129,0.12)", color: "#10b981", dot: "#10b981" },
+  "Rejected": { bg: "rgba(244,63,94,0.12)", color: "#f43f5e", dot: "#f43f5e" },
 };

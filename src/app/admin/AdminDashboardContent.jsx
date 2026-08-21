@@ -36,6 +36,7 @@ import { WorksheetsPage } from "../../components/WorksheetsPage";
 import { KycApprovalsPage } from "../../components/KycApprovalsPage";
 import { AmcManagementPage } from "../../components/AmcManagementPage";
 import { CctvMasterclassPage } from "../../components/CctvMasterclassPage";
+import { QuoteRequestsPage } from "../../components/QuoteRequestsPage";
 import { wakeBackend, apiFetch } from "../../lib/apiClient";
 
 export default function AdminDashboardContent() {
@@ -134,6 +135,7 @@ export default function AdminDashboardContent() {
       else if (path.includes('/admin/kyc-approvals')) setActivePage('kyc-approvals');
       else if (path.includes('/admin/amc')) setActivePage('amc');
       else if (path.includes('/admin/cctv-masterclass')) setActivePage('cctv-masterclass');
+      else if (path.includes('/admin/quotes')) setActivePage('quotes');
       else if (path.includes('/admin/settings')) setActivePage('settings');
       else if (path.includes('/admin/penalties')) setActivePage('penalties');
       else if (path === '/admin') setActivePage('dashboard');
@@ -213,6 +215,7 @@ export default function AdminDashboardContent() {
     "cctv-pricing": <CctvPricingManagementPage />,
     amc: <AmcManagementPage />,
     "cctv-masterclass": <CctvMasterclassPage />,
+    quotes: <QuoteRequestsPage />,
   };
 
   return (
@@ -237,6 +240,7 @@ export default function AdminDashboardContent() {
             penalties: '/admin/penalties',
             amc: '/admin/amc',
             'cctv-masterclass': '/admin/cctv-masterclass',
+            quotes: '/admin/quotes',
             dashboard: '/admin'
           };
           const newPath = mapping[page] || '/admin';

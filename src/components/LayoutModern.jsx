@@ -7,6 +7,7 @@ export const NAV_ITEMS = [
   { id: "members", label: "Employee Management", icon: <HardHatIcon /> },
   { id: "technicians", label: "Customer Management", icon: <UsersIcon /> },
   { id: "leads", label: "Lead Management", icon: <BriefcaseIcon /> },
+  { id: "quotes", label: "Quote Requests", icon: <BriefcaseIcon /> },
   { id: "jobs", label: "Projects", icon: <BriefcaseIcon /> },
   { id: "service-requests", label: "Service Requests", icon: <BellIcon />, badge: null },
   { id: "amc", label: "AMC Management", icon: <BriefcaseIcon /> },
@@ -57,6 +58,7 @@ export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLo
       items: [
         { id: "technicians", label: "Customers", icon: <UsersIcon /> },
         { id: "leads", label: "Leads", icon: <BriefcaseIcon /> },
+        { id: "quotes", label: "Quote Requests", icon: <BriefcaseIcon /> },
         { id: "service-requests", label: "Bookings", icon: <BellIcon /> },
         { id: "amc", label: "AMC Management", icon: <BriefcaseIcon /> },
         { id: "cancellations", label: "Cancellations", icon: <BellIcon /> }
