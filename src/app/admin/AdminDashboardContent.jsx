@@ -48,6 +48,7 @@ export default function AdminDashboardContent() {
   const [isWakingUp, setIsWakingUp] = useState(false);
   const [activePage, setActivePage] = useState("dashboard");
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [user, setUser] = useState({ name: "Admin", role: "admin" });
   const [notifCount, setNotifCount] = useState(0);
@@ -250,6 +251,8 @@ export default function AdminDashboardContent() {
         setCollapsed={setCollapsed} 
         user={user} 
         onLogout={logout} 
+        mobileOpen={mobileOpen}
+        setMobileOpen={setMobileOpen}
       />
       
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -260,6 +263,7 @@ export default function AdminDashboardContent() {
             user={user} 
             onLogout={logout} 
             onNotifClick={() => setActivePage("notifications")}
+            onMenuClick={() => setMobileOpen(true)}
           />
           
           <main key={refreshKey} style={{ flex: 1, overflowY: "auto", padding: "24px" }}>

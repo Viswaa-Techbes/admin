@@ -43,7 +43,7 @@ export const NAV_ITEMS = [
   { id: "settings", label: "Settings", icon: <SettingsIcon /> },
 ];
 
-export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLogout }) {
+export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLogout, mobileOpen, setMobileOpen }) {
   const groups = [
     {
       id: "dashboard",
@@ -145,22 +145,29 @@ export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLo
 
   // Auto-expand group containing the active page
   React.useEffect(() => {
-    groups.forEach(g => {
-      if (g.items.some(i => i.id === active)) {
-        setExpandedGroups(prev => ({ ...prev, [g.id]: true }));
+    groups.forEach((g) => {
+      if (g.items.some((i) => i.id === active)) {
+        setExpandedGroups((prev) => ({ ...prev, [g.id]: true }));
       }
     });
   }, [active]);
 
   const toggleGroup = (groupId) => {
-    setExpandedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
+    setExpandedGroups((prev) => ({ ...prev, [groupId]: !prev[groupId] }));
+  };
+
+  const handleSelect = (id) => {
+    setActive(id);
+    if (setMobileOpen) {
+      setMobileOpen(false);
+    }
   };
 
   const flatItems = React.useMemo(() => {
     const list = [];
-    groups.forEach(g => {
-      g.items.forEach(i => {
-        if (!list.some(existing => existing.id === i.id)) {
+    groups.forEach((g) => {
+      g.items.forEach((i) => {
+        if (!list.some((existing) => existing.id === i.id)) {
           list.push(i);
         }
       });
@@ -169,157 +176,203 @@ export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLo
   }, []);
 
   return (
-    <aside style={{ width: collapsed ? 64 : 240, background: "#0c0e16", display: "flex", flexDirection: "column", transition: "width .22s cubic-bezier(.4,0,.2,1)", flexShrink: 0, position: "relative", zIndex: 50, boxShadow: "1px 0 0 rgba(255,255,255,0.04)" }}>
-      <div style={{ padding: collapsed ? "20px 14px" : "20px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 10, overflow: "hidden" }}>
-        <div style={{ width: 32, height: 32, borderRadius: 9, background: "linear-gradient(135deg,#6366f1 0%,#06b6d4 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "#fff", fontWeight: 800, flexShrink: 0, boxShadow: "0 0 16px rgba(99,102,241,0.4)" }}>TB</div>
-        {!collapsed && (
-          <div>
-            <div style={{ color: "#fff", fontWeight: 800, fontSize: 15, letterSpacing: "-.2px" }}>Techbes</div>
-            <div style={{ color: "#475569", fontSize: 10, letterSpacing: ".8px", textTransform: "uppercase" }}>Service CRM</div>
-          </div>
-        )}
-      </div>
+    <>
+      {/* Mobile Backdrop Overlay */}
+      {mobileOpen && (
+        <div
+          onClick={() => setMobileOpen && setMobileOpen(false)}
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
+          aria-hidden="true"
+        />
+      )}
 
-      <nav style={{ flex: 1, padding: "12px 8px", overflowY: "auto", overflowX: "hidden" }}>
-        {collapsed ? (
-          flatItems.map((item, idx) => {
-            const isActive = active === item.id;
-            return (
-              <button
-                key={item.id + idx}
-                onClick={() => setActive(item.id)}
-                title={item.label}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: "100%",
-                  padding: "12px",
-                  marginBottom: 4,
-                  borderRadius: 10,
-                  border: "none",
-                  cursor: "pointer",
-                  color: isActive ? "#fff" : "#64748b",
-                  background: isActive ? "linear-gradient(90deg,rgba(99,102,241,0.2),rgba(99,102,241,0.05))" : "transparent",
-                  transition: "all .15s"
-                }}
-              >
-                <span style={{ color: isActive ? "#818cf8" : "#475569" }}>{item.icon}</span>
-              </button>
-            );
-          })
-        ) : (
-          groups.map((group) => {
-            const isExpanded = expandedGroups[group.id] || false;
-            const hasActiveItem = group.items.some(i => i.id === active);
-            return (
-              <div key={group.id} style={{ marginBottom: 8 }}>
-                {/* Group Header */}
+      <aside
+        className={`
+          fixed md:relative top-0 bottom-0 left-0 z-50 flex flex-col
+          bg-[#0c0e16] transition-all duration-200 ease-out
+          ${mobileOpen ? "translate-x-0 w-[260px] shadow-2xl" : "-translate-x-full md:translate-x-0"}
+          ${collapsed ? "md:w-16" : "md:w-60"}
+        `}
+        style={{ boxShadow: "1px 0 0 rgba(255,255,255,0.06)" }}
+      >
+        <div style={{ padding: collapsed ? "20px 14px" : "20px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between", overflow: "hidden" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 9, background: "linear-gradient(135deg,#6366f1 0%,#06b6d4 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "#fff", fontWeight: 800, flexShrink: 0, boxShadow: "0 0 16px rgba(99,102,241,0.4)" }}>TB</div>
+            {(!collapsed || mobileOpen) && (
+              <div>
+                <div style={{ color: "#fff", fontWeight: 800, fontSize: 15, letterSpacing: "-.2px" }}>Techbes</div>
+                <div style={{ color: "#94a3b8", fontSize: 10, letterSpacing: ".8px", textTransform: "uppercase" }}>Admin Panel</div>
+              </div>
+            )}
+          </div>
+          {mobileOpen && (
+            <button
+              onClick={() => setMobileOpen && setMobileOpen(false)}
+              aria-label="Close menu"
+              className="md:hidden text-slate-400 hover:text-white p-1.5 text-lg rounded-lg"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        <nav style={{ flex: 1, padding: "12px 8px", overflowY: "auto", overflowX: "hidden" }}>
+          {collapsed && !mobileOpen ? (
+            flatItems.map((item, idx) => {
+              const isActive = active === item.id;
+              return (
                 <button
-                  type="button"
-                  onClick={() => toggleGroup(group.id)}
+                  key={item.id + idx}
+                  onClick={() => handleSelect(item.id)}
+                  title={item.label}
+                  aria-label={item.label}
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    justifyContent: "space-between",
+                    justifyContent: "center",
                     width: "100%",
-                    padding: "8px 12px",
-                    background: "transparent",
+                    padding: "12px",
+                    marginBottom: 4,
+                    borderRadius: 10,
                     border: "none",
                     cursor: "pointer",
-                    textAlign: "left",
-                    color: hasActiveItem ? "#818cf8" : "#475569",
-                    fontSize: 11,
-                    fontWeight: 700,
-                    letterSpacing: "0.8px",
-                    textTransform: "uppercase"
+                    color: isActive ? "#fff" : "#94a3b8",
+                    background: isActive ? "linear-gradient(90deg,rgba(99,102,241,0.2),rgba(99,102,241,0.05))" : "transparent",
+                    transition: "all .15s"
                   }}
                 >
-                  <span style={{ flex: 1 }}>{group.title}</span>
-                  <span style={{
-                    transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
-                    transition: "transform 0.15s",
-                    fontSize: 9,
-                    color: "#475569"
-                  }}>
-                    &gt;
-                  </span>
+                  <span style={{ color: isActive ? "#818cf8" : "#94a3b8" }}>{item.icon}</span>
                 </button>
+              );
+            })
+          ) : (
+            groups.map((group) => {
+              const isExpanded = expandedGroups[group.id] || false;
+              const hasActiveItem = group.items.some((i) => i.id === active);
+              return (
+                <div key={group.id} style={{ marginBottom: 8 }}>
+                  {/* Group Header */}
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.id)}
+                    aria-expanded={isExpanded}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      width: "100%",
+                      padding: "8px 12px",
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      color: hasActiveItem ? "#818cf8" : "#cbd5e1",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      letterSpacing: "0.8px",
+                      textTransform: "uppercase"
+                    }}
+                  >
+                    <span style={{ flex: 1 }}>{group.title}</span>
+                    <span style={{
+                      transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                      transition: "transform 0.15s",
+                      fontSize: 9,
+                      color: "#94a3b8"
+                    }}>
+                      &gt;
+                    </span>
+                  </button>
 
-                {/* Group Items */}
-                {isExpanded && (
-                  <div style={{ marginTop: 2, paddingLeft: 4 }}>
-                    {group.items.map((item, idx) => {
-                      const isActive = active === item.id;
-                      return (
-                        <button
-                          key={item.id + idx}
-                          onClick={() => setActive(item.id)}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 10,
-                            width: "100%",
-                            padding: "8px 12px",
-                            marginBottom: 2,
-                            borderRadius: 8,
-                            border: "none",
-                            cursor: "pointer",
-                            color: isActive ? "#fff" : "#64748b",
-                            background: isActive ? "linear-gradient(90deg,rgba(99,102,241,0.15),rgba(99,102,241,0.02))" : "transparent",
-                            fontSize: 13,
-                            fontWeight: isActive ? 600 : 400,
-                            transition: "all .15s",
-                            position: "relative",
-                            textAlign: "left"
-                          }}
-                        >
-                          {isActive && (
-                            <span style={{
-                              position: "absolute",
-                              left: 0,
-                              top: "20%",
-                              height: "60%",
-                              width: 3,
-                              background: "#6366f1",
-                              borderRadius: "0 3px 3px 0"
-                            }} />
-                          )}
-                          <span style={{ color: isActive ? "#818cf8" : "#475569", flexShrink: 0 }}>
-                            {item.icon}
-                          </span>
-                          <span style={{ flex: 1 }}>{item.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                  {/* Group Items */}
+                  {isExpanded && (
+                    <div style={{ marginTop: 2, paddingLeft: 4 }}>
+                      {group.items.map((item, idx) => {
+                        const isActive = active === item.id;
+                        return (
+                          <button
+                            key={item.id + idx}
+                            onClick={() => handleSelect(item.id)}
+                            aria-current={isActive ? "page" : undefined}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 10,
+                              width: "100%",
+                              padding: "8px 12px",
+                              marginBottom: 2,
+                              borderRadius: 8,
+                              border: "none",
+                              cursor: "pointer",
+                              color: isActive ? "#fff" : "#cbd5e1",
+                              background: isActive ? "linear-gradient(90deg,rgba(99,102,241,0.15),rgba(99,102,241,0.02))" : "transparent",
+                              fontSize: 13,
+                              fontWeight: isActive ? 600 : 400,
+                              transition: "all .15s",
+                              position: "relative",
+                              textAlign: "left"
+                            }}
+                          >
+                            {isActive && (
+                              <span style={{
+                                position: "absolute",
+                                left: 0,
+                                top: "20%",
+                                height: "60%",
+                                width: 3,
+                                background: "#6366f1",
+                                borderRadius: "0 3px 3px 0"
+                              }} />
+                            )}
+                            <span style={{ color: isActive ? "#818cf8" : "#94a3b8", flexShrink: 0 }}>
+                              {item.icon}
+                            </span>
+                            <span style={{ flex: 1 }}>{item.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </nav>
+
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: "12px 8px" }}>
+          {!collapsed || mobileOpen ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", marginBottom: 8, background: "rgba(255,255,255,.03)", borderRadius: 10 }}>
+              <Avatar initials={(user?.name || "Admin").slice(0, 2).toUpperCase()} size={30} gradient="linear-gradient(135deg,#6366f1,#06b6d4)" />
+              <div style={{ flex: 1, overflow: "hidden" }}>
+                <div style={{ color: "#f8fafc", fontSize: 12.5, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user?.name || "Admin User"}</div>
+                <div style={{ color: "#94a3b8", fontSize: 10.5, textTransform: "capitalize" }}>{user?.role || "Super Admin"}</div>
               </div>
-            );
-          })
-        )}
-      </nav>
-
-      <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: "12px 8px" }}>
-        {!collapsed ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", marginBottom: 8, background: "rgba(255,255,255,.03)", borderRadius: 10 }}>
-            <Avatar initials={(user?.name || "Admin").slice(0, 2).toUpperCase()} size={30} gradient="linear-gradient(135deg,#6366f1,#06b6d4)" />
-            <div style={{ flex: 1, overflow: "hidden" }}>
-              <div style={{ color: "#e2e8f0", fontSize: 12.5, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user?.name || "Admin User"}</div>
-              <div style={{ color: "#475569", fontSize: 10.5, textTransform: "capitalize" }}>{user?.role || "Super Admin"}</div>
             </div>
-          </div>
-        ) : null}
-        {!collapsed ? <button onClick={onLogout} style={{ width: "100%", padding: "8px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,.03)", color: "#cbd5e1", cursor: "pointer", fontSize: 12, marginBottom: 8 }}>Logout</button> : null}
-        <button onClick={() => setCollapsed(!collapsed)} style={{ width: "100%", padding: "8px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,.03)", color: "#475569", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-          {collapsed ? ">" : <><span>{"<"}</span><span>Collapse</span></>}
-        </button>
-      </div>
-    </aside>
+          ) : null}
+          {!collapsed || mobileOpen ? (
+            <button
+              onClick={onLogout}
+              aria-label="Log out"
+              style={{ width: "100%", padding: "8px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,.04)", color: "#f1f5f9", cursor: "pointer", fontSize: 12, marginBottom: 8, fontWeight: 600 }}
+            >
+              Sign Out
+            </button>
+          ) : null}
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="hidden md:flex"
+            style={{ width: "100%", padding: "8px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,.03)", color: "#94a3b8", cursor: "pointer", fontSize: 12, alignItems: "center", justifyContent: "center", gap: 6 }}
+          >
+            {collapsed ? ">" : <><span>{"<"}</span><span>Collapse</span></>}
+          </button>
+        </div>
+      </aside>
+    </>
   );
 }
 
-export function TopNavbar({ page, notifCount, user, onLogout, onNotifClick }) {
+export function TopNavbar({ page, notifCount, user, onLogout, onNotifClick, onMenuClick }) {
   const titles = {
     dashboard: "Dashboard",
     members: "Employee Management",
@@ -353,25 +406,47 @@ export function TopNavbar({ page, notifCount, user, onLogout, onNotifClick }) {
   };
 
   return (
-    <header style={{ height: 60, background: "#fff", borderBottom: "1px solid rgba(226,232,240,0.8)", display: "flex", alignItems: "center", padding: "0 24px", gap: 16, flexShrink: 0, boxShadow: "0 1px 0 rgba(0,0,0,0.04)" }}>
-      <div style={{ flex: 1 }}>
-        <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: "#0f172a", letterSpacing: "-.3px" }}>{titles[page] || page}</h2>
+    <header style={{ height: 60, background: "#fff", borderBottom: "1px solid rgba(226,232,240,0.8)", display: "flex", alignItems: "center", padding: "0 16px", gap: 12, flexShrink: 0, boxShadow: "0 1px 0 rgba(0,0,0,0.04)" }}>
+      {/* Mobile Hamburger Toggle */}
+      <button
+        type="button"
+        onClick={onMenuClick}
+        aria-label="Open mobile navigation"
+        className="md:hidden flex items-center justify-center w-9 h-9 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 transition-colors"
+      >
+        <span className="text-lg font-bold">☰</span>
+      </button>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#0f172a", letterSpacing: "-.3px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {titles[page] || page}
+        </h2>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "7px 13px", width: 240 }}>
-        <span style={{ color: "#94a3b8" }}><SearchIcon /></span>
-        <input placeholder="Search anything..." style={{ border: "none", background: "transparent", outline: "none", fontSize: 13, color: "#475569", width: "100%" }} />
+
+      <div className="hidden sm:flex" style={{ alignItems: "center", gap: 8, background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "7px 13px", width: 220 }}>
+        <span style={{ color: "#64748b" }}><SearchIcon /></span>
+        <input placeholder="Search..." aria-label="Search admin records" style={{ border: "none", background: "transparent", outline: "none", fontSize: 13, color: "#0f172a", width: "100%" }} />
       </div>
-      <button onClick={onNotifClick} style={{ position: "relative", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, width: 38, height: 38, cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center" }}>
+
+      <button
+        onClick={onNotifClick}
+        aria-label="View notifications"
+        style={{ position: "relative", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, width: 38, height: 38, cursor: "pointer", color: "#475569", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+      >
         <BellIcon />
         {notifCount > 0 ? <span style={{ position: "absolute", top: 7, right: 7, width: 8, height: 8, background: "#f43f5e", borderRadius: "50%", border: "2px solid #fff" }} /> : null}
       </button>
-      <button onClick={onLogout} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "5px 10px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff" }}>
+
+      <button
+        onClick={onLogout}
+        aria-label="Account menu and sign out"
+        style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "4px 8px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", flexShrink: 0 }}
+      >
         <Avatar initials={(user?.name || "Admin").slice(0, 2).toUpperCase()} size={28} gradient="linear-gradient(135deg,#6366f1,#06b6d4)" />
-        <div>
-          <div style={{ fontSize: 12.5, fontWeight: 600, color: "#0f172a" }}>{user?.name || "Admin"}</div>
-          <div style={{ fontSize: 10.5, color: "#94a3b8", textTransform: "capitalize" }}>{user?.role || "Super Admin"}</div>
+        <div className="hidden sm:block text-left">
+          <div style={{ fontSize: 12, fontWeight: 600, color: "#0f172a" }}>{user?.name || "Admin"}</div>
+          <div style={{ fontSize: 10, color: "#64748b", textTransform: "capitalize" }}>{user?.role || "Super Admin"}</div>
         </div>
-        <span style={{ color: "#94a3b8", fontSize: 11 }}>Logout</span>
       </button>
     </header>
   );

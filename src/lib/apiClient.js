@@ -1,5 +1,5 @@
 /**
- * Client-side API helper — always sends auth cookies to the Next.js proxy,
+ * Client-side API helper — always sends auth cookies and CSRF headers to the Next.js proxy,
  * which forwards requests to the production backend.
  */
 
@@ -16,6 +16,8 @@ export async function apiFetch(path, options = {}) {
     credentials: 'include',
     cache: 'no-store',
     headers: {
+      'X-Requested-With': 'XMLHttpRequest',
+      'X-CSRF-Protection': '1',
       ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
       ...headers,
     },
@@ -52,7 +54,11 @@ export async function apiFetch(path, options = {}) {
 /** Ping backend via the Next.js health proxy. */
 export async function wakeBackend() {
   try {
-    await fetch('/api/health', { credentials: 'include', cache: 'no-store' });
+    await fetch('/api/health', {
+      credentials: 'include',
+      cache: 'no-store',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    });
     return true;
   } catch {
     return false;

@@ -11,28 +11,42 @@ export async function POST(req) {
 
     if (!backendResponse.ok) {
       return NextResponse.json(
-        { message: payload.message || 'Login failed' },
+        { success: false, message: payload.message || 'Login failed' },
         { status: backendResponse.status }
       );
     }
 
-    const { token, user } = payload.data;
+    // Handle MFA Challenge
+    if (payload.mfaRequired) {
+      return NextResponse.json({
+        success: true,
+        mfaRequired: true,
+        tempToken: payload.tempToken,
+        email: payload.email,
+        message: payload.message || 'Verification code sent to admin email.',
+        devOtp: payload.devOtp,
+      });
+    }
+
+    const { token, user } = payload.data || payload;
     const nextResponse = NextResponse.json({
+      success: true,
       message: payload.message || 'Logged in successfully',
       role: user.role,
       user,
     });
 
+    // Sensitive Admin Session Cookie: 30 minutes maxAge, HttpOnly, SameSite=Strict, Secure in prod
     nextResponse.cookies.set('auth-token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: 60 * 60 * 24,
+      maxAge: 30 * 60, // 30 minutes inactivity timeout
       path: '/',
     });
 
     return nextResponse;
   } catch (error) {
-    return NextResponse.json({ message: error.message || 'Login failed' }, { status: 500 });
+    return NextResponse.json({ success: false, message: error.message || 'Login failed' }, { status: 500 });
   }
 }
