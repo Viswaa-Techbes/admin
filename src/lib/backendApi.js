@@ -43,8 +43,12 @@ function isRetryable(error, response) {
 
 export async function fetchBackend(
   path,
-  { method = 'GET', body, token, retries = MAX_RETRIES } = {}
+  { method = 'GET', body, token, retries, timeoutMs } = {}
 ) {
+  const isAuthRoute = path.includes('/login') || path.includes('/mfa') || path.includes('/forgot-password') || path.includes('/reset-password');
+  const effectiveTimeout = timeoutMs !== undefined ? timeoutMs : (isAuthRoute ? 18000 : FETCH_TIMEOUT_MS);
+  const effectiveRetries = retries !== undefined ? retries : (isAuthRoute ? 1 : MAX_RETRIES);
+
   const headers = {};
   if (body !== undefined) {
     headers['Content-Type'] = 'application/json';
@@ -55,14 +59,14 @@ export async function fetchBackend(
 
   let lastError = null;
 
-  for (let attempt = 1; attempt <= retries; attempt++) {
+  for (let attempt = 1; attempt <= effectiveRetries; attempt++) {
     try {
       const response = await fetchWithTimeout(getBackendUrl(path), {
         method,
         headers,
         body: body !== undefined ? JSON.stringify(body) : undefined,
         cache: 'no-store',
-      });
+      }, effectiveTimeout);
 
       let payload = {};
       try {

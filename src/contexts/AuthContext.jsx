@@ -4,6 +4,45 @@ import { useRouter } from 'next/navigation';
 
 const AuthContext = createContext();
 
+const AUTH_TIMEOUT_MS = 15000;
+
+async function authFetch(url, options = {}, timeoutMs = AUTH_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        ...(options.headers || {}),
+      },
+    });
+
+    let data = {};
+    try {
+      data = await res.json();
+    } catch {
+      data = { message: res.ok ? 'Invalid response' : `Authentication server error (${res.status})` };
+    }
+
+    if (!res.ok) {
+      throw new Error(data.message || 'Authentication request failed');
+    }
+
+    return data;
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new Error('Unable to connect to the authentication service. Please try again.');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -36,20 +75,11 @@ export const AuthProvider = ({ children }) => {
   }, [checkUser]);
 
   const login = async (email, password) => {
-    const res = await fetch('/api/admin/login', {
+    const data = await authFetch('/api/admin/login', {
       method: 'POST',
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
-      },
       body: JSON.stringify({ email, password }),
     });
-
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.message || 'Login failed');
-    }
 
     if (data.mfaRequired) {
       return {
@@ -62,46 +92,27 @@ export const AuthProvider = ({ children }) => {
     }
 
     setUser(data.user);
-    router.push('/');
+    router.push('/admin');
     return { success: true, user: data.user };
   };
 
   const verifyMfa = async (tempToken, otp, email) => {
-    const res = await fetch('/api/admin/mfa-verify', {
+    const data = await authFetch('/api/admin/mfa-verify', {
       method: 'POST',
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
-      },
       body: JSON.stringify({ tempToken, otp, email }),
     });
 
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.message || 'MFA verification failed');
-    }
-
     setUser(data.user);
-    router.push('/');
+    router.push('/admin');
     return { success: true, user: data.user };
   };
 
   const resendMfa = async (tempToken, email) => {
-    const res = await fetch('/api/admin/mfa-resend', {
+    return await authFetch('/api/admin/mfa-resend', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
-      },
       body: JSON.stringify({ tempToken, email }),
     });
-
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.message || 'Failed to resend code');
-    }
-    return data;
   };
 
   const register = async (name, email, password) => {

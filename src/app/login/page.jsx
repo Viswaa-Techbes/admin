@@ -26,7 +26,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.replace("/");
+      router.replace("/admin");
     }
   }, [loading, router, user]);
 
