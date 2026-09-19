@@ -222,6 +222,7 @@ function DetailDrawer({ reg, onClose }) {
 
 // ─── Send Zoom Modal ─────────────────────────────────────────────────────────
 function SendZoomModal({ selectedStudents, onClose, onSuccess }) {
+  const [currentStudents, setCurrentStudents] = useState(selectedStudents);
   const [zoomLink, setZoomLink] = useState("");
   const [classTitle, setClassTitle] = useState("TechBes CCTV Masterclass");
   const [classDate, setClassDate] = useState("");
@@ -249,7 +250,7 @@ function SendZoomModal({ selectedStudents, onClose, onSuccess }) {
     setSending(true);
 
     try {
-      const regIds = selectedStudents.map(s => s._id);
+      const regIds = currentStudents.map(s => s._id);
       const { payload } = await apiFetch("/api/v2/cctv-course/admin/registrations/bulk-send-zoom", {
         method: "POST",
         body: {
@@ -273,6 +274,17 @@ function SendZoomModal({ selectedStudents, onClose, onSuccess }) {
       setUrlError(err.message || "Failed to dispatch Zoom emails.");
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleRetryFailed = () => {
+    if (!report || !report.results) return;
+    const failedIds = report.results.filter(r => r.status === 'FAILED').map(r => r.id);
+    const failedStudents = currentStudents.filter(s => failedIds.includes(s._id));
+    if (failedStudents.length > 0) {
+      setCurrentStudents(failedStudents);
+      setReport(null);
+      setUrlError("");
     }
   };
 
@@ -305,7 +317,7 @@ function SendZoomModal({ selectedStudents, onClose, onSuccess }) {
               Send Class Link
             </h3>
             <p style={{ margin: "3px 0 0", fontSize: 12.5, color: "#64748B" }}>
-              Selected Students: <strong style={{ color: "#0A0F1E" }}>{selectedStudents.length}</strong>
+              Selected Students: <strong style={{ color: "#0A0F1E" }}>{currentStudents.length}</strong>
             </p>
           </div>
           {!sending && (
@@ -345,19 +357,35 @@ function SendZoomModal({ selectedStudents, onClose, onSuccess }) {
 
             {report.results.length > 0 && (
               <div style={{
-                maxHeight: 180, overflowY: "auto",
+                maxHeight: 200, overflowY: "auto",
                 background: "#F8FAFC", border: "1px solid #E2E8F0",
                 borderRadius: 10, padding: "10px 14px",
                 textAlign: "left", marginBottom: 20,
               }}>
                 {report.results.map((r, i) => (
                   <div key={i} style={{
-                    display: "flex", justifyContent: "space-between",
-                    padding: "6px 0", borderBottom: i < report.results.length - 1 ? "1px solid #F1F5F9" : "none",
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    padding: "8px 0", borderBottom: i < report.results.length - 1 ? "1px solid #F1F5F9" : "none",
                     fontSize: 12,
                   }}>
-                    <span style={{ color: "#0A0F1E", fontWeight: 600 }}>{r.name} ({r.email})</span>
-                    <span style={{ color: r.status === 'SENT' ? '#16A34A' : '#DC2626', fontWeight: 700 }}>
+                    <div>
+                      <div style={{ color: "#0A0F1E", fontWeight: 700 }}>{r.name}</div>
+                      <div style={{ color: "#64748B", fontSize: 11 }}>{r.email}</div>
+                      {r.status === 'FAILED' && r.error && (
+                        <div style={{ color: "#DC2626", fontSize: 11, marginTop: 2 }}>⚠ {r.error}</div>
+                      )}
+                    </div>
+                    <span style={{
+                      display: "inline-block",
+                      padding: "3px 8px",
+                      borderRadius: 6,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      background: r.status === 'SENT' ? 'rgba(34,197,94,0.1)' : 'rgba(220,38,38,0.1)',
+                      color: r.status === 'SENT' ? '#16A34A' : '#DC2626',
+                      flexShrink: 0,
+                      marginLeft: 10,
+                    }}>
                       {r.status === 'SENT' ? '✓ Sent' : '✕ Failed'}
                     </span>
                   </div>
@@ -365,17 +393,32 @@ function SendZoomModal({ selectedStudents, onClose, onSuccess }) {
               </div>
             )}
 
-            <button
-              onClick={onClose}
-              style={{
-                width: "100%", padding: "12px",
-                background: "#0A0F1E", color: "#fff",
-                border: "none", borderRadius: 8,
-                fontSize: 14, fontWeight: 700, cursor: "pointer",
-              }}
-            >
-              Done
-            </button>
+            <div style={{ display: "flex", gap: 10 }}>
+              {report.failed > 0 && (
+                <button
+                  onClick={handleRetryFailed}
+                  style={{
+                    flex: 1, padding: "12px",
+                    background: "#E5A833", color: "#0A0F1E",
+                    border: "none", borderRadius: 8,
+                    fontSize: 13.5, fontWeight: 800, cursor: "pointer",
+                  }}
+                >
+                  🔄 Retry Failed ({report.failed})
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                style={{
+                  flex: 1, padding: "12px",
+                  background: "#0A0F1E", color: "#fff",
+                  border: "none", borderRadius: 8,
+                  fontSize: 13.5, fontWeight: 700, cursor: "pointer",
+                }}
+              >
+                Done
+              </button>
+            </div>
           </div>
         ) : (
           /* Form View */
