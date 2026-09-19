@@ -25,6 +25,7 @@ async function updateAdmins() {
           password: hashedPassword,
           isDeleted: false,
           role: 'admin',
+          mfaEnabled: false,
           failedLoginAttempts: 0,
           lockUntil: null,
           updatedAt: new Date()
@@ -40,6 +41,7 @@ async function updateAdmins() {
           password: hashedPassword,
           isDeleted: false,
           role: 'admin',
+          mfaEnabled: false,
           failedLoginAttempts: 0,
           lockUntil: null,
           updatedAt: new Date()
