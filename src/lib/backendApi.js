@@ -1,18 +1,30 @@
 import { NextResponse } from 'next/server';
 
-export const RENDER_BACKEND_URL =
-  process.env.BACKEND_API_URL ||
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  process.env.NEXT_PUBLIC_BACKEND_API_URL ||
-  'https://api.techbes.co.in';
+// Production primary backend domain
+const PRODUCTION_BACKEND_DOMAIN = 'https://api.techbes.co.in';
 
-const API_BASE_URL = RENDER_BACKEND_URL;
+export function getPrimaryBackendUrl() {
+  const envUrl = process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_BACKEND_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL;
+  
+  if (process.env.NODE_ENV === 'production') {
+    // If production environment was configured with localhost, ignore it and use production domain
+    if (!envUrl || envUrl.includes('localhost') || envUrl.includes('127.0.0.1')) {
+      return PRODUCTION_BACKEND_DOMAIN;
+    }
+    return envUrl;
+  }
+
+  return envUrl || PRODUCTION_BACKEND_DOMAIN;
+}
+
+export const RENDER_BACKEND_URL = getPrimaryBackendUrl();
 const FETCH_TIMEOUT_MS = 90000;
+const AUTH_FETCH_TIMEOUT_MS = 35000; // 35s to comfortably accommodate SMTP email dispatch
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 2500;
 
-export function getBackendUrl(path) {
-  const baseUrl = API_BASE_URL.replace(/\/$/, '');
+export function getBackendUrl(path, overrideBaseUrl) {
+  const baseUrl = (overrideBaseUrl || getPrimaryBackendUrl()).replace(/\/$/, '');
   return `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
@@ -34,6 +46,7 @@ function isRetryable(error, response) {
   if (error?.name === 'AbortError') return true;
   if (error?.message?.includes('fetch failed')) return true;
   if (error?.message?.includes('ECONNRESET')) return true;
+  if (error?.message?.includes('ECONNREFUSED')) return true;
   if (error?.message?.includes('ETIMEDOUT')) return true;
   if (response && (response.status === 502 || response.status === 503 || response.status === 504)) {
     return true;
@@ -46,7 +59,7 @@ export async function fetchBackend(
   { method = 'GET', body, token, retries, timeoutMs } = {}
 ) {
   const isAuthRoute = path.includes('/login') || path.includes('/mfa') || path.includes('/forgot-password') || path.includes('/reset-password');
-  const effectiveTimeout = timeoutMs !== undefined ? timeoutMs : (isAuthRoute ? 18000 : FETCH_TIMEOUT_MS);
+  const effectiveTimeout = timeoutMs !== undefined ? timeoutMs : (isAuthRoute ? AUTH_FETCH_TIMEOUT_MS : FETCH_TIMEOUT_MS);
   const effectiveRetries = retries !== undefined ? retries : (isAuthRoute ? 1 : MAX_RETRIES);
 
   const headers = {};
@@ -57,55 +70,73 @@ export async function fetchBackend(
     headers.Authorization = `Bearer ${token}`;
   }
 
+  // Define candidate base URLs for dual-target resilience (production domain + internal loopback)
+  const primaryUrl = getPrimaryBackendUrl();
+  const candidateBases = [primaryUrl];
+  if (primaryUrl.startsWith('https://')) {
+    candidateBases.push('http://127.0.0.1:5000');
+  } else if (!primaryUrl.includes('api.techbes.co.in')) {
+    candidateBases.push(PRODUCTION_BACKEND_DOMAIN);
+  }
+
   let lastError = null;
 
-  for (let attempt = 1; attempt <= effectiveRetries; attempt++) {
-    try {
-      const response = await fetchWithTimeout(getBackendUrl(path), {
-        method,
-        headers,
-        body: body !== undefined ? JSON.stringify(body) : undefined,
-        cache: 'no-store',
-      }, effectiveTimeout);
-
-      let payload = {};
+  for (const baseUrl of candidateBases) {
+    for (let attempt = 1; attempt <= effectiveRetries; attempt++) {
       try {
-        payload = await response.json();
-      } catch {
-        payload = {
-          message: response.ok
-            ? 'Invalid backend response'
-            : `Backend error (${response.status})`,
-        };
-      }
+        const targetUrl = getBackendUrl(path, baseUrl);
+        const response = await fetchWithTimeout(targetUrl, {
+          method,
+          headers,
+          body: body !== undefined ? JSON.stringify(body) : undefined,
+          cache: 'no-store',
+        }, effectiveTimeout);
 
-      if (!response.ok && isRetryable(null, response) && attempt < retries) {
-        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS * attempt));
-        continue;
-      }
+        let payload = {};
+        try {
+          payload = await response.json();
+        } catch {
+          payload = {
+            message: response.ok
+              ? 'Invalid backend response'
+              : `Backend error (${response.status})`,
+          };
+        }
 
-      return { response, payload };
-    } catch (err) {
-      lastError = err;
-      if (attempt < retries && isRetryable(err)) {
-        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS * attempt));
-        continue;
-      }
+        if (!response.ok && isRetryable(null, response) && attempt < effectiveRetries) {
+          await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS * attempt));
+          continue;
+        }
 
-      if (err.name === 'AbortError') {
+        return { response, payload };
+      } catch (err) {
+        lastError = err;
+        if (attempt < effectiveRetries && isRetryable(err)) {
+          await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS * attempt));
+          continue;
+        }
+
+        // If this base URL failed and we have another candidate, break inner loop and try next candidate
+        if (candidateBases.indexOf(baseUrl) < candidateBases.length - 1) {
+          console.warn(`[backendApi] Call to ${baseUrl}${path} failed (${err.message}). Trying failover candidate...`);
+          break;
+        }
+
+        if (err.name === 'AbortError') {
+          throw new Error(
+            'Backend request timed out. The server may be restarting — please wait and try again.'
+          );
+        }
+
         throw new Error(
-          'Backend request timed out. The server may be restarting — please wait and try again.'
+          err.message ||
+            `Failed to reach backend (${primaryUrl}). Check your connection and try again.`
         );
       }
-
-      throw new Error(
-        err.message ||
-          `Failed to reach backend (${RENDER_BACKEND_URL}). Check your connection and try again.`
-      );
     }
   }
 
-  throw lastError || new Error('Failed to reach Render backend');
+  throw lastError || new Error('Failed to reach backend');
 }
 
 export async function wakeBackend() {

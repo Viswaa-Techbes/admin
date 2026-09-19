@@ -5,8 +5,20 @@ export async function proxy(req) {
   const token = req.cookies.get('auth-token')?.value;
   const path = req.nextUrl.pathname;
 
-  // Protect all API routes except auth
-  if (path.startsWith('/api') && !path.startsWith('/api/auth') && path !== '/api/admin/login') {
+  const publicApiPrefixes = [
+    '/api/auth',
+    '/api/health',
+    '/api/admin/login',
+    '/api/admin/mfa-verify',
+    '/api/admin/mfa-resend',
+    '/api/admin/forgot-password',
+    '/api/admin/reset-password',
+  ];
+
+  const isPublicApi = publicApiPrefixes.some((prefix) => path.startsWith(prefix));
+
+  // Protect all internal API routes except public/auth endpoints
+  if (path.startsWith('/api') && !isPublicApi) {
     if (!token) {
       return NextResponse.json({ message: 'Authentication required' }, { status: 401 });
     }
@@ -15,9 +27,6 @@ export async function proxy(req) {
     if (!payload) {
       return NextResponse.json({ message: 'Invalid or expired token' }, { status: 401 });
     }
-
-    // Role-based logic can be added here
-    // Example: if (req.nextUrl.pathname.startsWith('/api/admin') && payload.role !== 'admin') ...
   }
 
   return NextResponse.next();

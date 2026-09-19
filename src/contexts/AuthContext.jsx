@@ -4,7 +4,16 @@ import { useRouter } from 'next/navigation';
 
 const AuthContext = createContext();
 
-const AUTH_TIMEOUT_MS = 15000;
+const AUTH_TIMEOUT_MS = 30000;
+const DIRECT_BACKEND_URL = 'https://api.techbes.co.in';
+
+function setAuthTokenCookie(token) {
+  if (typeof document !== 'undefined' && token) {
+    const isHttps = window.location.protocol === 'https:';
+    const secureFlag = isHttps ? '; Secure' : '';
+    document.cookie = `auth-token=${encodeURIComponent(token)}; path=/; max-age=1800; SameSite=Strict${secureFlag}`;
+  }
+}
 
 async function authFetch(url, options = {}, timeoutMs = AUTH_TIMEOUT_MS) {
   const controller = new AbortController();
@@ -29,13 +38,18 @@ async function authFetch(url, options = {}, timeoutMs = AUTH_TIMEOUT_MS) {
     }
 
     if (!res.ok) {
-      throw new Error(data.message || 'Authentication request failed');
+      const err = new Error(data.message || 'Authentication request failed');
+      err.status = res.status;
+      err.data = data;
+      throw err;
     }
 
     return data;
   } catch (err) {
     if (err.name === 'AbortError') {
-      throw new Error('Unable to connect to the authentication service. Please try again.');
+      const timeoutErr = new Error('Authentication request timed out. Please try again.');
+      timeoutErr.isTimeout = true;
+      throw timeoutErr;
     }
     throw err;
   } finally {
@@ -75,11 +89,29 @@ export const AuthProvider = ({ children }) => {
   }, [checkUser]);
 
   const login = async (email, password) => {
-    const data = await authFetch('/api/admin/login', {
-      method: 'POST',
-      credentials: 'include',
-      body: JSON.stringify({ email, password }),
-    });
+    let data;
+    try {
+      // Primary: Route through Next.js proxy
+      data = await authFetch('/api/admin/login', {
+        method: 'POST',
+        credentials: 'include',
+        body: JSON.stringify({ email, password }),
+      }, 15000);
+    } catch (proxyErr) {
+      console.warn('[Auth] Next.js login proxy attempt encountered issue, attempting direct backend connection:', proxyErr.message);
+      // Secondary: Fall back directly to backend API via CORS
+      try {
+        data = await authFetch(`${DIRECT_BACKEND_URL}/admin/login`, {
+          method: 'POST',
+          credentials: 'include',
+          body: JSON.stringify({ email, password }),
+        }, AUTH_TIMEOUT_MS);
+      } catch (directErr) {
+        // Prefer the most descriptive error message
+        const finalMsg = directErr.message || proxyErr.message || 'Unable to connect to the authentication service. Please try again.';
+        throw new Error(finalMsg);
+      }
+    }
 
     if (data.mfaRequired) {
       return {
@@ -91,28 +123,63 @@ export const AuthProvider = ({ children }) => {
       };
     }
 
-    setUser(data.user);
+    const adminUser = data.user || data.data?.user;
+    const token = data.token || data.data?.token;
+    if (token) {
+      setAuthTokenCookie(token);
+    }
+    setUser(adminUser);
     router.push('/admin');
-    return { success: true, user: data.user };
+    return { success: true, user: adminUser };
   };
 
   const verifyMfa = async (tempToken, otp, email) => {
-    const data = await authFetch('/api/admin/mfa-verify', {
-      method: 'POST',
-      credentials: 'include',
-      body: JSON.stringify({ tempToken, otp, email }),
-    });
+    let data;
+    try {
+      // Primary: Route through Next.js proxy
+      data = await authFetch('/api/admin/mfa-verify', {
+        method: 'POST',
+        credentials: 'include',
+        body: JSON.stringify({ tempToken, otp, email }),
+      }, 15000);
+    } catch (proxyErr) {
+      console.warn('[Auth] Next.js MFA proxy attempt encountered issue, attempting direct backend verification:', proxyErr.message);
+      // Secondary: Fall back directly to backend API via CORS
+      try {
+        data = await authFetch(`${DIRECT_BACKEND_URL}/admin/mfa-verify`, {
+          method: 'POST',
+          credentials: 'include',
+          body: JSON.stringify({ tempToken, otp, email }),
+        }, AUTH_TIMEOUT_MS);
+      } catch (directErr) {
+        const finalMsg = directErr.message || proxyErr.message || 'MFA verification failed. Please try again.';
+        throw new Error(finalMsg);
+      }
+    }
 
-    setUser(data.user);
+    const adminUser = data.user || data.data?.user;
+    const token = data.token || data.data?.token;
+    if (token) {
+      setAuthTokenCookie(token);
+    }
+    setUser(adminUser);
     router.push('/admin');
-    return { success: true, user: data.user };
+    return { success: true, user: adminUser };
   };
 
   const resendMfa = async (tempToken, email) => {
-    return await authFetch('/api/admin/mfa-resend', {
-      method: 'POST',
-      body: JSON.stringify({ tempToken, email }),
-    });
+    try {
+      return await authFetch('/api/admin/mfa-resend', {
+        method: 'POST',
+        body: JSON.stringify({ tempToken, email }),
+      }, 15000);
+    } catch (proxyErr) {
+      return await authFetch(`${DIRECT_BACKEND_URL}/admin/mfa-resend`, {
+        method: 'POST',
+        credentials: 'include',
+        body: JSON.stringify({ tempToken, email }),
+      }, AUTH_TIMEOUT_MS);
+    }
   };
 
   const register = async (name, email, password) => {
