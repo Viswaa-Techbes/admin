@@ -11,7 +11,11 @@ function setAuthTokenCookie(token) {
   if (typeof document !== 'undefined' && token) {
     const isHttps = window.location.protocol === 'https:';
     const secureFlag = isHttps ? '; Secure' : '';
-    document.cookie = `auth-token=${encodeURIComponent(token)}; path=/; max-age=1800; SameSite=Strict${secureFlag}`;
+    // 7 days expiration (604800 seconds) matching backend 7d JWT validity
+    document.cookie = `auth-token=${encodeURIComponent(token)}; path=/; max-age=604800; SameSite=Strict${secureFlag}`;
+    try {
+      localStorage.setItem('auth-token', token);
+    } catch (_) {}
   }
 }
 

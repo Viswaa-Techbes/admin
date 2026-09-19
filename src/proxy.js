@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server';
 import { verifyToken } from './lib/auth';
 
 export async function proxy(req) {
-  const token = req.cookies.get('auth-token')?.value;
+  const token =
+    req.cookies.get('auth-token')?.value ||
+    req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
   const path = req.nextUrl.pathname;
 
   const publicApiPrefixes = [

@@ -8,8 +8,31 @@ export const RENDER_BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_API_URL ||
   'https://api.techbes.co.in';
 
+function getClientToken() {
+  if (typeof window === 'undefined') return '';
+  try {
+    const local = localStorage.getItem('auth-token');
+    if (local) return local;
+  } catch (_) {}
+  if (typeof document !== 'undefined') {
+    const match = document.cookie.match(/(?:^|;\s*)auth-token=([^;]+)/);
+    if (match) return decodeURIComponent(match[1]);
+  }
+  return '';
+}
+
 export async function apiFetch(path, options = {}) {
   const { body, headers = {}, method = 'GET', ...rest } = options;
+
+  const clientToken = getClientToken();
+  const authHeader = clientToken ? { Authorization: `Bearer ${clientToken}` } : {};
+
+  // Self-heal cookie if present in localStorage but missing from cookies
+  if (clientToken && typeof document !== 'undefined' && !document.cookie.includes('auth-token=')) {
+    const isHttps = window.location.protocol === 'https:';
+    const secureFlag = isHttps ? '; Secure' : '';
+    document.cookie = `auth-token=${encodeURIComponent(clientToken)}; path=/; max-age=604800; SameSite=Strict${secureFlag}`;
+  }
 
   const res = await fetch(path, {
     method,
@@ -18,6 +41,7 @@ export async function apiFetch(path, options = {}) {
     headers: {
       'X-Requested-With': 'XMLHttpRequest',
       'X-CSRF-Protection': '1',
+      ...authHeader,
       ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
       ...headers,
     },
