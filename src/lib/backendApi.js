@@ -31,6 +31,8 @@ export function getBackendUrl(path, overrideBaseUrl) {
 export function getAuthToken(req) {
   return (
     req.cookies.get('auth-token')?.value ||
+    req.cookies.get('token')?.value ||
+    req.cookies.get('auth_token')?.value ||
     req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ||
     ''
   );

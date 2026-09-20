@@ -22,13 +22,14 @@ export async function POST(req) {
       message: payload.message || 'MFA verified successfully',
       role: user.role,
       user,
+      token,
     });
 
     nextResponse.cookies.set('auth-token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 30 * 60, // 30 minutes
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60, // 7 days (backend enforces 30m inactivity via lastSeen)
       path: '/',
     });
 

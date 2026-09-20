@@ -11,11 +11,11 @@ export const RENDER_BACKEND_URL =
 function getClientToken() {
   if (typeof window === 'undefined') return '';
   try {
-    const local = localStorage.getItem('auth-token');
+    const local = localStorage.getItem('auth-token') || localStorage.getItem('token');
     if (local) return local;
   } catch (_) {}
   if (typeof document !== 'undefined') {
-    const match = document.cookie.match(/(?:^|;\s*)auth-token=([^;]+)/);
+    const match = document.cookie.match(/(?:^|;\s*)(?:auth-token|token)=([^;]+)/);
     if (match) return decodeURIComponent(match[1]);
   }
   return '';
