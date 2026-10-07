@@ -1,5 +1,5 @@
 import React from "react";
-import { GridIcon, UsersIcon, HardHatIcon, BriefcaseIcon, WrenchIcon, CreditCardIcon, MapPinIcon, BellIcon, ChartIcon, SettingsIcon, SearchIcon } from "./Icons";
+import { GridIcon, UsersIcon, HardHatIcon, BriefcaseIcon, WrenchIcon, CreditCardIcon, MapPinIcon, BellIcon, ChartIcon, SettingsIcon, SearchIcon, BuildingIcon } from "./Icons";
 import { Avatar } from "./UI";
 
 export const NAV_ITEMS = [
@@ -8,6 +8,7 @@ export const NAV_ITEMS = [
   { id: "technicians", label: "Customer Management", icon: <UsersIcon /> },
   { id: "leads", label: "Lead Management", icon: <BriefcaseIcon /> },
   { id: "quotes", label: "Quote Requests", icon: <BriefcaseIcon /> },
+  { id: "apartments", label: "Apartments & Tickets", icon: <BuildingIcon /> },
   { id: "jobs", label: "Projects", icon: <BriefcaseIcon /> },
   { id: "service-requests", label: "Service Requests", icon: <BellIcon />, badge: null },
   { id: "amc", label: "AMC Management", icon: <BriefcaseIcon /> },
@@ -59,6 +60,7 @@ export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLo
         { id: "technicians", label: "Customers", icon: <UsersIcon /> },
         { id: "leads", label: "Leads", icon: <BriefcaseIcon /> },
         { id: "quotes", label: "Quote Requests", icon: <BriefcaseIcon /> },
+        { id: "apartments", label: "Apartments & Tickets", icon: <BuildingIcon /> },
         { id: "service-requests", label: "Bookings", icon: <BellIcon /> },
         { id: "amc", label: "AMC Management", icon: <BriefcaseIcon /> },
         { id: "cancellations", label: "Cancellations", icon: <BellIcon /> }
