@@ -124,24 +124,42 @@ export default function AdminDashboardContent() {
         setActivePage('admissions');
         setSelectedId(parts[parts.length - 1]);
       } 
-      else if (path.includes('/admin/applications')) setActivePage('admissions');
-      else if (path.includes('/admin/students')) setActivePage('student-profiles');
-      else if (path.includes('/admin/assignments')) setActivePage('course-assignment');
-      else if (path.includes('/admin/payments')) setActivePage('payments');
+      else if (path.includes('/admin/cctv-masterclass')) setActivePage('cctv-masterclass');
+      else if (path.includes('/admin/quotes')) setActivePage('quotes');
+      else if (path.includes('/admin/customers')) setActivePage('technicians');
+      else if (path.includes('/admin/leads')) setActivePage('leads');
+      else if (path.includes('/admin/bookings') || path.includes('/admin/service-requests')) setActivePage('service-requests');
+      else if (path.includes('/admin/apartments')) setActivePage('apartments');
+      else if (path.includes('/admin/projects') || path.includes('/admin/jobs')) setActivePage('jobs');
+      else if (path.includes('/admin/amc')) setActivePage('amc');
+      else if (path.includes('/admin/cancellations')) setActivePage('cancellations');
+      else if (path.includes('/admin/services')) setActivePage('services');
+      else if (path.includes('/admin/catalog')) setActivePage('catalog');
+      else if (path.includes('/admin/cctv-pricing')) setActivePage('cctv-pricing');
+      else if (path.includes('/admin/dispatch-monitor')) setActivePage('dispatch-monitor');
+      else if (path.includes('/admin/tracking')) setActivePage('tracking');
+      else if (path.includes('/admin/attendance')) setActivePage('attendance');
+      else if (path.includes('/admin/tech-performance')) setActivePage('tech-performance');
+      else if (path.includes('/admin/requests')) setActivePage('requests');
+      else if (path.includes('/admin/worksheets')) setActivePage('worksheets');
+      else if (path.includes('/admin/employees') || path.includes('/admin/members')) setActivePage('members');
+      else if (path.includes('/admin/kyc-approvals')) setActivePage('kyc-approvals');
+      else if (path.includes('/admin/reviews')) setActivePage('reviews');
+      else if (path.includes('/admin/penalties')) setActivePage('penalties');
+      else if (path.includes('/admin/applications') || path.includes('/admin/admissions')) setActivePage('admissions');
+      else if (path.includes('/admin/students') || path.includes('/admin/student-profiles')) setActivePage('student-profiles');
+      else if (path.includes('/admin/admission-payments')) setActivePage('admission-payments');
+      else if (path.includes('/admin/assignments') || path.includes('/admin/course-assignment')) setActivePage('course-assignment');
+      else if (path.includes('/admin/admission-analytics')) setActivePage('admission-analytics');
       else if (path.includes('/admin/analytics-main')) setActivePage('analytics-main');
       else if (path.includes('/admin/analytics-members')) setActivePage('analytics-members');
       else if (path.includes('/admin/analytics-skills')) setActivePage('analytics-skills');
       else if (path.includes('/admin/analytics') || path.includes('/admin/reports')) setActivePage('reports');
-      else if (path.includes('/admin/cctv-pricing')) setActivePage('cctv-pricing');
-      else if (path.includes('/admin/worksheets')) setActivePage('worksheets');
-      else if (path.includes('/admin/kyc-approvals')) setActivePage('kyc-approvals');
-      else if (path.includes('/admin/amc')) setActivePage('amc');
-      else if (path.includes('/admin/cctv-masterclass')) setActivePage('cctv-masterclass');
-      else if (path.includes('/admin/quotes')) setActivePage('quotes');
-      else if (path.includes('/admin/apartments')) setActivePage('apartments');
+      else if (path.includes('/admin/payments')) setActivePage('payments');
+      else if (path.includes('/admin/addresses')) setActivePage('addresses');
+      else if (path.includes('/admin/notifications')) setActivePage('notifications');
       else if (path.includes('/admin/settings')) setActivePage('settings');
-      else if (path.includes('/admin/penalties')) setActivePage('penalties');
-      else if (path === '/admin') setActivePage('dashboard');
+      else if (path === '/admin' || path === '/admin/') setActivePage('dashboard');
     };
 
     syncPageFromUrl();
@@ -228,27 +246,45 @@ export default function AdminDashboardContent() {
         active={activePage} 
         setActive={(page) => {
           setActivePage(page);
-          const mapping = { 
-            admissions: '/admin/applications', 
+          const PAGE_TO_ROUTE = {
+            dashboard: '/admin',
+            technicians: '/admin/customers',
+            leads: '/admin/leads',
+            quotes: '/admin/quotes',
+            apartments: '/admin/apartments',
+            'service-requests': '/admin/bookings',
+            jobs: '/admin/projects',
+            amc: '/admin/amc',
+            cancellations: '/admin/cancellations',
+            services: '/admin/services',
+            catalog: '/admin/catalog',
+            'cctv-pricing': '/admin/cctv-pricing',
+            'dispatch-monitor': '/admin/dispatch-monitor',
+            tracking: '/admin/tracking',
+            attendance: '/admin/attendance',
+            'tech-performance': '/admin/tech-performance',
+            requests: '/admin/requests',
+            worksheets: '/admin/worksheets',
+            members: '/admin/employees',
+            'kyc-approvals': '/admin/kyc-approvals',
+            reviews: '/admin/reviews',
+            penalties: '/admin/penalties',
+            admissions: '/admin/applications',
             'student-profiles': '/admin/students',
+            'admission-payments': '/admin/admission-payments',
             'course-assignment': '/admin/assignments',
-            payments: '/admin/payments', 
-            reports: '/admin/analytics',
+            'admission-analytics': '/admin/admission-analytics',
+            'cctv-masterclass': '/admin/cctv-masterclass',
             'analytics-main': '/admin/analytics-main',
             'analytics-members': '/admin/analytics-members',
             'analytics-skills': '/admin/analytics-skills',
-            'kyc-approvals': '/admin/kyc-approvals',
-            'cctv-pricing': '/admin/cctv-pricing',
-            worksheets: '/admin/worksheets',
+            payments: '/admin/payments',
+            reports: '/admin/reports',
+            addresses: '/admin/addresses',
+            notifications: '/admin/notifications',
             settings: '/admin/settings',
-            penalties: '/admin/penalties',
-            amc: '/admin/amc',
-            'cctv-masterclass': '/admin/cctv-masterclass',
-            quotes: '/admin/quotes',
-            apartments: '/admin/apartments',
-            dashboard: '/admin'
           };
-          const newPath = mapping[page] || '/admin';
+          const newPath = PAGE_TO_ROUTE[page] || '/admin';
           router.push(newPath);
         }}
         collapsed={collapsed} 
