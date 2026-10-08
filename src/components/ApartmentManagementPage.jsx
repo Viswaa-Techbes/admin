@@ -53,6 +53,7 @@ export function ApartmentManagementPage() {
   const [ticketRaisedByFilter, setTicketRaisedByFilter] = useState("All");
   const [ticketFlatFilter, setTicketFlatFilter] = useState("");
   const [ticketStatusFilter, setTicketStatusFilter] = useState("All");
+  const [ticketDateFilter, setTicketDateFilter] = useState("");
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [replyText, setReplyText] = useState("");
   const [replyStatus, setReplyStatus] = useState("");
@@ -80,6 +81,7 @@ export function ApartmentManagementPage() {
       if (ticketRaisedByFilter !== "All") query.push(`raisedByType=${ticketRaisedByFilter}`);
       if (ticketFlatFilter.trim()) query.push(`flatNumber=${encodeURIComponent(ticketFlatFilter.trim())}`);
       if (ticketStatusFilter !== "All") query.push(`status=${ticketStatusFilter}`);
+      if (ticketDateFilter) query.push(`date=${ticketDateFilter}`);
       
       const queryString = query.length > 0 ? `?${query.join("&")}` : "";
       const { payload } = await apiFetch(`/api/v2/apartments/tickets${queryString}`);
@@ -99,7 +101,7 @@ export function ApartmentManagementPage() {
     if (activeTab === "tickets") {
       fetchTickets();
     }
-  }, [activeTab, ticketApartmentFilter, ticketRaisedByFilter, ticketFlatFilter, ticketStatusFilter]);
+  }, [activeTab, ticketApartmentFilter, ticketRaisedByFilter, ticketFlatFilter, ticketStatusFilter, ticketDateFilter]);
 
   // Handle Save Apartment
   const handleSaveApartment = async (e) => {
@@ -719,6 +721,18 @@ export function ApartmentManagementPage() {
                   <option value="Closed">Closed</option>
                 </select>
               </div>
+
+              <div style={{ minWidth: 140 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#475569", marginBottom: 4 }}>
+                  Date
+                </label>
+                <input
+                  type="date"
+                  value={ticketDateFilter}
+                  onChange={(e) => setTicketDateFilter(e.target.value)}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 13 }}
+                />
+              </div>
             </div>
 
             {/* Tickets Table / List */}
@@ -748,28 +762,35 @@ export function ApartmentManagementPage() {
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                         <div>
-                          {/* PART 22: ADMIN TICKET CLEAR LABELING */}
+                          {/* ADMIN TICKET CLEAR LABELING:
+                              Apartment: [Name] | Raised By: ASSOCIATION
+                              OR
+                              Apartment: [Name] | Raised By: RESIDENT | Flat: [Flat] | Resident: [Name] */}
                           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
                             <span style={{ fontSize: 11, fontWeight: 800, background: "#f1f5f9", color: "#334155", padding: "2px 6px", borderRadius: 4 }}>
                               {t.ticketId || `#${t._id.slice(-6).toUpperCase()}`}
                             </span>
 
-                            {t.apartmentName && (
-                              <span style={{ fontSize: 11, fontWeight: 700, background: "#eff6ff", color: "#1d4ed8", padding: "2px 8px", borderRadius: 4, border: "1px solid #bfdbfe" }}>
-                                Apartment: {t.apartmentName}
-                              </span>
-                            )}
+                            <span style={{ fontSize: 11, fontWeight: 700, background: "#eff6ff", color: "#1d4ed8", padding: "2px 8px", borderRadius: 4, border: "1px solid #bfdbfe" }}>
+                              Apartment: {t.apartmentName || "General"}
+                            </span>
 
-                            {isAssoc && (
+                            {isAssoc ? (
                               <span style={{ fontSize: 11, fontWeight: 700, background: "#dbeafe", color: "#1e40af", padding: "2px 8px", borderRadius: 4, border: "1px solid #93c5fd" }}>
-                                Raised By: Association
+                                Raised By: ASSOCIATION
                               </span>
-                            )}
-
-                            {isResident && (
-                              <span style={{ fontSize: 11, fontWeight: 700, background: "#d1fae5", color: "#065f46", padding: "2px 8px", borderRadius: 4, border: "1px solid #6ee7b7" }}>
-                                Raised By: Resident &bull; Flat: {t.flatNumber || "N/A"}
-                              </span>
+                            ) : (
+                              <>
+                                <span style={{ fontSize: 11, fontWeight: 700, background: "#d1fae5", color: "#065f46", padding: "2px 8px", borderRadius: 4, border: "1px solid #6ee7b7" }}>
+                                  Raised By: RESIDENT
+                                </span>
+                                <span style={{ fontSize: 11, fontWeight: 700, background: "#f0fdf4", color: "#166534", padding: "2px 8px", borderRadius: 4, border: "1px solid #bbf7d0" }}>
+                                  Flat: {t.flatNumber || "N/A"}
+                                </span>
+                                <span style={{ fontSize: 11, fontWeight: 700, background: "#f8fafc", color: "#334155", padding: "2px 8px", borderRadius: 4, border: "1px solid #e2e8f0" }}>
+                                  Resident: {t.raisedByName || "N/A"}
+                                </span>
+                              </>
                             )}
                           </div>
 
