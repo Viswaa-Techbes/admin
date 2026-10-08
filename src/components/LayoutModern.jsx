@@ -47,14 +47,14 @@ export const NAV_ITEMS = [
 export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLogout, mobileOpen, setMobileOpen }) {
   const groups = [
     {
-      id: "dashboard",
+      id: "grp-dashboard",
       title: "Dashboard",
       items: [
         { id: "dashboard", label: "Dashboard", icon: <GridIcon /> }
       ]
     },
     {
-      id: "customers",
+      id: "grp-customers",
       title: "Customer Management",
       items: [
         { id: "technicians", label: "Customers", icon: <UsersIcon /> },
@@ -67,7 +67,7 @@ export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLo
       ]
     },
     {
-      id: "services",
+      id: "grp-services",
       title: "Services",
       items: [
         { id: "services", label: "Services", icon: <WrenchIcon /> },
@@ -76,7 +76,7 @@ export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLo
       ]
     },
     {
-      id: "dispatch",
+      id: "grp-dispatch",
       title: "Dispatch",
       items: [
         { id: "dispatch-monitor", label: "Dispatch Monitor", icon: <MapPinIcon /> },
@@ -88,7 +88,7 @@ export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLo
       ]
     },
     {
-      id: "technicians",
+      id: "grp-technicians",
       title: "Technician Management",
       items: [
         { id: "members", label: "Employees", icon: <HardHatIcon /> },
@@ -98,7 +98,7 @@ export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLo
       ]
     },
     {
-      id: "academic",
+      id: "grp-academic",
       title: "Academic Admissions",
       items: [
         { id: "admissions", label: "Applications", icon: <UsersIcon /> },
@@ -109,14 +109,14 @@ export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLo
       ]
     },
     {
-      id: "masterclasses",
+      id: "grp-masterclasses",
       title: "Masterclasses",
       items: [
         { id: "cctv-masterclass", label: "CCTV Masterclass", icon: <BriefcaseIcon /> }
       ]
     },
     {
-      id: "visitor-analytics",
+      id: "grp-visitor-analytics",
       title: "Visitor Analytics",
       items: [
         { id: "analytics-main", label: "Main Website", icon: <ChartIcon /> },
@@ -125,7 +125,7 @@ export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLo
       ]
     },
     {
-      id: "finance",
+      id: "grp-finance",
       title: "Finance",
       items: [
         { id: "payments", label: "Payments", icon: <CreditCardIcon /> },
@@ -133,7 +133,7 @@ export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLo
       ]
     },
     {
-      id: "settings",
+      id: "grp-settings",
       title: "Settings",
       items: [
         { id: "addresses", label: "Address Management", icon: <MapPinIcon /> },

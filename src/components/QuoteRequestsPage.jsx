@@ -487,14 +487,15 @@ export function QuoteRequestsPage() {
           <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
             <thead>
               <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
-                <th style={{ padding: "12px 18px", fontSize: 11, fontWeight: 750, color: "#475569" }}>QUOTE ID</th>
-                <th style={{ padding: "12px 18px", fontSize: 11, fontWeight: 750, color: "#475569" }}>CUSTOMER</th>
-                <th style={{ padding: "12px 18px", fontSize: 11, fontWeight: 750, color: "#475569" }}>CATEGORY</th>
-                <th style={{ padding: "12px 18px", fontSize: 11, fontWeight: 750, color: "#475569" }}>ITEMS</th>
-                <th style={{ padding: "12px 18px", fontSize: 11, fontWeight: 750, color: "#475569" }}>AMOUNT</th>
-                <th style={{ padding: "12px 18px", fontSize: 11, fontWeight: 750, color: "#475569" }}>STATUS</th>
-                <th style={{ padding: "12px 18px", fontSize: 11, fontWeight: 750, color: "#475569" }}>DATE</th>
-                <th style={{ padding: "12px 18px", fontSize: 11, fontWeight: 750, color: "#475569" }}>ACTIONS</th>
+                <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>REQUEST ID</th>
+                <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>CUSTOMER</th>
+                <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>SERVICE</th>
+                <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>MOBILE</th>
+                <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>AREA / LOCALITY</th>
+                <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>STATUS</th>
+                <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>ASSIGNED STAFF</th>
+                <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>CREATED DATE</th>
+                <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap", textAlign: "center" }}>ACTION</th>
               </tr>
             </thead>
             <tbody>
@@ -502,35 +503,35 @@ export function QuoteRequestsPage() {
                 const createdDate = new Date(q.createdAt).toLocaleDateString("en-IN", {
                   day: "numeric", month: "short", year: "numeric"
                 });
-                const itemCount = (q.items || []).length;
-                const formattedAmount = q.finalAmount ? `₹${q.finalAmount.toLocaleString('en-IN')}` : "Not Priced";
 
                 return (
                   <tr key={q._id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                    <td style={{ padding: "14px 18px", fontSize: 12, fontWeight: 750, color: "#1e293b" }}>
+                    <td style={{ padding: "14px 16px", fontSize: 12, fontWeight: 750, color: "#1e293b", whiteSpace: "nowrap" }}>
                       <span style={{ fontFamily: "monospace", color: "#3b82f6" }}>{q.requestId}</span>
                     </td>
-                    <td style={{ padding: "14px 18px" }}>
-                      <div style={{ fontWeight: 700, fontSize: 12, color: "#1e293b" }}>{q.fullName}</div>
-                      <div style={{ fontSize: 11, color: "#64748b" }}>{q.mobile}</div>
+                    <td style={{ padding: "14px 16px", fontSize: 12, fontWeight: 700, color: "#1e293b", whiteSpace: "nowrap" }}>
+                      {q.fullName}
                     </td>
-                    <td style={{ padding: "14px 18px", fontSize: 12, color: "#334155" }}>
+                    <td style={{ padding: "14px 16px", fontSize: 12, color: "#334155", whiteSpace: "nowrap" }}>
                       <span style={{ fontWeight: 650 }}>{q.serviceCategory}</span>
                       {q.subcategory && <div style={{ fontSize: 10, color: "#64748b" }}>{q.subcategory}</div>}
                     </td>
-                    <td style={{ padding: "14px 18px", fontSize: 12, color: "#475569" }}>
-                      <span style={{ background: "#e0e7ff", color: "#4338ca", fontSize: 11, padding: "2px 8px", borderRadius: 99, fontWeight: 700 }}>
-                        {itemCount} {itemCount === 1 ? 'item' : 'items'}
-                      </span>
+                    <td style={{ padding: "14px 16px", fontSize: 12, color: "#475569", whiteSpace: "nowrap" }}>
+                      {q.mobile}
                     </td>
-                    <td style={{ padding: "14px 18px", fontSize: 12, fontWeight: 700, color: q.finalAmount ? "#059669" : "#94a3b8" }}>
-                      {formattedAmount}
+                    <td style={{ padding: "14px 16px", fontSize: 12, color: "#475569", whiteSpace: "nowrap" }}>
+                      {q.locality || q.address || "—"}
                     </td>
-                    <td style={{ padding: "14px 18px" }}>
+                    <td style={{ padding: "14px 16px", whiteSpace: "nowrap" }}>
                       <StatusBadge status={q.status} />
                     </td>
-                    <td style={{ padding: "14px 18px", fontSize: 11, color: "#64748b" }}>{createdDate}</td>
-                    <td style={{ padding: "14px 18px" }}>
+                    <td style={{ padding: "14px 16px", fontSize: 12, color: "#475569", whiteSpace: "nowrap" }}>
+                      {q.assignedTo?.name || "Unassigned"}
+                    </td>
+                    <td style={{ padding: "14px 16px", fontSize: 11, color: "#64748b", whiteSpace: "nowrap" }}>
+                      {createdDate}
+                    </td>
+                    <td style={{ padding: "14px 16px", textAlign: "center", whiteSpace: "nowrap" }}>
                       <button 
                         onClick={() => {
                           setSelectedQuote(q);
@@ -538,11 +539,11 @@ export function QuoteRequestsPage() {
                         }}
                         style={{
                           background: "linear-gradient(135deg,#3b82f6,#2563eb)", color: "#fff",
-                          border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 11,
-                          fontWeight: 700, cursor: "pointer", shadow: "0 2px 4px rgba(59,130,246,0.2)"
+                          border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 11.5,
+                          fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 4px rgba(59,130,246,0.2)"
                         }}
                       >
-                        Price / Manage
+                        Inspect
                       </button>
                     </td>
                   </tr>
@@ -586,6 +587,9 @@ export function QuoteRequestsPage() {
                   <div><strong style={{ color: "#64748b" }}>Mobile:</strong> <span style={{ color: "#1e293b", fontWeight: 600 }}>{selectedQuote.mobile}</span></div>
                   <div><strong style={{ color: "#64748b" }}>Email:</strong> <span>{selectedQuote.email || "—"}</span></div>
                   <div><strong style={{ color: "#64748b" }}>Category:</strong> <span style={{ color: "#3b82f6", fontWeight: 700 }}>{selectedQuote.serviceCategory} {selectedQuote.subcategory ? `(${selectedQuote.subcategory})` : ''}</span></div>
+                  <div><strong style={{ color: "#64748b" }}>Status:</strong> <span style={{ fontWeight: 700, color: "#1e293b" }}><StatusBadge status={selectedQuote.status} /></span></div>
+                  <div><strong style={{ color: "#64748b" }}>Preferred Date:</strong> <span style={{ color: "#1e293b", fontWeight: 600 }}>{selectedQuote.preferredVisitDate ? new Date(selectedQuote.preferredVisitDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : (selectedQuote.preferredDate || "Flexible")}</span></div>
+                  <div><strong style={{ color: "#64748b" }}>Preferred Time:</strong> <span style={{ color: "#1e293b", fontWeight: 600 }}>{selectedQuote.preferredVisitTime || selectedQuote.preferredTimeSlot || selectedQuote.preferredTime || "Flexible / Any Time"}</span></div>
                   <div style={{ gridColumn: "span 2" }}><strong style={{ color: "#64748b" }}>Address:</strong> <span>{selectedQuote.address} (Locality: {selectedQuote.locality}, PIN: {selectedQuote.pincode || "—"})</span></div>
                   
                   {/* Google maps link */}
@@ -603,6 +607,22 @@ export function QuoteRequestsPage() {
                   )}
                 </div>
               </div>
+
+              {/* Uploaded Images Gallery */}
+              {selectedQuote.images && selectedQuote.images.length > 0 && (
+                <div style={{ background: "#f8fafc", padding: 16, borderRadius: 16, border: "1px solid #e2e8f0" }}>
+                  <h4 style={{ margin: "0 0 10px 0", fontSize: 12, color: "#1e293b", fontWeight: 800, textTransform: "uppercase" }}>
+                    Uploaded Site / Layout Photos ({selectedQuote.images.length})
+                  </h4>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                    {selectedQuote.images.map((imgUrl, idx) => (
+                      <a key={idx} href={imgUrl} target="_blank" rel="noopener noreferrer" style={{ display: "block", border: "1.5px solid #cbd5e1", borderRadius: 8, overflow: "hidden", background: "#fff" }}>
+                        <img src={imgUrl} alt={`Upload ${idx + 1}`} style={{ width: 84, height: 84, objectFit: "cover", display: "block" }} />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Additional Requirements & Voice Note Player */}
               <div style={{ background: "#f8fafc", padding: 16, borderRadius: 16, border: "1px solid #e2e8f0" }}>

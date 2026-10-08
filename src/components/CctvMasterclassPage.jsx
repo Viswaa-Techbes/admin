@@ -628,6 +628,378 @@ function ResendConfirmModal({ student, onConfirm, onCancel }) {
   );
 }
 
+// ─── Edit Student Modal ──────────────────────────────────────────────────────
+function EditStudentModal({ student, onClose, onSuccess }) {
+  const [formData, setFormData] = useState({
+    name: student?.name || "",
+    email: student?.email || "",
+    mobile: student?.mobile || "",
+    whatsapp: student?.whatsapp || "",
+    qualification: student?.qualification || "",
+    location: student?.location || "",
+    courseName: student?.courseName || student?.masterclassId?.title || "CCTV Masterclass",
+    paymentStatus: student?.paymentStatus || "PENDING",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const isVerifiedRazorpay = !!(student?.razorpayPaymentId && student?.paymentStatus === 'PAID');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    if (!formData.name.trim() || !formData.email.trim() || !formData.mobile.trim()) {
+      setError("Name, email, and mobile are required.");
+      return;
+    }
+
+    if (isVerifiedRazorpay && formData.paymentStatus !== 'PAID') {
+      setError("This student has a verified Razorpay payment record. Payment status cannot be altered to unverified.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await apiFetch(`/api/v2/cctv-course/admin/registrations/${student._id}`, {
+        method: "PUT",
+        body: formData,
+      });
+      onSuccess("Student registration updated successfully.");
+      onClose();
+    } catch (err) {
+      setError(err.message || "Failed to update registration.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed", inset: 0, zIndex: 750,
+        background: "rgba(10,15,30,0.55)", backdropFilter: "blur(4px)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 16,
+      }}
+      onClick={e => { if (e.target === e.currentTarget && !saving) onClose(); }}
+    >
+      <div style={{
+        width: "100%", maxWidth: 540,
+        background: "#fff", borderRadius: 16,
+        boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)",
+        overflow: "hidden", maxHeight: "90vh", display: "flex", flexDirection: "column",
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: "18px 24px", borderBottom: "1px solid #F1F5F9",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          background: "#FAFAFA",
+        }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 17, fontWeight: 900, color: "#0A0F1E" }}>
+              Edit Student Registration
+            </h3>
+            <p style={{ margin: "2px 0 0", fontSize: 12, color: "#64748B", fontFamily: "monospace" }}>
+              ID: {student.registrationId || student.enrollmentId || student._id}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={saving}
+            style={{
+              width: 30, height: 30, borderRadius: "50%",
+              border: "1.5px solid #E2E8F0", background: "#fff",
+              cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+              color: "#64748B", fontSize: 16,
+            }}
+          >×</button>
+        </div>
+
+        {/* Form Body */}
+        <form onSubmit={handleSubmit} style={{ padding: "20px 24px", overflowY: "auto", flex: 1 }}>
+          {error && (
+            <div style={{
+              background: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.2)",
+              borderRadius: 8, padding: "10px 14px", marginBottom: 16,
+              fontSize: 12.5, color: "#DC2626", fontWeight: 600,
+            }}>
+              ⚠ {error}
+            </div>
+          )}
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+            <div>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 5 }}>
+                Full Name <span style={{ color: "#DC2626" }}>*</span>
+              </label>
+              <input
+                required
+                value={formData.name}
+                onChange={e => setFormData({ ...formData, name: e.target.value })}
+                style={{
+                  width: "100%", padding: "9px 12px",
+                  border: "1.5px solid #CBD5E1", borderRadius: 8,
+                  fontSize: 13, outline: "none", boxSizing: "border-box",
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 5 }}>
+                Mobile Number <span style={{ color: "#DC2626" }}>*</span>
+              </label>
+              <input
+                required
+                value={formData.mobile}
+                onChange={e => setFormData({ ...formData, mobile: e.target.value })}
+                style={{
+                  width: "100%", padding: "9px 12px",
+                  border: "1.5px solid #CBD5E1", borderRadius: 8,
+                  fontSize: 13, outline: "none", boxSizing: "border-box",
+                }}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+            <div>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 5 }}>
+                Email Address <span style={{ color: "#DC2626" }}>*</span>
+              </label>
+              <input
+                required
+                type="email"
+                value={formData.email}
+                onChange={e => setFormData({ ...formData, email: e.target.value })}
+                style={{
+                  width: "100%", padding: "9px 12px",
+                  border: "1.5px solid #CBD5E1", borderRadius: 8,
+                  fontSize: 13, outline: "none", boxSizing: "border-box",
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 5 }}>
+                WhatsApp Number
+              </label>
+              <input
+                value={formData.whatsapp}
+                onChange={e => setFormData({ ...formData, whatsapp: e.target.value })}
+                placeholder="Optional"
+                style={{
+                  width: "100%", padding: "9px 12px",
+                  border: "1.5px solid #CBD5E1", borderRadius: 8,
+                  fontSize: 13, outline: "none", boxSizing: "border-box",
+                }}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+            <div>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 5 }}>
+                Location / City
+              </label>
+              <input
+                value={formData.location}
+                onChange={e => setFormData({ ...formData, location: e.target.value })}
+                placeholder="e.g. Chennai"
+                style={{
+                  width: "100%", padding: "9px 12px",
+                  border: "1.5px solid #CBD5E1", borderRadius: 8,
+                  fontSize: 13, outline: "none", boxSizing: "border-box",
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 5 }}>
+                Qualification
+              </label>
+              <input
+                value={formData.qualification}
+                onChange={e => setFormData({ ...formData, qualification: e.target.value })}
+                placeholder="e.g. Diploma / BE"
+                style={{
+                  width: "100%", padding: "9px 12px",
+                  border: "1.5px solid #CBD5E1", borderRadius: 8,
+                  fontSize: 13, outline: "none", boxSizing: "border-box",
+                }}
+              />
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 5 }}>
+              Course / Masterclass Title
+            </label>
+            <input
+              value={formData.courseName}
+              onChange={e => setFormData({ ...formData, courseName: e.target.value })}
+              style={{
+                width: "100%", padding: "9px 12px",
+                border: "1.5px solid #CBD5E1", borderRadius: 8,
+                fontSize: 13, outline: "none", boxSizing: "border-box",
+              }}
+            />
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 5 }}>
+              Payment Status
+            </label>
+            <select
+              value={formData.paymentStatus}
+              disabled={isVerifiedRazorpay}
+              onChange={e => setFormData({ ...formData, paymentStatus: e.target.value })}
+              style={{
+                width: "100%", padding: "9px 12px",
+                border: "1.5px solid #CBD5E1", borderRadius: 8,
+                fontSize: 13, outline: "none", boxSizing: "border-box",
+                background: isVerifiedRazorpay ? "#F1F5F9" : "#fff",
+                cursor: isVerifiedRazorpay ? "not-allowed" : "pointer",
+              }}
+            >
+              <option value="PAID">PAID</option>
+              <option value="PENDING">PENDING</option>
+              <option value="FAILED">FAILED</option>
+              <option value="CANCELLED">CANCELLED</option>
+              <option value="REFUNDED">REFUNDED</option>
+            </select>
+            {isVerifiedRazorpay && (
+              <span style={{ fontSize: 11, color: "#16A34A", marginTop: 4, display: "block", fontWeight: 600 }}>
+                🔒 Locked: Verified Razorpay payment ({student.razorpayPaymentId})
+              </span>
+            )}
+          </div>
+
+          {/* Form Actions */}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, paddingTop: 10, borderTop: "1px solid #F1F5F9" }}>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={onClose}
+              style={{
+                padding: "9px 16px", borderRadius: 8,
+                border: "1.5px solid #E2E8F0", background: "#fff",
+                color: "#64748B", fontWeight: 700, fontSize: 13, cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              style={{
+                padding: "9px 20px", borderRadius: 8,
+                border: "none", background: "#0A0F1E",
+                color: "#fff", fontWeight: 800, fontSize: 13,
+                cursor: saving ? "not-allowed" : "pointer",
+                display: "flex", alignItems: "center", gap: 8,
+              }}
+            >
+              {saving ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Delete Confirmation Modal ───────────────────────────────────────────────
+function DeleteConfirmModal({ student, onClose, onConfirm, deleting }) {
+  if (!student) return null;
+
+  return (
+    <div
+      style={{
+        position: "fixed", inset: 0, zIndex: 800,
+        background: "rgba(10,15,30,0.55)", backdropFilter: "blur(4px)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 16,
+      }}
+      onClick={e => { if (e.target === e.currentTarget && !deleting) onClose(); }}
+    >
+      <div style={{
+        width: "100%", maxWidth: 440,
+        background: "#fff", borderRadius: 16,
+        padding: "24px", textAlign: "center",
+        boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)",
+      }}>
+        {/* Warning Icon */}
+        <div style={{
+          width: 56, height: 56, borderRadius: "50%",
+          background: "rgba(220,38,38,0.1)", border: "1.5px solid rgba(220,38,38,0.25)",
+          color: "#DC2626", fontSize: 26,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          margin: "0 auto 16px",
+        }}>
+          🗑
+        </div>
+
+        {/* Title */}
+        <h4 style={{ margin: "0 0 8px", fontSize: 18, fontWeight: 900, color: "#0A0F1E" }}>
+          Delete Registration?
+        </h4>
+
+        {/* Student identification */}
+        <div style={{
+          background: "#F8FAFC", border: "1px solid #E2E8F0",
+          borderRadius: 8, padding: "10px 14px", marginBottom: 16,
+          fontSize: 13, textAlign: "left",
+        }}>
+          <div style={{ fontWeight: 700, color: "#0A0F1E" }}>{student.name}</div>
+          <div style={{ color: "#64748B", fontSize: 12, marginTop: 2 }}>
+            ID: <span style={{ fontFamily: "monospace", fontWeight: 600, color: "#D97706" }}>{student.registrationId || student.enrollmentId || student._id}</span>
+          </div>
+          {student.paymentStatus && (
+            <div style={{ marginTop: 4 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: student.paymentStatus === 'PAID' ? '#16A34A' : '#D97706' }}>
+                Status: {student.paymentStatus}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Required Confirmation Message */}
+        <p style={{ margin: "0 0 24px", fontSize: 13, color: "#64748B", lineHeight: 1.5 }}>
+          This action will remove this registration from the admin records. Are you sure you want to continue?
+        </p>
+
+        {/* Action Buttons */}
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            type="button"
+            disabled={deleting}
+            onClick={onClose}
+            style={{
+              flex: 1, padding: "11px", borderRadius: 8,
+              border: "1.5px solid #E2E8F0", background: "#fff",
+              color: "#64748B", fontWeight: 700, fontSize: 13, cursor: "pointer",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={deleting}
+            onClick={onConfirm}
+            style={{
+              flex: 1, padding: "11px", borderRadius: 8,
+              border: "none", background: "#DC2626",
+              color: "#fff", fontWeight: 800, fontSize: 13,
+              cursor: deleting ? "not-allowed" : "pointer",
+              boxShadow: "0 2px 8px rgba(220,38,38,0.3)",
+            }}
+          >
+            {deleting ? "Deleting..." : "Delete"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page Component ──────────────────────────────────────────────────────
 export function CctvMasterclassPage() {
   const [stats, setStats] = useState({ total: 0, paid: 0, pending: 0, failed: 0, zoomSent: 0, revenue: 0 });
@@ -641,8 +1013,20 @@ export function CctvMasterclassPage() {
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
   const [selectedReg, setSelectedReg] = useState(null);
+  const [editTargetStudent, setEditTargetStudent] = useState(null);
+  const [deleteTargetStudent, setDeleteTargetStudent] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [toast, setToast] = useState(null);
   const [error, setError] = useState("");
   const searchTimeout = useRef(null);
+
+  // Auto-hide toast notification
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState([]);
@@ -757,10 +1141,13 @@ export function CctvMasterclassPage() {
     setSelectedIds([]);
   };
 
-  // Open Zoom Modal for selected
+  // Open Zoom Modal for selected (strictly only paid students per requirement)
   const handleOpenBulkZoomModal = () => {
-    const targets = registrations.filter(r => selectedIds.includes(r._id));
-    if (targets.length === 0) return;
+    const targets = registrations.filter(r => selectedIds.includes(r._id) && r.paymentStatus === 'PAID');
+    if (targets.length === 0) {
+      setToast({ message: "No paid students are selected. Class links can only be dispatched to paid students.", type: "error" });
+      return;
+    }
     setModalTargetStudents(targets);
     setZoomModalOpen(true);
   };
@@ -782,6 +1169,32 @@ export function CctvMasterclassPage() {
       setResendTargetStudent(null);
       setZoomModalOpen(true);
     }
+  };
+
+  // Delete student confirmation handler
+  const handleConfirmDelete = async () => {
+    if (!deleteTargetStudent) return;
+    setDeleting(true);
+    try {
+      await apiFetch(`/api/v2/cctv-course/admin/registrations/${deleteTargetStudent._id}`, {
+        method: "DELETE",
+      });
+      setDeleteTargetStudent(null);
+      fetchStats();
+      fetchRegs(page);
+      setToast({ message: "Registration deleted successfully.", type: "success" });
+    } catch (err) {
+      setError(err.message || "Failed to delete registration.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Edit student success handler
+  const handleEditSuccess = (msg) => {
+    fetchStats();
+    fetchRegs(page);
+    setToast({ message: msg || "Student registration updated successfully.", type: "success" });
   };
 
   const isAllOnPageSelected =
@@ -1195,14 +1608,16 @@ export function CctvMasterclassPage() {
                       </td>
 
                       {/* Actions */}
-                      <td style={{ padding: "11px 14px", textAlign: "center", whiteSpace: "nowrap" }}>
-                        <div style={{ display: "inline-flex", gap: 6 }}>
+                      <td style={{ padding: "10px 14px", textAlign: "center", whiteSpace: "nowrap" }}>
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                           <button
+                            type="button"
                             onClick={() => setSelectedReg(reg)}
+                            title="View student details"
                             style={{
                               padding: "5px 10px",
                               background: "rgba(99,102,241,0.08)",
-                              border: "1px solid rgba(99,102,241,0.2)",
+                              border: "1px solid rgba(99,102,241,0.25)",
                               borderRadius: 6, fontSize: 12, fontWeight: 700, color: "#6366F1",
                               cursor: "pointer",
                             }}
@@ -1211,7 +1626,39 @@ export function CctvMasterclassPage() {
                           </button>
 
                           <button
+                            type="button"
+                            onClick={() => setEditTargetStudent(reg)}
+                            title="Edit student"
+                            style={{
+                              padding: "5px 10px",
+                              background: "rgba(245,158,11,0.08)",
+                              border: "1px solid rgba(245,158,11,0.25)",
+                              borderRadius: 6, fontSize: 12, fontWeight: 700, color: "#D97706",
+                              cursor: "pointer",
+                            }}
+                          >
+                            Edit
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTargetStudent(reg)}
+                            title="Delete registration"
+                            style={{
+                              padding: "5px 10px",
+                              background: "rgba(220,38,38,0.08)",
+                              border: "1px solid rgba(220,38,38,0.25)",
+                              borderRadius: 6, fontSize: 12, fontWeight: 700, color: "#DC2626",
+                              cursor: "pointer",
+                            }}
+                          >
+                            Delete
+                          </button>
+
+                          <button
+                            type="button"
                             onClick={() => handleOpenSingleZoom(reg)}
+                            title={reg.zoomLinkSent ? "Resend Zoom link" : "Send Zoom link"}
                             style={{
                               padding: "5px 10px",
                               background: reg.zoomLinkSent ? "rgba(14,165,233,0.08)" : "rgba(34,197,94,0.08)",
@@ -1314,8 +1761,51 @@ export function CctvMasterclassPage() {
         />
       )}
 
+      {/* ── Edit Student Modal ── */}
+      {editTargetStudent && (
+        <EditStudentModal
+          student={editTargetStudent}
+          onClose={() => setEditTargetStudent(null)}
+          onSuccess={handleEditSuccess}
+        />
+      )}
+
+      {/* ── Delete Confirmation Modal ── */}
+      {deleteTargetStudent && (
+        <DeleteConfirmModal
+          student={deleteTargetStudent}
+          onClose={() => setDeleteTargetStudent(null)}
+          onConfirm={handleConfirmDelete}
+          deleting={deleting}
+        />
+      )}
+
+      {/* ── Toast Notification ── */}
+      {toast && (
+        <div style={{
+          position: "fixed", bottom: 24, right: 24, zIndex: 9999,
+          background: toast.type === "error" ? "#DC2626" : "#0A0F1E",
+          color: "#fff", padding: "12px 20px", borderRadius: 10,
+          boxShadow: "0 10px 25px rgba(0,0,0,0.25)",
+          display: "flex", alignItems: "center", gap: 10,
+          fontSize: 13, fontWeight: 700,
+          animation: "fadeIn 0.25s ease",
+        }}>
+          <span>{toast.type === "error" ? "⚠" : "✓"}</span>
+          <span>{toast.message}</span>
+          <button
+            onClick={() => setToast(null)}
+            style={{
+              background: "transparent", border: "none", color: "rgba(255,255,255,0.7)",
+              marginLeft: 8, cursor: "pointer", fontSize: 14,
+            }}
+          >×</button>
+        </div>
+      )}
+
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
     </div>
   );

@@ -201,8 +201,53 @@ export default function AdminDashboardContent() {
     router.replace("/login");
   };
 
+  const PAGE_TO_ROUTE = {
+    dashboard: '/admin',
+    technicians: '/admin/customers',
+    leads: '/admin/leads',
+    quotes: '/admin/quotes',
+    apartments: '/admin/apartments',
+    'service-requests': '/admin/bookings',
+    jobs: '/admin/projects',
+    amc: '/admin/amc',
+    cancellations: '/admin/cancellations',
+    services: '/admin/services',
+    catalog: '/admin/catalog',
+    'cctv-pricing': '/admin/cctv-pricing',
+    'dispatch-monitor': '/admin/dispatch-monitor',
+    tracking: '/admin/tracking',
+    attendance: '/admin/attendance',
+    'tech-performance': '/admin/tech-performance',
+    requests: '/admin/requests',
+    worksheets: '/admin/worksheets',
+    members: '/admin/employees',
+    'kyc-approvals': '/admin/kyc-approvals',
+    reviews: '/admin/reviews',
+    penalties: '/admin/penalties',
+    admissions: '/admin/applications',
+    'student-profiles': '/admin/students',
+    'admission-payments': '/admin/admission-payments',
+    'course-assignment': '/admin/assignments',
+    'admission-analytics': '/admin/admission-analytics',
+    'cctv-masterclass': '/admin/cctv-masterclass',
+    'analytics-main': '/admin/analytics-main',
+    'analytics-members': '/admin/analytics-members',
+    'analytics-skills': '/admin/analytics-skills',
+    payments: '/admin/payments',
+    reports: '/admin/reports',
+    addresses: '/admin/addresses',
+    notifications: '/admin/notifications',
+    settings: '/admin/settings',
+  };
+
+  const navigate = (page) => {
+    setActivePage(page);
+    const newPath = PAGE_TO_ROUTE[page] || '/admin';
+    router.push(newPath);
+  };
+
   const pages = {
-    dashboard: <DashboardPage onNavigate={setActivePage} />,
+    dashboard: <DashboardPage onNavigate={navigate} />,
     members: <EmployeeManagementPage />,
     technicians: <CustomerManagementPage />,
     leads: <CustomersPage />,
@@ -218,8 +263,8 @@ export default function AdminDashboardContent() {
     addresses: <AddressesPage />,
     payments: <PaymentsPage />,
     admissions: <AdmissionsPage selectedId={selectedId} onSelect={(id) => { setSelectedId(id); try { window.history.pushState({}, '', `/admin/admissions/${id}`); } catch(e){} }} />,
-    "student-profiles": <StudentProfilesPage onView={(id) => { setActivePage('admissions'); setSelectedId(id); }} />,
-    "admission-payments": <AdmissionPaymentsPage onView={(id) => { setActivePage('admissions'); setSelectedId(id); }} />,
+    "student-profiles": <StudentProfilesPage onView={(id) => { setSelectedId(id); navigate('admissions'); }} />,
+    "admission-payments": <AdmissionPaymentsPage onView={(id) => { setSelectedId(id); navigate('admissions'); }} />,
     "course-assignment": <CourseAssignmentPage />,
     "admission-analytics": <AdmissionAnalyticsPage />,
     tracking: <TrackingPage />,
@@ -244,49 +289,7 @@ export default function AdminDashboardContent() {
     <div style={{ display: "flex", height: "100vh", background: "#f1f5f9", fontFamily: "'Geist', 'DM Sans', system-ui, sans-serif" }}>
       <Sidebar 
         active={activePage} 
-        setActive={(page) => {
-          setActivePage(page);
-          const PAGE_TO_ROUTE = {
-            dashboard: '/admin',
-            technicians: '/admin/customers',
-            leads: '/admin/leads',
-            quotes: '/admin/quotes',
-            apartments: '/admin/apartments',
-            'service-requests': '/admin/bookings',
-            jobs: '/admin/projects',
-            amc: '/admin/amc',
-            cancellations: '/admin/cancellations',
-            services: '/admin/services',
-            catalog: '/admin/catalog',
-            'cctv-pricing': '/admin/cctv-pricing',
-            'dispatch-monitor': '/admin/dispatch-monitor',
-            tracking: '/admin/tracking',
-            attendance: '/admin/attendance',
-            'tech-performance': '/admin/tech-performance',
-            requests: '/admin/requests',
-            worksheets: '/admin/worksheets',
-            members: '/admin/employees',
-            'kyc-approvals': '/admin/kyc-approvals',
-            reviews: '/admin/reviews',
-            penalties: '/admin/penalties',
-            admissions: '/admin/applications',
-            'student-profiles': '/admin/students',
-            'admission-payments': '/admin/admission-payments',
-            'course-assignment': '/admin/assignments',
-            'admission-analytics': '/admin/admission-analytics',
-            'cctv-masterclass': '/admin/cctv-masterclass',
-            'analytics-main': '/admin/analytics-main',
-            'analytics-members': '/admin/analytics-members',
-            'analytics-skills': '/admin/analytics-skills',
-            payments: '/admin/payments',
-            reports: '/admin/reports',
-            addresses: '/admin/addresses',
-            notifications: '/admin/notifications',
-            settings: '/admin/settings',
-          };
-          const newPath = PAGE_TO_ROUTE[page] || '/admin';
-          router.push(newPath);
-        }}
+        setActive={navigate}
         collapsed={collapsed} 
         setCollapsed={setCollapsed} 
         user={user} 
@@ -302,7 +305,7 @@ export default function AdminDashboardContent() {
             notifCount={notifCount} 
             user={user} 
             onLogout={logout} 
-            onNotifClick={() => setActivePage("notifications")}
+            onNotifClick={() => navigate("notifications")}
             onMenuClick={() => setMobileOpen(true)}
           />
           
