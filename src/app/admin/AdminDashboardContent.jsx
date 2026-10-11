@@ -38,6 +38,7 @@ import { AmcManagementPage } from "../../components/AmcManagementPage";
 import { CctvMasterclassPage } from "../../components/CctvMasterclassPage";
 import { QuoteRequestsPage } from "../../components/QuoteRequestsPage";
 import { ApartmentManagementPage } from "../../components/ApartmentManagementPage";
+import { InventoryManagementPage } from "../../components/InventoryManagementPage";
 import { wakeBackend, apiFetch } from "../../lib/apiClient";
 
 export default function AdminDashboardContent() {
@@ -135,6 +136,7 @@ export default function AdminDashboardContent() {
       else if (path.includes('/admin/cancellations')) setActivePage('cancellations');
       else if (path.includes('/admin/services')) setActivePage('services');
       else if (path.includes('/admin/catalog')) setActivePage('catalog');
+      else if (path.includes('/admin/inventory')) setActivePage('inventory');
       else if (path.includes('/admin/cctv-pricing')) setActivePage('cctv-pricing');
       else if (path.includes('/admin/dispatch-monitor')) setActivePage('dispatch-monitor');
       else if (path.includes('/admin/tracking')) setActivePage('tracking');

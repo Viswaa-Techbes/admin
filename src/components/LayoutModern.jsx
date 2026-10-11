@@ -24,6 +24,7 @@ export const NAV_ITEMS = [
   { id: "reviews", label: "Technician Reviews", icon: <ChartIcon /> },
   { id: "services", label: "Services", icon: <WrenchIcon /> },
   { id: "catalog", label: "Catalog Management", icon: <WrenchIcon /> },
+  { id: "inventory", label: "Inventory Management", icon: <BriefcaseIcon /> },
   { id: "cctv-pricing", label: "CCTV Pricing", icon: <CreditCardIcon /> },
   { id: "addresses", label: "Address Management", icon: <MapPinIcon /> },
   { id: "payments", label: "Payments", icon: <CreditCardIcon /> },
@@ -72,6 +73,7 @@ export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLo
       items: [
         { id: "services", label: "Services", icon: <WrenchIcon /> },
         { id: "catalog", label: "Catalog", icon: <WrenchIcon /> },
+        { id: "inventory", label: "Inventory Management", icon: <BriefcaseIcon /> },
         { id: "cctv-pricing", label: "CCTV Pricing", icon: <CreditCardIcon /> }
       ]
     },
