@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { 
   PageHeader, 
   Card, 
@@ -16,7 +16,7 @@ function useApiData(url, initial = []) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       setLoading(true);
       const { payload } = await apiFetch(url);
@@ -27,9 +27,11 @@ function useApiData(url, initial = []) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [url]);
 
-  useEffect(() => { load(); }, [url]);
+  useEffect(() => { 
+    load(); 
+  }, [load]);
 
   return { data, setData, loading, error, refresh: load };
 }
@@ -41,8 +43,11 @@ export function QuoteRequestsPage() {
   const { data: quotes, loading, error, refresh: refreshQuotes } = useApiData("/api/v2/admin/quotes");
   const { data: users } = useApiData("/api/v2/admin/users");
   
-  // Filter technicians
-  const technicians = useMemo(() => users.filter(u => u.role === 'technician' || u.role === 'manager'), [users]);
+  // Filter technicians / engineers
+  const technicians = useMemo(
+    () => users.filter(u => u.role === 'technician' || u.role === 'manager'), 
+    [users]
+  );
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState("");
@@ -55,6 +60,9 @@ export function QuoteRequestsPage() {
   // Selected Quote Detail State
   const [selectedQuote, setSelectedQuote] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [detailError, setDetailError] = useState("");
+
   const [savingNotes, setSavingNotes] = useState(false);
   const [savingPrices, setSavingPrices] = useState(false);
   const [sendingQuote, setSendingQuote] = useState(false);
@@ -83,23 +91,71 @@ export function QuoteRequestsPage() {
     if (selectedQuote) {
       setAdminNotes(selectedQuote.adminNotes || "");
       setAssignedTo(selectedQuote.assignedTo?._id || selectedQuote.assignedTo || "");
-      setFollowUpDate(selectedQuote.followUpDate ? new Date(selectedQuote.followUpDate).toISOString().split('T')[0] : "");
+      setFollowUpDate(
+        selectedQuote.followUpDate 
+          ? new Date(selectedQuote.followUpDate).toISOString().split('T')[0] 
+          : ""
+      );
       setQuoteStatus(selectedQuote.status || "quotation_requested");
-      setGstRate(selectedQuote.gstRate || 18);
+      setGstRate(typeof selectedQuote.gstRate === 'number' ? selectedQuote.gstRate : 18);
       setValidityDays(selectedQuote.validityDays || 15);
       setWhatsappResult(null);
 
       // Initialize pricing items from quote
       const initialItems = (selectedQuote.items || []).map(item => ({
         _id: item._id,
-        productName: item.productName,
+        productId: item.productId,
+        productName: item.productName || item.name || "Item",
+        brand: item.brand || "",
+        sku: item.sku || "",
+        variant: item.variant || "",
         quantity: item.quantity || 1,
         unitPrice: item.unitPrice !== null && item.unitPrice !== undefined ? item.unitPrice : "",
+        gstRate: typeof item.gstRate === 'number' ? item.gstRate : (selectedQuote.gstRate || 18),
         lineTotal: item.lineTotal || 0,
       }));
       setPricingItems(initialItems);
     }
   }, [selectedQuote]);
+
+  // Handle Inspect Click & Fetch Authoritative Backend Data
+  const handleInspectQuote = useCallback(async (q) => {
+    if (!q) return;
+    setSelectedQuote(q);
+    setShowDetailModal(true);
+    setLoadingDetail(true);
+    setDetailError("");
+
+    const targetId = q._id || q.requestId;
+    try {
+      const { payload } = await apiFetch(`/api/v2/admin/quotes/${encodeURIComponent(targetId)}`);
+      if (payload && (payload.data || payload._id || payload.requestId)) {
+        const fullQuote = payload.data || payload;
+        setSelectedQuote(fullQuote);
+      }
+    } catch (err) {
+      console.warn("Could not fetch full quote details from backend:", err.message);
+      setDetailError(err.message || "Failed to fetch updated quote details.");
+    } finally {
+      setLoadingDetail(false);
+    }
+  }, []);
+
+  // Check URL query parameters on initial load (e.g. ?id=QT-2026-00001 or ?inspect=...)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const targetId = params.get("id") || params.get("inspect") || params.get("requestId");
+    if (targetId) {
+      // Find in existing quotes or fetch directly
+      const matched = quotes.find(q => q.requestId === targetId || q._id === targetId);
+      if (matched) {
+        handleInspectQuote(matched);
+      } else {
+        handleInspectQuote({ requestId: targetId });
+      }
+    }
+  }, [quotes, handleInspectQuote]);
 
   // Automatic calculation of Subtotal, GST, and Final Amount
   const calculatedPricing = useMemo(() => {
@@ -146,6 +202,7 @@ export function QuoteRequestsPage() {
           String(q.locality || "").toLowerCase().includes(query) ||
           String(q.address || "").toLowerCase().includes(query) ||
           String(q.serviceCategory || "").toLowerCase().includes(query) ||
+          String(q.subcategory || "").toLowerCase().includes(query) ||
           String(q.companyName || "").toLowerCase().includes(query);
         if (!matchesSearch) return false;
       }
@@ -161,8 +218,12 @@ export function QuoteRequestsPage() {
 
       // 5. Assigned Staff
       if (staffFilter !== "All") {
-        const staffId = q.assignedTo?._id || q.assignedTo;
-        if (staffId !== staffFilter) return false;
+        const assignedId = q.assignedTo?._id || q.assignedTo;
+        if (staffFilter === "Unassigned") {
+          if (assignedId) return false;
+        } else {
+          if (assignedId !== staffFilter) return false;
+        }
       }
 
       // 6. Created Date
@@ -175,16 +236,15 @@ export function QuoteRequestsPage() {
     });
   }, [quotes, searchQuery, statusFilter, categoryFilter, areaFilter, staffFilter, dateFilter]);
 
-  // Save Pricing Calculation to Backend
+  // Save Pricing Draft (Server-side authoritative calculation)
   async function handleSavePricing(asDraft = true) {
     if (!selectedQuote) return;
+    const targetId = selectedQuote._id || selectedQuote.requestId;
     setSavingPrices(true);
     try {
-      const res = await fetch(`/api/v2/admin/quotes/${selectedQuote._id}/price`, {
+      const { payload } = await apiFetch(`/api/v2/admin/quotes/${encodeURIComponent(targetId)}/price`, {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           items: calculatedPricing.items.map(it => ({
             productName: it.productName,
             quantity: it.quantity,
@@ -194,17 +254,14 @@ export function QuoteRequestsPage() {
           validityDays,
           adminNotes,
           saveAsDraft: asDraft,
-        }),
+        },
       });
 
-      const payload = await res.json();
-      if (!res.ok) throw new Error(payload.message || "Failed to save pricing");
-
       await refreshQuotes();
-      setSelectedQuote(payload.data);
-      toast.show("Pricing Saved", "Quotation pricing and calculations saved.");
+      setSelectedQuote(payload.data || payload);
+      toast.show("Pricing Saved", "Quotation pricing draft updated successfully.");
     } catch (err) {
-      alert(err.message);
+      alert(err.message || "Failed to save pricing");
     } finally {
       setSavingPrices(false);
     }
@@ -222,14 +279,13 @@ export function QuoteRequestsPage() {
       return;
     }
 
+    const targetId = selectedQuote._id || selectedQuote.requestId;
     setSendingQuote(true);
     try {
       // 1. Ensure latest prices are saved first
-      await fetch(`/api/v2/admin/quotes/${selectedQuote._id}/price`, {
+      await apiFetch(`/api/v2/admin/quotes/${encodeURIComponent(targetId)}/price`, {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           items: calculatedPricing.items.map(it => ({
             productName: it.productName,
             quantity: it.quantity,
@@ -238,26 +294,21 @@ export function QuoteRequestsPage() {
           gstRate,
           validityDays,
           adminNotes,
-        }),
+        },
       });
 
       // 2. Dispatch Send Quotation + WhatsApp
-      const res = await fetch(`/api/v2/admin/quotes/${selectedQuote._id}/send`, {
+      const { payload } = await apiFetch(`/api/v2/admin/quotes/${encodeURIComponent(targetId)}/send`, {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
       });
 
-      const payload = await res.json();
-      if (!res.ok) throw new Error(payload.message || "Failed to send quotation");
-
       await refreshQuotes();
-      setSelectedQuote(payload.data?.quote || selectedQuote);
+      setSelectedQuote(payload.data?.quote || payload.data || selectedQuote);
       setWhatsappResult(payload.data);
 
       toast.show("Quotation Sent", `Quotation sent to ${selectedQuote.fullName}. WhatsApp notification dispatched.`);
     } catch (err) {
-      alert(err.message);
+      alert(err.message || "Failed to send quotation");
     } finally {
       setSendingQuote(false);
     }
@@ -268,192 +319,240 @@ export function QuoteRequestsPage() {
     if (e) e.preventDefault();
     if (!selectedQuote) return;
 
+    const targetId = selectedQuote._id || selectedQuote.requestId;
     setSavingNotes(true);
     try {
-      const res = await fetch(`/api/v2/admin/quotes/${selectedQuote._id}`, {
+      const { payload } = await apiFetch(`/api/v2/admin/quotes/${encodeURIComponent(targetId)}`, {
         method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           adminNotes,
           assignedTo: assignedTo || null,
           followUpDate: followUpDate || null,
           status: quoteStatus,
-        }),
+        },
       });
-      const payload = await res.json();
-      if (!res.ok) throw new Error(payload.message || "Failed to update details");
 
       await refreshQuotes();
-      setSelectedQuote(payload.data);
-      toast.show("Success", "Quote details updated successfully.");
+      setSelectedQuote(payload.data || payload);
+      toast.show("Success", "Quote workflow and assignment updated successfully.");
     } catch (err) {
-      alert(err.message);
+      alert(err.message || "Failed to update details");
     } finally {
       setSavingNotes(false);
     }
   }
 
-  // Convert Quote request to booking
+  // Convert Quote request to job booking
   async function handleConvertQuote() {
     if (!selectedQuote) return;
-    if (!window.confirm("Convert this Quote Request into an authoritative Job Booking?")) return;
+    if (!window.confirm(`Convert Quotation #${selectedQuote.requestId} into an authoritative Job Order?`)) return;
 
+    const targetId = selectedQuote._id || selectedQuote.requestId;
     setConverting(true);
     try {
-      const res = await fetch(`/api/v2/admin/quotes/${selectedQuote._id}/convert`, {
+      const { payload } = await apiFetch(`/api/v2/admin/quotes/${encodeURIComponent(targetId)}/convert`, {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" }
       });
-      const payload = await res.json();
-      if (!res.ok) throw new Error(payload.message || "Failed to convert quote request");
 
       await refreshQuotes();
-      setShowDetailModal(false);
-      toast.show("Booking Created", `Successfully converted to Job: ${payload.data?.job?._id || ''}`);
+      if (payload.data?.quote) {
+        setSelectedQuote(payload.data.quote);
+      } else {
+        setShowDetailModal(false);
+      }
+      toast.show("Booking Created", `Successfully converted to Job: ${payload.data?.orderNumber || payload.data?.job?._id || ''}`);
     } catch (err) {
-      alert(err.message);
+      alert(err.message || "Failed to convert quote request");
     } finally {
       setConverting(false);
     }
   }
 
   const makeCall = (phone) => {
+    if (!phone) return;
     window.open(`tel:${phone}`, "_self");
   };
 
   const openWhatsApp = (phone, name, requestId, amount) => {
+    if (!phone) return;
     const text = encodeURIComponent(
-      `Hi ${name}, I am contacting you regarding your TechBes Quotation #${requestId}${amount ? ` for ₹${amount}` : ''}.`
+      `Hi ${name || 'Customer'}, I am contacting you regarding your TechBes Quotation #${requestId || ''}${amount ? ` for ₹${amount.toLocaleString('en-IN')}` : ''}.`
     );
     window.open(`https://wa.me/91${phone.replace(/[^\d]/g, '').slice(-10)}?text=${text}`, "_blank");
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+    <div style={{ maxWidth: 1400, margin: "0 auto", padding: "0 24px 60px" }}>
+      
+      {/* PAGE HEADER */}
       <PageHeader 
-        title="Quotation Management" 
-        subtitle={`${filteredQuotes.length} active quotation requests`} 
+        title="Quotation Requests & Leads"
+        subtitle={`${filteredQuotes.length} active quotation requests found`} 
+        actions={
+          <div style={{ display: "flex", gap: 10 }}>
+            <button 
+              type="button" 
+              onClick={refreshQuotes}
+              style={{
+                background: "#fff", border: "1px solid #cbd5e1", borderRadius: 10,
+                padding: "8px 14px", fontSize: 12, fontWeight: 700, color: "#475569",
+                cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+                boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+              }}
+            >
+              🔄 Refresh List
+            </button>
+          </div>
+        }
       />
 
-      {/* FILTER PANEL CARD */}
-      <Card style={{ padding: 20 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+      {/* ERROR NOTICE IF LIST FAILS */}
+      {error && (
+        <div style={{
+          background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 12,
+          padding: "12px 16px", marginBottom: 20, color: "#b91c1c", fontSize: 13,
+          display: "flex", justifyContent: "space-between", alignItems: "center"
+        }}>
+          <div><strong>Error loading quotes:</strong> {error}</div>
+          <button 
+            type="button"
+            onClick={refreshQuotes}
+            style={{ background: "#dc2626", color: "#fff", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* FILTER CONTROLS CARD */}
+      <Card style={{ padding: 18, marginBottom: 24 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr 1fr", gap: 12, alignItems: "center" }}>
           
-          {/* Search bar */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b" }}>SEARCH REQUESTS</span>
+          {/* 1. Search Query */}
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "#64748b", display: "block", marginBottom: 4 }}>
+              SEARCH REQUESTS
+            </label>
             <input 
-              type="text" 
-              placeholder="ID, Name, Mobile, Area..."
+              type="text"
+              placeholder="Search by ID, Name, Phone, Locality..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               style={{
-                width: "100%", height: 38, padding: "0 12px", border: "1px solid #cbd5e1", 
-                borderRadius: 10, fontSize: 12, outline: "none", color: "#1e293b", fontWeight: 500
+                width: "100%", height: 38, padding: "0 12px", border: "1px solid #cbd5e1",
+                borderRadius: 10, fontSize: 12, outline: "none", background: "#f8fafc"
               }}
             />
           </div>
 
-          {/* Service Category Filter */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b" }}>SERVICE CATEGORY</span>
-            <select
-              value={categoryFilter}
-              onChange={e => setCategoryFilter(e.target.value)}
-              style={{
-                height: 38, padding: "0 8px", border: "1px solid #cbd5e1", 
-                borderRadius: 10, fontSize: 12, outline: "none", background: "#fff", fontWeight: 600, color: "#475569"
-              }}
-            >
-              {["All", "CCTV", "Networking", "Web Designing", "Website Development"].map(opt => (
-                <option key={opt} value={opt}>{opt}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Status Filter */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b" }}>STATUS</span>
+          {/* 2. Status Filter */}
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "#64748b", display: "block", marginBottom: 4 }}>
+              STATUS
+            </label>
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value)}
               style={{
-                height: 38, padding: "0 8px", border: "1px solid #cbd5e1", 
-                borderRadius: 10, fontSize: 12, outline: "none", background: "#fff", fontWeight: 600, color: "#475569"
+                width: "100%", height: 38, padding: "0 8px", border: "1px solid #cbd5e1",
+                borderRadius: 10, fontSize: 12, outline: "none", background: "#f8fafc", color: "#334155"
               }}
             >
-              {[
-                "All",
-                "quotation_requested",
-                "quotation_draft",
-                "quotation_sent",
-                "quotation_accepted",
-                "payment_pending",
-                "paid",
-                "converted_to_order",
-                "cancelled"
-              ].map(opt => (
-                <option key={opt} value={opt}>{opt.replace(/_/g, ' ')}</option>
-              ))}
+              <option value="All">All Statuses</option>
+              <option value="quotation_requested">Quotation Requested</option>
+              <option value="quotation_draft">Quotation Draft</option>
+              <option value="quotation_sent">Quotation Sent</option>
+              <option value="quotation_accepted">Quotation Accepted</option>
+              <option value="payment_pending">Payment Pending</option>
+              <option value="paid">Paid</option>
+              <option value="converted_to_order">Converted to Order</option>
+              <option value="cancelled">Cancelled</option>
             </select>
           </div>
 
-          {/* Area Filter */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b" }}>AREA / LOCALITY</span>
+          {/* 3. Category Filter */}
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "#64748b", display: "block", marginBottom: 4 }}>
+              CATEGORY
+            </label>
+            <select
+              value={categoryFilter}
+              onChange={e => setCategoryFilter(e.target.value)}
+              style={{
+                width: "100%", height: 38, padding: "0 8px", border: "1px solid #cbd5e1",
+                borderRadius: 10, fontSize: 12, outline: "none", background: "#f8fafc", color: "#334155"
+              }}
+            >
+              <option value="All">All Categories</option>
+              <option value="CCTV">CCTV Surveillance</option>
+              <option value="Networking">Networking</option>
+              <option value="Website Development">Website / Web Designing</option>
+            </select>
+          </div>
+
+          {/* 4. Locality Filter */}
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "#64748b", display: "block", marginBottom: 4 }}>
+              LOCALITY / AREA
+            </label>
             <select
               value={areaFilter}
               onChange={e => setAreaFilter(e.target.value)}
               style={{
-                height: 38, padding: "0 8px", border: "1px solid #cbd5e1", 
-                borderRadius: 10, fontSize: 12, outline: "none", background: "#fff", fontWeight: 600, color: "#475569"
+                width: "100%", height: 38, padding: "0 8px", border: "1px solid #cbd5e1",
+                borderRadius: 10, fontSize: 12, outline: "none", background: "#f8fafc", color: "#334155"
               }}
             >
-              {uniqueAreas.map(opt => (
-                <option key={opt} value={opt}>{opt}</option>
+              {uniqueAreas.map(a => (
+                <option key={a} value={a}>{a}</option>
               ))}
             </select>
           </div>
 
-          {/* Staff Filter */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b" }}>ASSIGNED STAFF</span>
+          {/* 5. Assigned Staff Filter */}
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "#64748b", display: "block", marginBottom: 4 }}>
+              ASSIGNED TO
+            </label>
             <select
               value={staffFilter}
               onChange={e => setStaffFilter(e.target.value)}
               style={{
-                height: 38, padding: "0 8px", border: "1px solid #cbd5e1", 
-                borderRadius: 10, fontSize: 12, outline: "none", background: "#fff", fontWeight: 600, color: "#475569"
+                width: "100%", height: 38, padding: "0 8px", border: "1px solid #cbd5e1",
+                borderRadius: 10, fontSize: 12, outline: "none", background: "#f8fafc", color: "#334155"
               }}
             >
               <option value="All">All Staff</option>
+              <option value="Unassigned">Unassigned</option>
               {technicians.map(t => (
-                <option key={t._id} value={t._id}>{t.name} ({t.role})</option>
+                <option key={t._id} value={t._id}>{t.name}</option>
               ))}
             </select>
           </div>
 
-          {/* Date Filter */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b" }}>REQUEST DATE</span>
+          {/* 6. Date Filter */}
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "#64748b", display: "block", marginBottom: 4 }}>
+              DATE CREATED
+            </label>
             <input 
               type="date"
               value={dateFilter}
               onChange={e => setDateFilter(e.target.value)}
               style={{
-                height: 38, padding: "0 8px", border: "1px solid #cbd5e1", 
-                borderRadius: 10, fontSize: 12, outline: "none", color: "#475569"
+                width: "100%", height: 38, padding: "0 8px", border: "1px solid #cbd5e1",
+                borderRadius: 10, fontSize: 12, outline: "none", background: "#f8fafc", color: "#334155"
               }}
             />
           </div>
 
         </div>
 
+        {/* Clear Filters Button */}
         {(searchQuery || statusFilter !== "All" || categoryFilter !== "All" || areaFilter !== "All" || staffFilter !== "All" || dateFilter) && (
           <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
             <button 
+              type="button"
               onClick={() => {
                 setSearchQuery("");
                 setStatusFilter("All");
@@ -476,166 +575,296 @@ export function QuoteRequestsPage() {
       {/* QUOTES LIST TABLE */}
       <Card style={{ padding: 0, overflow: "hidden" }}>
         {loading ? (
-          <div style={{ padding: 30, textAlign: "center", color: "#64748b", fontSize: 13, fontWeight: 600 }}>
-            Loading Quotation Requests...
+          <div style={{ padding: 40, textAlign: "center", color: "#64748b", fontSize: 13, fontWeight: 600 }}>
+            Loading Quotation Requests from database...
           </div>
         ) : filteredQuotes.length === 0 ? (
-          <div style={{ padding: 40, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
-            No quotation requests match your filter criteria.
+          <div style={{ padding: 48, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
+            <div style={{ fontSize: 24, marginBottom: 8 }}>📋</div>
+            <div style={{ fontWeight: 700, color: "#475569" }}>No quotation requests found</div>
+            <p style={{ margin: "4px 0 0", fontSize: 12 }}>Try adjusting your filters or search keywords.</p>
           </div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
-            <thead>
-              <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
-                <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>REQUEST ID</th>
-                <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>CUSTOMER</th>
-                <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>SERVICE</th>
-                <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>MOBILE</th>
-                <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>AREA / LOCALITY</th>
-                <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>STATUS</th>
-                <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>ASSIGNED STAFF</th>
-                <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>CREATED DATE</th>
-                <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap", textAlign: "center" }}>ACTION</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredQuotes.map((q) => {
-                const createdDate = new Date(q.createdAt).toLocaleDateString("en-IN", {
-                  day: "numeric", month: "short", year: "numeric"
-                });
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+              <thead>
+                <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                  <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>REQUEST ID</th>
+                  <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>CUSTOMER</th>
+                  <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>CATEGORY &amp; SERVICE</th>
+                  <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>MOBILE</th>
+                  <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>AREA / LOCALITY</th>
+                  <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>STATUS</th>
+                  <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>ASSIGNED STAFF</th>
+                  <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>CREATED DATE</th>
+                  <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap", textAlign: "center" }}>ACTION</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredQuotes.map((q) => {
+                  const createdDate = q.createdAt ? new Date(q.createdAt).toLocaleDateString("en-IN", {
+                    day: "numeric", month: "short", year: "numeric"
+                  }) : "—";
 
-                return (
-                  <tr key={q._id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                    <td style={{ padding: "14px 16px", fontSize: 12, fontWeight: 750, color: "#1e293b", whiteSpace: "nowrap" }}>
-                      <span style={{ fontFamily: "monospace", color: "#3b82f6" }}>{q.requestId}</span>
-                    </td>
-                    <td style={{ padding: "14px 16px", fontSize: 12, fontWeight: 700, color: "#1e293b", whiteSpace: "nowrap" }}>
-                      {q.fullName}
-                    </td>
-                    <td style={{ padding: "14px 16px", fontSize: 12, color: "#334155", whiteSpace: "nowrap" }}>
-                      <span style={{ fontWeight: 650 }}>{q.serviceCategory}</span>
-                      {q.subcategory && <div style={{ fontSize: 10, color: "#64748b" }}>{q.subcategory}</div>}
-                    </td>
-                    <td style={{ padding: "14px 16px", fontSize: 12, color: "#475569", whiteSpace: "nowrap" }}>
-                      {q.mobile}
-                    </td>
-                    <td style={{ padding: "14px 16px", fontSize: 12, color: "#475569", whiteSpace: "nowrap" }}>
-                      {q.locality || q.address || "—"}
-                    </td>
-                    <td style={{ padding: "14px 16px", whiteSpace: "nowrap" }}>
-                      <StatusBadge status={q.status} />
-                    </td>
-                    <td style={{ padding: "14px 16px", fontSize: 12, color: "#475569", whiteSpace: "nowrap" }}>
-                      {q.assignedTo?.name || "Unassigned"}
-                    </td>
-                    <td style={{ padding: "14px 16px", fontSize: 11, color: "#64748b", whiteSpace: "nowrap" }}>
-                      {createdDate}
-                    </td>
-                    <td style={{ padding: "14px 16px", textAlign: "center", whiteSpace: "nowrap" }}>
-                      <button 
-                        onClick={() => {
-                          setSelectedQuote(q);
-                          setShowDetailModal(true);
-                        }}
-                        style={{
-                          background: "linear-gradient(135deg,#3b82f6,#2563eb)", color: "#fff",
-                          border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 11.5,
-                          fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 4px rgba(59,130,246,0.2)"
-                        }}
-                      >
-                        Inspect
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                  return (
+                    <tr key={q._id || q.requestId} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                      <td style={{ padding: "14px 16px", fontSize: 12, fontWeight: 750, color: "#1e293b", whiteSpace: "nowrap" }}>
+                        <span style={{ fontFamily: "monospace", color: "#2563eb", fontWeight: 800 }}>
+                          {q.requestId || q._id}
+                        </span>
+                      </td>
+                      <td style={{ padding: "14px 16px", fontSize: 12, fontWeight: 700, color: "#1e293b", whiteSpace: "nowrap" }}>
+                        {q.fullName || "Unnamed Customer"}
+                      </td>
+                      <td style={{ padding: "14px 16px", fontSize: 12, color: "#334155", whiteSpace: "nowrap" }}>
+                        <span style={{ fontWeight: 700, color: "#0f172a" }}>{q.serviceCategory || "CCTV"}</span>
+                        {q.subcategory && <div style={{ fontSize: 10, color: "#64748b", fontWeight: 500 }}>{q.subcategory}</div>}
+                      </td>
+                      <td style={{ padding: "14px 16px", fontSize: 12, color: "#475569", whiteSpace: "nowrap" }}>
+                        {q.mobile || "—"}
+                      </td>
+                      <td style={{ padding: "14px 16px", fontSize: 12, color: "#475569", whiteSpace: "nowrap" }}>
+                        {q.locality || q.address || "—"}
+                      </td>
+                      <td style={{ padding: "14px 16px", whiteSpace: "nowrap" }}>
+                        <StatusBadge status={q.status} />
+                      </td>
+                      <td style={{ padding: "14px 16px", fontSize: 12, color: "#475569", whiteSpace: "nowrap" }}>
+                        {q.assignedTo?.name || (typeof q.assignedTo === 'string' ? q.assignedTo : "Unassigned")}
+                      </td>
+                      <td style={{ padding: "14px 16px", fontSize: 11, color: "#64748b", whiteSpace: "nowrap" }}>
+                        {createdDate}
+                      </td>
+                      <td style={{ padding: "14px 16px", textAlign: "center", whiteSpace: "nowrap" }}>
+                        <button 
+                          type="button"
+                          onClick={() => handleInspectQuote(q)}
+                          style={{
+                            background: "linear-gradient(135deg,#3b82f6,#2563eb)", color: "#fff",
+                            border: "none", borderRadius: 8, padding: "7px 16px", fontSize: 12,
+                            fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 4px rgba(59,130,246,0.25)",
+                            display: "inline-flex", alignItems: "center", gap: 5
+                          }}
+                        >
+                          🔍 Inspect
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </Card>
 
-      {/* INSPECT & PRICING MODAL */}
+      {/* INSPECT & PRICING MODAL / DRAWER */}
       {showDetailModal && selectedQuote && (
-        <Modal onClose={() => setShowDetailModal(false)} title={`Quotation Management - ${selectedQuote.requestId}`}>
-          <div style={{ display: "grid", gridTemplateColumns: "1.3fr 0.7fr", gap: 20, minWidth: 850, maxHeight: "82vh", overflowY: "auto" }}>
+        <Modal 
+          open={showDetailModal}
+          onClose={() => setShowDetailModal(false)} 
+          title={`Quotation Inspection — #${selectedQuote.requestId || selectedQuote._id}`}
+          width="min(1100px, 98%)"
+        >
+          {/* Top action header: Back button & Status */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, paddingBottom: 10, borderBottom: "1px solid #e2e8f0" }}>
+            <button 
+              type="button"
+              onClick={() => setShowDetailModal(false)}
+              style={{
+                background: "#f1f5f9", color: "#334155", border: "1px solid #cbd5e1",
+                borderRadius: 8, padding: "5px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer",
+                display: "inline-flex", alignItems: "center", gap: 6
+              }}
+            >
+              ← Back to Quote Requests
+            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 11, color: "#64748b" }}>Status:</span>
+              <StatusBadge status={selectedQuote.status} />
+              {loadingDetail && (
+                <span style={{ fontSize: 11, color: "#2563eb", fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
+                  <span className="spinner" style={{ display: "inline-block", width: 10, height: 10, border: "2px solid #93c5fd", borderTopColor: "#2563eb", borderRadius: "50%" }} />
+                  Updating...
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* API Error Banner if Fetch had an issue */}
+          {detailError && (
+            <div style={{
+              background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10,
+              padding: "10px 14px", marginBottom: 14, color: "#92400e", fontSize: 12,
+              display: "flex", justifyContent: "space-between", alignItems: "center"
+            }}>
+              <div><strong>Notice:</strong> {detailError} (Displaying cached list record)</div>
+              <button 
+                type="button"
+                onClick={() => handleInspectQuote(selectedQuote)}
+                style={{ background: "#d97706", color: "#fff", border: "none", borderRadius: 6, padding: "3px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          <div style={{ display: "grid", gridTemplateColumns: "1.25fr 0.75fr", gap: 20, maxHeight: "78vh", overflowY: "auto", paddingRight: 4 }}>
             
-            {/* LEFT COLUMN: CUSTOMER SPECS, VOICE NOTE & PRICING TABLE */}
+            {/* LEFT COLUMN: CUSTOMER SPECS, SPECIFICATIONS & PRICING */}
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               
-              {/* Customer Profile Card */}
+              {/* 1. Customer Profile Card */}
               <div style={{ background: "#f8fafc", padding: 16, borderRadius: 16, border: "1px solid #e2e8f0" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                  <h4 style={{ margin: 0, fontSize: 12, color: "#1e293b", fontWeight: 800, textTransform: "uppercase" }}>Customer Information</h4>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <h4 style={{ margin: 0, fontSize: 12, color: "#1e293b", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em" }}>
+                    👤 Customer &amp; Contact Details
+                  </h4>
                   <div style={{ display: "flex", gap: 6 }}>
                     <button 
+                      type="button"
                       onClick={() => makeCall(selectedQuote.mobile)}
-                      style={{ background: "#22c55e", color: "#fff", border: "none", borderRadius: 6, padding: "4px 8px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}
+                      style={{ background: "#22c55e", color: "#fff", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
                     >
                       📞 Call
                     </button>
                     <button 
+                      type="button"
                       onClick={() => openWhatsApp(selectedQuote.mobile, selectedQuote.fullName, selectedQuote.requestId, calculatedPricing.finalAmount)}
-                      style={{ background: "#25d366", color: "#fff", border: "none", borderRadius: 6, padding: "4px 8px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}
+                      style={{ background: "#25d366", color: "#fff", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
                     >
                       💬 WhatsApp
                     </button>
                   </div>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 12 }}>
-                  <div><strong style={{ color: "#64748b" }}>Name:</strong> <span style={{ color: "#1e293b", fontWeight: 600 }}>{selectedQuote.fullName}</span></div>
-                  <div><strong style={{ color: "#64748b" }}>Mobile:</strong> <span style={{ color: "#1e293b", fontWeight: 600 }}>{selectedQuote.mobile}</span></div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 12 }}>
+                  <div><strong style={{ color: "#64748b" }}>Full Name:</strong> <span style={{ color: "#1e293b", fontWeight: 700 }}>{selectedQuote.fullName || "—"}</span></div>
+                  <div><strong style={{ color: "#64748b" }}>Mobile Number:</strong> <span style={{ color: "#1e293b", fontWeight: 700 }}>{selectedQuote.mobile || "—"}</span></div>
                   <div><strong style={{ color: "#64748b" }}>Email:</strong> <span>{selectedQuote.email || "—"}</span></div>
-                  <div><strong style={{ color: "#64748b" }}>Category:</strong> <span style={{ color: "#3b82f6", fontWeight: 700 }}>{selectedQuote.serviceCategory} {selectedQuote.subcategory ? `(${selectedQuote.subcategory})` : ''}</span></div>
-                  <div><strong style={{ color: "#64748b" }}>Status:</strong> <span style={{ fontWeight: 700, color: "#1e293b" }}><StatusBadge status={selectedQuote.status} /></span></div>
-                  <div><strong style={{ color: "#64748b" }}>Preferred Date:</strong> <span style={{ color: "#1e293b", fontWeight: 600 }}>{selectedQuote.preferredVisitDate ? new Date(selectedQuote.preferredVisitDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : (selectedQuote.preferredDate || "Flexible")}</span></div>
-                  <div><strong style={{ color: "#64748b" }}>Preferred Time:</strong> <span style={{ color: "#1e293b", fontWeight: 600 }}>{selectedQuote.preferredVisitTime || selectedQuote.preferredTimeSlot || selectedQuote.preferredTime || "Flexible / Any Time"}</span></div>
-                  <div style={{ gridColumn: "span 2" }}><strong style={{ color: "#64748b" }}>Address:</strong> <span>{selectedQuote.address} (Locality: {selectedQuote.locality}, PIN: {selectedQuote.pincode || "—"})</span></div>
-                  
-                  {/* Google maps link */}
+                  <div><strong style={{ color: "#64748b" }}>Company:</strong> <span>{selectedQuote.companyName || "—"}</span></div>
+                  <div><strong style={{ color: "#64748b" }}>Property Type:</strong> <span style={{ color: "#1e293b", fontWeight: 650 }}>{selectedQuote.propertyType || "Standard Site / Not Specified"}</span></div>
+                  <div><strong style={{ color: "#64748b" }}>Created At:</strong> <span>{selectedQuote.createdAt ? new Date(selectedQuote.createdAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "—"}</span></div>
+                </div>
+              </div>
+
+              {/* 2. Service Scope & Category Specifications Card */}
+              <div style={{ background: "#f8fafc", padding: 16, borderRadius: 16, border: "1px solid #e2e8f0" }}>
+                <h4 style={{ margin: "0 0 12px 0", fontSize: 12, color: "#1e293b", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em" }}>
+                  🛠️ Service Scope &amp; Technical Requirements
+                </h4>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 12, marginBottom: 12 }}>
+                  <div>
+                    <strong style={{ color: "#64748b" }}>Category:</strong>{" "}
+                    <span style={{ color: "#2563eb", fontWeight: 800 }}>{selectedQuote.serviceCategory || "CCTV"}</span>
+                  </div>
+                  <div>
+                    <strong style={{ color: "#64748b" }}>Selected Service / Subcategory:</strong>{" "}
+                    <span style={{ color: "#0f172a", fontWeight: 700 }}>{selectedQuote.subcategory || selectedQuote.service || "—"}</span>
+                  </div>
+                </div>
+
+                {/* Scope specifics depending on category */}
+                <div style={{ background: "#fff", padding: 12, borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+                  {selectedQuote.requirementType && (
+                    <div><strong style={{ color: "#475569" }}>Requirement Scope:</strong> {selectedQuote.requirementType}</div>
+                  )}
+
+                  {/* CCTV-Specific Fields */}
+                  {(selectedQuote.cameraCount || selectedQuote.cameraRequirement || selectedQuote.recorder || selectedQuote.storage) && (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, paddingTop: 6, borderTop: "1px dashed #e2e8f0" }}>
+                      {selectedQuote.cameraCount && <div><strong style={{ color: "#64748b" }}>Camera Count:</strong> {selectedQuote.cameraCount}</div>}
+                      {selectedQuote.cameraRequirement && <div><strong style={{ color: "#64748b" }}>Camera Type:</strong> {selectedQuote.cameraRequirement}</div>}
+                      {selectedQuote.recorder && <div><strong style={{ color: "#64748b" }}>Recorder:</strong> {selectedQuote.recorder}</div>}
+                      {selectedQuote.storage && <div><strong style={{ color: "#64748b" }}>Storage:</strong> {selectedQuote.storage}</div>}
+                    </div>
+                  )}
+
+                  {/* Extra Features / Tags */}
+                  {Array.isArray(selectedQuote.features) && selectedQuote.features.length > 0 && (
+                    <div style={{ paddingTop: 6 }}>
+                      <strong style={{ color: "#64748b" }}>Requested Features:</strong>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                        {selectedQuote.features.map((feat, idx) => (
+                          <span key={idx} style={{ background: "#eff6ff", color: "#1d4ed8", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 6, border: "1px solid #bfdbfe" }}>
+                            ✓ {feat}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 3. Preferred Schedule & Location Card */}
+              <div style={{ background: "#f8fafc", padding: 16, borderRadius: 16, border: "1px solid #e2e8f0" }}>
+                <h4 style={{ margin: "0 0 10px 0", fontSize: 12, color: "#1e293b", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em" }}>
+                  📍 Service Schedule &amp; Address
+                </h4>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 12 }}>
+                  <div>
+                    <strong style={{ color: "#64748b" }}>Preferred Date:</strong>{" "}
+                    <span style={{ color: "#1e293b", fontWeight: 700 }}>
+                      {selectedQuote.preferredVisitDate 
+                        ? new Date(selectedQuote.preferredVisitDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+                        : (selectedQuote.preferredDate || "Flexible / ASAP")}
+                    </span>
+                  </div>
+                  <div>
+                    <strong style={{ color: "#64748b" }}>Preferred Time Slot:</strong>{" "}
+                    <span style={{ color: "#1e293b", fontWeight: 700 }}>
+                      {selectedQuote.preferredVisitTime || selectedQuote.preferredTimeSlot || "Flexible / Any Time"}
+                    </span>
+                  </div>
+                  <div style={{ gridColumn: "span 2" }}>
+                    <strong style={{ color: "#64748b" }}>Full Service Address:</strong>{" "}
+                    <span style={{ color: "#1e293b", fontWeight: 600 }}>{selectedQuote.address || "—"}</span>
+                  </div>
+                  <div>
+                    <strong style={{ color: "#64748b" }}>Locality / Area:</strong>{" "}
+                    <span>{selectedQuote.locality || "—"}</span>
+                  </div>
+                  <div>
+                    <strong style={{ color: "#64748b" }}>Pincode:</strong>{" "}
+                    <span>{selectedQuote.pincode || "—"}</span>
+                  </div>
+
+                  {/* Google Maps Link if available */}
                   {(selectedQuote.googleMapsUrl || (selectedQuote.latitude && selectedQuote.longitude)) && (
                     <div style={{ gridColumn: "span 2", marginTop: 4 }}>
                       <a 
                         href={selectedQuote.googleMapsUrl || `https://www.google.com/maps?q=${selectedQuote.latitude},${selectedQuote.longitude}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ color: "#2563eb", fontWeight: 700, fontSize: 11, textDecoration: "underline" }}
+                        style={{ 
+                          color: "#2563eb", fontWeight: 700, fontSize: 11, textDecoration: "none",
+                          display: "inline-flex", alignItems: "center", gap: 4, background: "#eff6ff",
+                          padding: "4px 10px", borderRadius: 6, border: "1px solid #bfdbfe"
+                        }}
                       >
-                        📍 Open Google Maps Location Link
+                        📍 Open Pin on Google Maps ({selectedQuote.latitude ? `${selectedQuote.latitude}, ${selectedQuote.longitude}` : 'View Location'})
                       </a>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Uploaded Images Gallery */}
-              {selectedQuote.images && selectedQuote.images.length > 0 && (
-                <div style={{ background: "#f8fafc", padding: 16, borderRadius: 16, border: "1px solid #e2e8f0" }}>
-                  <h4 style={{ margin: "0 0 10px 0", fontSize: 12, color: "#1e293b", fontWeight: 800, textTransform: "uppercase" }}>
-                    Uploaded Site / Layout Photos ({selectedQuote.images.length})
-                  </h4>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                    {selectedQuote.images.map((imgUrl, idx) => (
-                      <a key={idx} href={imgUrl} target="_blank" rel="noopener noreferrer" style={{ display: "block", border: "1.5px solid #cbd5e1", borderRadius: 8, overflow: "hidden", background: "#fff" }}>
-                        <img src={imgUrl} alt={`Upload ${idx + 1}`} style={{ width: 84, height: 84, objectFit: "cover", display: "block" }} />
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Additional Requirements & Voice Note Player */}
+              {/* 4. Additional Requirements & Voice Note Player */}
               <div style={{ background: "#f8fafc", padding: 16, borderRadius: 16, border: "1px solid #e2e8f0" }}>
-                <h4 style={{ margin: "0 0 8px 0", fontSize: 12, color: "#1e293b", fontWeight: 800, textTransform: "uppercase" }}>Requirements & Voice Message</h4>
+                <h4 style={{ margin: "0 0 8px 0", fontSize: 12, color: "#1e293b", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em" }}>
+                  📝 Additional Requirements &amp; Audio Note
+                </h4>
                 
-                <p style={{ margin: "0 0 10px 0", color: "#334155", background: "#fff", padding: 10, borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 12, lineHeight: 1.4 }}>
-                  {selectedQuote.additionalRequirements || "No written additional requirements provided."}
+                <p style={{ margin: "0 0 10px 0", color: "#334155", background: "#fff", padding: 12, borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 12, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+                  {selectedQuote.additionalRequirements || selectedQuote.message || "No additional written requirements specified by customer."}
                 </p>
 
                 {/* Voice Note Audio Player */}
                 {selectedQuote.voiceNote?.url ? (
                   <div style={{ background: "#eff6ff", padding: 12, borderRadius: 12, border: "1px solid #bfdbfe", display: "flex", alignItems: "center", gap: 12 }}>
-                    <span style={{ fontSize: 20 }}>🎙️</span>
+                    <span style={{ fontSize: 22 }}>🎙️</span>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8", marginBottom: 4 }}>
                         Customer Voice Note ({selectedQuote.voiceNote.duration ? `${selectedQuote.voiceNote.duration}s` : 'Recorded Audio'})
@@ -645,93 +874,122 @@ export function QuoteRequestsPage() {
                   </div>
                 ) : (
                   <div style={{ fontSize: 11, color: "#94a3b8", fontStyle: "italic" }}>
-                    No voice note was recorded with this request.
+                    No voice note audio was recorded for this quotation request.
+                  </div>
+                )}
+
+                {/* Uploaded Photos Gallery */}
+                {Array.isArray(selectedQuote.images) && selectedQuote.images.length > 0 && (
+                  <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px dashed #e2e8f0" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 6 }}>
+                      Attached Layout / Site Photos ({selectedQuote.images.length}):
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      {selectedQuote.images.map((imgUrl, idx) => (
+                        <a key={idx} href={imgUrl} target="_blank" rel="noopener noreferrer" style={{ display: "block", border: "1.5px solid #cbd5e1", borderRadius: 8, overflow: "hidden", background: "#fff" }}>
+                          <img src={imgUrl} alt={`Upload ${idx + 1}`} style={{ width: 72, height: 72, objectFit: "cover", display: "block" }} />
+                        </a>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
 
-              {/* AUTHORITATIVE PRICING TABLE (PART 8 & 9) */}
-              <div style={{ background: "#fff", padding: 16, borderRadius: 16, border: "2px solid #3b82f6" }}>
+              {/* 5. AUTHORITATIVE PRICING ENGINE */}
+              <div style={{ background: "#fff", padding: 18, borderRadius: 16, border: "2px solid #3b82f6", boxShadow: "0 4px 12px rgba(59,130,246,0.08)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                   <div>
                     <h4 style={{ margin: 0, fontSize: 13, color: "#1e293b", fontWeight: 800, textTransform: "uppercase" }}>
-                      💰 Quotation Pricing Engine
+                      💰 Authoritative Quotation Pricing Engine
                     </h4>
                     <p style={{ margin: 0, fontSize: 11, color: "#64748b" }}>
-                      Enter Per Unit Price for each requested item. Backend calculates line totals, GST, and final amount.
+                      Review requested items and assign authoritative unit rates. GST and totals recalculate live.
                     </p>
                   </div>
                 </div>
 
                 {/* Items pricing table */}
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, marginBottom: 14 }}>
-                  <thead>
-                    <tr style={{ background: "#f1f5f9", borderBottom: "1px solid #cbd5e1" }}>
-                      <th style={{ padding: "8px 10px", textAlign: "left", color: "#475569" }}>Requested Item</th>
-                      <th style={{ padding: "8px 10px", textAlign: "center", color: "#475569", width: 80 }}>Qty</th>
-                      <th style={{ padding: "8px 10px", textAlign: "right", color: "#475569", width: 140 }}>Unit Price (₹)</th>
-                      <th style={{ padding: "8px 10px", textAlign: "right", color: "#475569", width: 120 }}>Line Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {calculatedPricing.items.map((item, idx) => (
-                      <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                        <td style={{ padding: "10px", fontWeight: 650, color: "#1e293b" }}>
-                          {item.productName}
-                        </td>
-                        <td style={{ padding: "10px", textAlign: "center", fontWeight: 700, color: "#3b82f6" }}>
-                          {item.quantity}
-                        </td>
-                        <td style={{ padding: "10px", textAlign: "right" }}>
-                          <input 
-                            type="number"
-                            min="0"
-                            step="any"
-                            placeholder="Enter rate"
-                            value={item.unitPrice}
-                            onChange={e => handleUnitPriceChange(idx, e.target.value)}
-                            style={{
-                              width: 110, height: 32, padding: "0 8px", textAlign: "right",
-                              border: "1px solid #93c5fd", borderRadius: 8, fontSize: 12, fontWeight: 700,
-                              color: "#1e293b", background: "#f0f9ff"
-                            }}
-                          />
-                        </td>
-                        <td style={{ padding: "10px", textAlign: "right", fontWeight: 750, color: "#0f172a" }}>
-                          ₹{item.lineTotal.toLocaleString('en-IN')}
-                        </td>
+                {calculatedPricing.items.length === 0 ? (
+                  <div style={{ padding: 20, textAlign: "center", color: "#94a3b8", fontSize: 12, background: "#f8fafc", borderRadius: 8 }}>
+                    No itemized products attached to this quotation request.
+                  </div>
+                ) : (
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, marginBottom: 14 }}>
+                    <thead>
+                      <tr style={{ background: "#f1f5f9", borderBottom: "1px solid #cbd5e1" }}>
+                        <th style={{ padding: "8px 10px", textAlign: "left", color: "#475569" }}>Requested Product / Scope</th>
+                        <th style={{ padding: "8px 10px", textAlign: "center", color: "#475569", width: 70 }}>Qty</th>
+                        <th style={{ padding: "8px 10px", textAlign: "right", color: "#475569", width: 130 }}>Unit Price (₹)</th>
+                        <th style={{ padding: "8px 10px", textAlign: "right", color: "#475569", width: 110 }}>Line Total</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {calculatedPricing.items.map((item, idx) => (
+                        <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <td style={{ padding: "10px", color: "#1e293b" }}>
+                            <div style={{ fontWeight: 700 }}>{item.productName}</div>
+                            {(item.brand || item.sku || item.variant) && (
+                              <div style={{ display: "flex", gap: 4, marginTop: 2 }}>
+                                {item.brand && <span style={{ fontSize: 9, fontWeight: 800, background: "#2563eb", color: "#fff", padding: "1px 5px", borderRadius: 4 }}>{item.brand}</span>}
+                                {item.sku && <span style={{ fontSize: 9, color: "#64748b" }}>SKU: {item.sku}</span>}
+                                {item.variant && <span style={{ fontSize: 9, background: "#f1f5f9", color: "#475569", padding: "1px 5px", borderRadius: 4 }}>{item.variant}</span>}
+                              </div>
+                            )}
+                          </td>
+                          <td style={{ padding: "10px", textAlign: "center", fontWeight: 700, color: "#3b82f6" }}>
+                            {item.quantity}
+                          </td>
+                          <td style={{ padding: "10px", textAlign: "right" }}>
+                            <input 
+                              type="number"
+                              min="0"
+                              step="any"
+                              placeholder="Enter rate"
+                              value={item.unitPrice}
+                              onChange={e => handleUnitPriceChange(idx, e.target.value)}
+                              style={{
+                                width: 105, height: 32, padding: "0 8px", textAlign: "right",
+                                border: "1px solid #93c5fd", borderRadius: 8, fontSize: 12, fontWeight: 700,
+                                color: "#1e293b", background: "#f0f9ff"
+                              }}
+                            />
+                          </td>
+                          <td style={{ padding: "10px", textAlign: "right", fontWeight: 800, color: "#0f172a" }}>
+                            ₹{item.lineTotal.toLocaleString('en-IN')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
 
                 {/* Totals & GST Section */}
                 <div style={{ background: "#f8fafc", padding: 14, borderRadius: 12, border: "1px solid #e2e8f0", display: "flex", flexDirection: "column", gap: 8 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#475569" }}>
-                    <span>Subtotal:</span>
+                    <span>Items Taxable Subtotal:</span>
                     <span style={{ fontWeight: 700, color: "#1e293b" }}>₹{calculatedPricing.subtotal.toLocaleString('en-IN')}</span>
                   </div>
 
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, color: "#475569" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span>GST Rate (%):</span>
+                      <span>Applicable GST Rate (%):</span>
                       <input 
                         type="number"
                         min="0"
                         max="100"
                         value={gstRate}
                         onChange={e => setGstRate(parseFloat(e.target.value) || 0)}
-                        style={{ width: 60, height: 26, padding: "0 6px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 11, textAlign: "center" }}
+                        style={{ width: 60, height: 26, padding: "0 6px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 11, textAlign: "center", fontWeight: 700 }}
                       />
                     </div>
-                    <span style={{ fontWeight: 700, color: "#1e293b" }}>₹{calculatedPricing.gstAmount.toLocaleString('en-IN')}</span>
+                    <span style={{ fontWeight: 700, color: "#d97706" }}>+ ₹{calculatedPricing.gstAmount.toLocaleString('en-IN')}</span>
                   </div>
 
                   <hr style={{ border: "none", borderTop: "1px solid #cbd5e1", margin: "4px 0" }} />
 
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 15, fontWeight: 800, color: "#1e293b" }}>
                     <span>Final Quotation Amount:</span>
-                    <span style={{ color: "#2563eb" }}>₹{calculatedPricing.finalAmount.toLocaleString('en-IN')}</span>
+                    <span style={{ color: "#2563eb", fontSize: 16 }}>₹{calculatedPricing.finalAmount.toLocaleString('en-IN')}</span>
                   </div>
                 </div>
 
@@ -746,7 +1004,7 @@ export function QuoteRequestsPage() {
                       border: "1px solid #cbd5e1", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer"
                     }}
                   >
-                    {savingPrices ? "Saving..." : "Save Pricing Draft"}
+                    {savingPrices ? "Saving Draft..." : "💾 Save Pricing Draft"}
                   </button>
 
                   <button
@@ -767,13 +1025,13 @@ export function QuoteRequestsPage() {
                 {whatsappResult && (
                   <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: "#f0fdf4", border: "1px solid #bbf7d0", fontSize: 11 }}>
                     <div style={{ color: "#166534", fontWeight: 700, marginBottom: 4 }}>
-                      ✓ Quotation status updated to 'Quotation Sent'!
+                      ✓ Quotation status updated to &apos;Quotation Sent&apos;!
                     </div>
                     {whatsappResult.whatsappSent ? (
                       <div style={{ color: "#15803d" }}>✓ WhatsApp notification delivered successfully via carrier gateway.</div>
                     ) : (
                       <div>
-                        <span style={{ color: "#854d0e" }}>WhatsApp automated API is in test/fallback mode. </span>
+                        <span style={{ color: "#854d0e" }}>WhatsApp automated gateway is in sandbox/fallback mode. </span>
                         {whatsappResult.clickToChatUrl && (
                           <a 
                             href={whatsappResult.clickToChatUrl} 
@@ -792,20 +1050,22 @@ export function QuoteRequestsPage() {
 
             </div>
 
-            {/* RIGHT COLUMN: ADMINISTRATIVE CONTROLS */}
+            {/* RIGHT COLUMN: ADMINISTRATIVE CONTROLS & ASSIGNMENT */}
             <form onSubmit={handleUpdateQuoteDetails} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div style={{ background: "#f8fafc", padding: 16, borderRadius: 16, border: "1px solid #e2e8f0", display: "flex", flexDirection: "column", gap: 12 }}>
-                <h4 style={{ margin: 0, fontSize: 12, color: "#1e293b", fontWeight: 800, textTransform: "uppercase" }}>Workflow & Assignment</h4>
+                <h4 style={{ margin: 0, fontSize: 12, color: "#1e293b", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em" }}>
+                  ⚙️ Workflow &amp; Assignment
+                </h4>
                 
                 {/* Status selector */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <label style={{ fontSize: 10, fontWeight: 700, color: "#64748b" }}>CURRENT STATUS</label>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: "#64748b" }}>CURRENT WORKFLOW STATUS</label>
                   <select
                     value={quoteStatus}
                     onChange={e => setQuoteStatus(e.target.value)}
                     style={{
                       height: 38, padding: "0 8px", border: "1px solid #cbd5e1", 
-                      borderRadius: 10, fontSize: 12, outline: "none", background: "#fff", fontWeight: 600, color: "#475569"
+                      borderRadius: 10, fontSize: 12, outline: "none", background: "#fff", fontWeight: 650, color: "#334155"
                     }}
                   >
                     {[
@@ -819,14 +1079,14 @@ export function QuoteRequestsPage() {
                       "cancelled",
                       "expired"
                     ].map(opt => (
-                      <option key={opt} value={opt}>{opt.replace(/_/g, ' ')}</option>
+                      <option key={opt} value={opt}>{opt.replace(/_/g, ' ').toUpperCase()}</option>
                     ))}
                   </select>
                 </div>
 
                 {/* Validity Days */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <label style={{ fontSize: 10, fontWeight: 700, color: "#64748b" }}>VALIDITY (DAYS)</label>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: "#64748b" }}>QUOTE VALIDITY (DAYS)</label>
                   <input
                     type="number"
                     min="1"
@@ -834,23 +1094,23 @@ export function QuoteRequestsPage() {
                     onChange={e => setValidityDays(parseInt(e.target.value, 10) || 15)}
                     style={{
                       height: 38, padding: "0 8px", border: "1px solid #cbd5e1", 
-                      borderRadius: 10, fontSize: 12, outline: "none", color: "#475569"
+                      borderRadius: 10, fontSize: 12, outline: "none", color: "#334155", background: "#fff"
                     }}
                   />
                 </div>
 
                 {/* Assigned staff */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <label style={{ fontSize: 10, fontWeight: 700, color: "#64748b" }}>ASSIGN STAFF / ENGINEER</label>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: "#64748b" }}>ASSIGN FIELD ENGINEER / TECHNICIAN</label>
                   <select
                     value={assignedTo}
                     onChange={e => setAssignedTo(e.target.value)}
                     style={{
                       height: 38, padding: "0 8px", border: "1px solid #cbd5e1", 
-                      borderRadius: 10, fontSize: 12, outline: "none", background: "#fff", fontWeight: 600, color: "#475569"
+                      borderRadius: 10, fontSize: 12, outline: "none", background: "#fff", fontWeight: 600, color: "#334155"
                     }}
                   >
-                    <option value="">Select Staff</option>
+                    <option value="">Unassigned</option>
                     {technicians.map(t => (
                       <option key={t._id} value={t._id}>{t.name} ({t.role})</option>
                     ))}
@@ -859,26 +1119,26 @@ export function QuoteRequestsPage() {
 
                 {/* Follow up date */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <label style={{ fontSize: 10, fontWeight: 700, color: "#64748b" }}>FOLLOW UP DATE</label>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: "#64748b" }}>NEXT FOLLOW UP DATE</label>
                   <input 
                     type="date"
                     value={followUpDate}
                     onChange={e => setFollowUpDate(e.target.value)}
                     style={{
                       height: 38, padding: "0 8px", border: "1px solid #cbd5e1", 
-                      borderRadius: 10, fontSize: 12, outline: "none", color: "#475569"
+                      borderRadius: 10, fontSize: 12, outline: "none", color: "#334155", background: "#fff"
                     }}
                   />
                 </div>
 
-                {/* Admin notes */}
+                {/* Internal Admin notes */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   <label style={{ fontSize: 10, fontWeight: 700, color: "#64748b" }}>INTERNAL ADMIN NOTES</label>
                   <textarea
                     rows={4}
                     value={adminNotes}
                     onChange={e => setAdminNotes(e.target.value)}
-                    placeholder="Enter phone call discussion or discount terms..."
+                    placeholder="Enter customer call notes, inspection findings, or discount discussions..."
                     style={{
                       padding: 10, border: "1px solid #cbd5e1", borderRadius: 10,
                       fontSize: 12, outline: "none", resize: "none", background: "#fff", color: "#334155"
@@ -896,37 +1156,54 @@ export function QuoteRequestsPage() {
                     cursor: "pointer"
                   }}
                 >
-                  {savingNotes ? "Saving Changes..." : "Save Admin Notes"}
+                  {savingNotes ? "Saving Workflow..." : "Save Workflow & Notes"}
                 </button>
               </div>
 
-              {/* CONVERT TO ORDER BUTTON (PART 15) */}
+              {/* CONVERT TO ORDER BUTTON */}
               <div style={{ background: "#f8fafc", padding: 16, borderRadius: 16, border: "1px solid #e2e8f0" }}>
-                <h4 style={{ margin: "0 0 8px 0", fontSize: 12, color: "#1e293b", fontWeight: 800, textTransform: "uppercase" }}>
-                  Fulfillment & Job Conversion
+                <h4 style={{ margin: "0 0 8px 0", fontSize: 12, color: "#1e293b", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em" }}>
+                  ⚡ Order Conversion
                 </h4>
                 {selectedQuote.orderNumber ? (
-                  <div style={{ padding: 10, borderRadius: 8, background: "#ecfdf5", border: "1px solid #a7f3d0", fontSize: 12 }}>
-                    <span style={{ color: "#065f46", fontWeight: 700 }}>✓ Converted to Order:</span>
-                    <div style={{ fontFamily: "monospace", fontWeight: 800, color: "#047857", marginTop: 2 }}>
+                  <div style={{ padding: 12, borderRadius: 10, background: "#ecfdf5", border: "1px solid #a7f3d0", fontSize: 12 }}>
+                    <span style={{ color: "#065f46", fontWeight: 700 }}>✓ Converted to Active Order:</span>
+                    <div style={{ fontFamily: "monospace", fontWeight: 800, color: "#047857", marginTop: 4, fontSize: 13 }}>
                       {selectedQuote.orderNumber}
                     </div>
                   </div>
                 ) : (
-                  <button 
-                    type="button" 
-                    onClick={handleConvertQuote}
-                    disabled={converting}
-                    style={{
-                      width: "100%", background: "#059669", color: "#fff",
-                      border: "none", borderRadius: 10, height: 38, fontSize: 12, fontWeight: 700,
-                      cursor: "pointer"
-                    }}
-                  >
-                    {converting ? "Converting to Job..." : "⚡ Convert to Job Order"}
-                  </button>
+                  <div>
+                    <p style={{ margin: "0 0 10px 0", fontSize: 11, color: "#64748b" }}>
+                      Once the client approves, click below to convert this quotation into an active Job Order.
+                    </p>
+                    <button 
+                      type="button" 
+                      onClick={handleConvertQuote}
+                      disabled={converting}
+                      style={{
+                        width: "100%", background: "#059669", color: "#fff",
+                        border: "none", borderRadius: 10, height: 38, fontSize: 12, fontWeight: 700,
+                        cursor: "pointer"
+                      }}
+                    >
+                      {converting ? "Converting to Job Order..." : "⚡ Convert to Job Order"}
+                    </button>
+                  </div>
                 )}
               </div>
+
+              {/* Close Action in Drawer Bottom */}
+              <button 
+                type="button"
+                onClick={() => setShowDetailModal(false)}
+                style={{
+                  width: "100%", height: 38, background: "#fff", color: "#64748b",
+                  border: "1px solid #cbd5e1", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer"
+                }}
+              >
+                Close Inspection
+              </button>
             </form>
 
           </div>

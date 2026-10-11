@@ -184,14 +184,49 @@ export const BTN_GHOST = {
 
 // ─── Modal + Toast System ───────────────────────────────────────────────────
 import { createContext, useContext, useState, useEffect } from 'react';
-export function Modal({ open, onClose, title, children }) {
+export function Modal({ open = true, onClose, title, children, width, maxWidth }) {
   if (!open) return null;
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(2,6,23,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
-      <div style={{ background: '#fff', borderRadius: 12, width: 'min(900px, 96%)', maxHeight: '90vh', overflow: 'auto', padding: 20 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <h3 style={{ margin: 0 }}>{title}</h3>
-          <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer' }}>✕</button>
+    <div 
+      onClick={onClose}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(2,6,23,0.65)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 16 }}
+    >
+      <div 
+        onClick={(e) => e.stopPropagation()}
+        style={{ 
+          background: '#fff', 
+          borderRadius: 16, 
+          width: width || 'min(960px, 96%)', 
+          maxWidth: maxWidth || '96vw',
+          maxHeight: '90vh', 
+          overflow: 'auto', 
+          padding: 24,
+          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+          border: '1px solid #e2e8f0'
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid #f1f5f9' }}>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 750, color: '#0f172a' }}>{title}</h3>
+          <button 
+            type="button"
+            onClick={onClose} 
+            style={{ 
+              border: '1px solid #e2e8f0', 
+              background: '#f8fafc', 
+              borderRadius: 8,
+              width: 30,
+              height: 30,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              fontSize: 13,
+              fontWeight: 700,
+              color: '#64748b'
+            }}
+          >
+            ✕
+          </button>
         </div>
         <div>{children}</div>
       </div>
@@ -221,6 +256,15 @@ export function ToastProvider({ children }) {
 
 export function useToast() {
   const ctx = useContext(ToastContext);
-  if (!ctx) throw new Error('useToast must be used inside ToastProvider');
-  return ctx.show;
+  if (!ctx) {
+    const fallbackFn = (msg) => console.log('[Toast]', msg);
+    fallbackFn.show = fallbackFn;
+    return fallbackFn;
+  }
+  const toastFn = (msg, opts) => ctx.show(msg, opts);
+  toastFn.show = (titleOrMsg, desc) => {
+    const text = desc ? `${titleOrMsg}: ${desc}` : titleOrMsg;
+    ctx.show(text);
+  };
+  return toastFn;
 }
