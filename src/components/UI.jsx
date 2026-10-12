@@ -184,8 +184,9 @@ export const BTN_GHOST = {
 
 // ─── Modal + Toast System ───────────────────────────────────────────────────
 import { createContext, useContext, useState, useEffect } from 'react';
-export function Modal({ open = true, onClose, title, children, width, maxWidth }) {
-  if (!open) return null;
+export function Modal({ open, isOpen, onClose, title, children, width, maxWidth }) {
+  const isVisible = open !== undefined ? open : (isOpen !== undefined ? isOpen : true);
+  if (!isVisible) return null;
   return (
     <div 
       onClick={onClose}
@@ -238,17 +239,44 @@ const ToastContext = createContext(null);
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
   function show(message, opts = {}) {
+    let msgText = message;
+    let toastType = opts.type || 'info';
+    if (typeof message === 'object' && message !== null) {
+      toastType = message.type || message.variant || opts.type || 'info';
+      msgText = message.title && message.description
+        ? `${message.title}: ${message.description}`
+        : message.message || message.title || message.description || JSON.stringify(message);
+    }
     const id = Math.random().toString(36).slice(2, 9);
-    setToasts((t) => [...t, { id, message, ...opts }]);
-    if (!opts.sticky) setTimeout(() => setToasts((t) => t.filter(x => x.id !== id)), opts.duration || 3500);
+    setToasts((t) => [...t, { id, message: String(msgText), type: toastType, ...opts }]);
+    if (!opts.sticky) setTimeout(() => setToasts((t) => t.filter(x => x.id !== id)), opts.duration || 4000);
   }
   return (
     <ToastContext.Provider value={{ show }}>
       {children}
-      <div style={{ position: 'fixed', right: 20, bottom: 20, zIndex: 3000, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {toasts.map(t => (
-          <div key={t.id} style={{ background: '#0f172a', color: '#fff', padding: '10px 14px', borderRadius: 10, boxShadow: '0 6px 18px rgba(2,6,23,0.4)' }}>{t.message}</div>
-        ))}
+      <div style={{ position: 'fixed', right: 20, bottom: 20, zIndex: 3000, display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 420 }}>
+        {toasts.map(t => {
+          const isError = t.type === 'error' || t.variant === 'destructive';
+          const isSuccess = t.type === 'success';
+          const bg = isError ? '#ef4444' : isSuccess ? '#10b981' : '#0f172a';
+          return (
+            <div 
+              key={t.id} 
+              style={{ 
+                background: bg, 
+                color: '#fff', 
+                padding: '12px 16px', 
+                borderRadius: 10, 
+                boxShadow: '0 6px 18px rgba(2,6,23,0.3)',
+                fontSize: 13,
+                fontWeight: 600,
+                lineHeight: 1.4
+              }}
+            >
+              {t.message}
+            </div>
+          );
+        })}
       </div>
     </ToastContext.Provider>
   );
@@ -268,3 +296,4 @@ export function useToast() {
   };
   return toastFn;
 }
+

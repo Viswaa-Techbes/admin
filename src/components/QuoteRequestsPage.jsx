@@ -714,142 +714,463 @@ export function QuoteRequestsPage() {
             {/* LEFT COLUMN: CUSTOMER SPECS, SPECIFICATIONS & PRICING */}
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               
-              {/* 1. Customer Profile Card */}
-              <div style={{ background: "#f8fafc", padding: 16, borderRadius: 16, border: "1px solid #e2e8f0" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                  <h4 style={{ margin: 0, fontSize: 12, color: "#1e293b", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em" }}>
-                    👤 Customer &amp; Contact Details
-                  </h4>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <button 
-                      type="button"
-                      onClick={() => makeCall(selectedQuote.mobile)}
-                      style={{ background: "#22c55e", color: "#fff", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
-                    >
-                      📞 Call
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => openWhatsApp(selectedQuote.mobile, selectedQuote.fullName, selectedQuote.requestId, calculatedPricing.finalAmount)}
-                      style={{ background: "#25d366", color: "#fff", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
-                    >
-                      💬 WhatsApp
-                    </button>
-                  </div>
-                </div>
+              {(() => {
+                const cat = (selectedQuote.serviceCategory || "CCTV").toLowerCase();
+                const isWebQuote = cat.includes("web") || cat.includes("website");
+                const isNetworkQuote = cat.includes("network");
+                const isCctvQuote = !isWebQuote && !isNetworkQuote;
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 12 }}>
-                  <div><strong style={{ color: "#64748b" }}>Full Name:</strong> <span style={{ color: "#1e293b", fontWeight: 700 }}>{selectedQuote.fullName || "—"}</span></div>
-                  <div><strong style={{ color: "#64748b" }}>Mobile Number:</strong> <span style={{ color: "#1e293b", fontWeight: 700 }}>{selectedQuote.mobile || "—"}</span></div>
-                  <div><strong style={{ color: "#64748b" }}>Email:</strong> <span>{selectedQuote.email || "—"}</span></div>
-                  <div><strong style={{ color: "#64748b" }}>Company:</strong> <span>{selectedQuote.companyName || "—"}</span></div>
-                  <div><strong style={{ color: "#64748b" }}>Property Type:</strong> <span style={{ color: "#1e293b", fontWeight: 650 }}>{selectedQuote.propertyType || "Standard Site / Not Specified"}</span></div>
-                  <div><strong style={{ color: "#64748b" }}>Created At:</strong> <span>{selectedQuote.createdAt ? new Date(selectedQuote.createdAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "—"}</span></div>
-                </div>
-              </div>
+                // Web extractions
+                const webExistingUrlItem = (selectedQuote.items || []).find(it => 
+                  it.productName?.toLowerCase().includes("existing website url:")
+                );
+                const webExistingUrl = webExistingUrlItem 
+                  ? webExistingUrlItem.productName.replace(/existing website url:\s*/i, "").trim() 
+                  : "";
 
-              {/* 2. Service Scope & Category Specifications Card */}
-              <div style={{ background: "#f8fafc", padding: 16, borderRadius: 16, border: "1px solid #e2e8f0" }}>
-                <h4 style={{ margin: "0 0 12px 0", fontSize: 12, color: "#1e293b", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em" }}>
-                  🛠️ Service Scope &amp; Technical Requirements
-                </h4>
+                const webFeaturesItem = (selectedQuote.items || []).find(it => 
+                  it.productName?.toLowerCase().includes("core features:")
+                );
+                const webFeaturesList = [
+                  ...(Array.isArray(selectedQuote.features) ? selectedQuote.features : []),
+                  ...(webFeaturesItem ? webFeaturesItem.productName.replace(/core features:\s*/i, "").split(";").map(s => s.trim()) : [])
+                ].filter(Boolean);
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 12, marginBottom: 12 }}>
-                  <div>
-                    <strong style={{ color: "#64748b" }}>Category:</strong>{" "}
-                    <span style={{ color: "#2563eb", fontWeight: 800 }}>{selectedQuote.serviceCategory || "CCTV"}</span>
-                  </div>
-                  <div>
-                    <strong style={{ color: "#64748b" }}>Selected Service / Subcategory:</strong>{" "}
-                    <span style={{ color: "#0f172a", fontWeight: 700 }}>{selectedQuote.subcategory || selectedQuote.service || "—"}</span>
-                  </div>
-                </div>
+                const webHostingItem = (selectedQuote.items || []).find(it => 
+                  it.productName?.toLowerCase().includes("domain & hosting:")
+                );
+                const webHostingText = webHostingItem 
+                  ? webHostingItem.productName.replace(/domain & hosting:\s*/i, "").trim()
+                  : "";
 
-                {/* Scope specifics depending on category */}
-                <div style={{ background: "#fff", padding: 12, borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 12, display: "flex", flexDirection: "column", gap: 6 }}>
-                  {selectedQuote.requirementType && (
-                    <div><strong style={{ color: "#475569" }}>Requirement Scope:</strong> {selectedQuote.requirementType}</div>
-                  )}
+                const webEcommerceItem = (selectedQuote.items || []).find(it => 
+                  it.productName?.toLowerCase().includes("e-commerce scope:")
+                );
+                const webEcommerceText = webEcommerceItem 
+                  ? webEcommerceItem.productName.replace(/e-commerce scope:\s*/i, "").trim()
+                  : "";
 
-                  {/* CCTV-Specific Fields */}
-                  {(selectedQuote.cameraCount || selectedQuote.cameraRequirement || selectedQuote.recorder || selectedQuote.storage) && (
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, paddingTop: 6, borderTop: "1px dashed #e2e8f0" }}>
-                      {selectedQuote.cameraCount && <div><strong style={{ color: "#64748b" }}>Camera Count:</strong> {selectedQuote.cameraCount}</div>}
-                      {selectedQuote.cameraRequirement && <div><strong style={{ color: "#64748b" }}>Camera Type:</strong> {selectedQuote.cameraRequirement}</div>}
-                      {selectedQuote.recorder && <div><strong style={{ color: "#64748b" }}>Recorder:</strong> {selectedQuote.recorder}</div>}
-                      {selectedQuote.storage && <div><strong style={{ color: "#64748b" }}>Storage:</strong> {selectedQuote.storage}</div>}
-                    </div>
-                  )}
+                // Reference URLs extraction from text
+                const extractUrls = (text) => {
+                  if (!text) return [];
+                  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.(?:com|in|co\.in|org|net|io|co)[^\s]*)/gi;
+                  const matches = text.match(urlRegex) || [];
+                  return matches.map(u => u.trim());
+                };
+                const detectedUrls = Array.from(new Set([
+                  ...(webExistingUrl ? [webExistingUrl] : []),
+                  ...extractUrls(selectedQuote.additionalRequirements),
+                  ...extractUrls(selectedQuote.message)
+                ]));
 
-                  {/* Extra Features / Tags */}
-                  {Array.isArray(selectedQuote.features) && selectedQuote.features.length > 0 && (
-                    <div style={{ paddingTop: 6 }}>
-                      <strong style={{ color: "#64748b" }}>Requested Features:</strong>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
-                        {selectedQuote.features.map((feat, idx) => (
-                          <span key={idx} style={{ background: "#eff6ff", color: "#1d4ed8", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 6, border: "1px solid #bfdbfe" }}>
-                            ✓ {feat}
-                          </span>
-                        ))}
+                // Networking extractions
+                const networkCablingItems = (selectedQuote.items || []).filter(it => 
+                  it.productName?.toLowerCase().includes("cabling") ||
+                  it.productName?.toLowerCase().includes("lan point")
+                );
+                const networkWifiItem = (selectedQuote.items || []).find(it => 
+                  it.productName?.toLowerCase().includes("wi-fi scope:")
+                );
+                const networkTroubleshootItem = (selectedQuote.items || []).find(it => 
+                  it.productName?.toLowerCase().includes("troubleshooting focus:")
+                );
+                const networkEquipmentItems = (selectedQuote.items || []).filter(it => 
+                  !it.productName?.toLowerCase().includes("cabling") &&
+                  !it.productName?.toLowerCase().includes("lan point") &&
+                  !it.productName?.toLowerCase().includes("wi-fi scope:") &&
+                  !it.productName?.toLowerCase().includes("troubleshooting focus:")
+                );
+
+                // CCTV extractions
+                const cctvCameraItems = (selectedQuote.items || []).filter(it => 
+                  it.productName?.toLowerCase().includes("camera") ||
+                  it.productName?.toLowerCase().includes("dome") ||
+                  it.productName?.toLowerCase().includes("bullet") ||
+                  it.productName?.toLowerCase().includes("ptz")
+                );
+                const cctvRecorderItem = (selectedQuote.items || []).find(it => 
+                  it.productName?.toLowerCase().includes("nvr") ||
+                  it.productName?.toLowerCase().includes("dvr") ||
+                  it.productName?.toLowerCase().includes("recorder")
+                );
+                const cctvStorageItem = (selectedQuote.items || []).find(it => 
+                  it.productName?.toLowerCase().includes("hard drive") ||
+                  it.productName?.toLowerCase().includes("hdd") ||
+                  it.productName?.toLowerCase().includes("sd card")
+                );
+                const cctvCablingItem = (selectedQuote.items || []).find(it => 
+                  it.productName?.toLowerCase().includes("cable") ||
+                  it.productName?.toLowerCase().includes("cabling")
+                );
+                const cctvFittingItem = (selectedQuote.items || []).find(it => 
+                  it.productName?.toLowerCase().includes("fitting") ||
+                  it.productName?.toLowerCase().includes("alignment")
+                );
+                const cctvAccessoriesItems = (selectedQuote.items || []).filter(it => 
+                  it.productName?.toLowerCase().includes("rack") ||
+                  it.productName?.toLowerCase().includes("mount") ||
+                  it.productName?.toLowerCase().includes("power supply")
+                );
+
+                return (
+                  <>
+                    {/* 1. Customer Profile Card */}
+                    <div style={{ background: "#f8fafc", padding: 16, borderRadius: 16, border: "1px solid #e2e8f0" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                        <h4 style={{ margin: 0, fontSize: 12, color: "#1e293b", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em" }}>
+                          👤 Customer &amp; Contact Details
+                        </h4>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button 
+                            type="button"
+                            onClick={() => makeCall(selectedQuote.mobile)}
+                            style={{ background: "#22c55e", color: "#fff", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+                          >
+                            📞 Call
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => openWhatsApp(selectedQuote.mobile, selectedQuote.fullName, selectedQuote.requestId, calculatedPricing.finalAmount)}
+                            style={{ background: "#25d366", color: "#fff", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+                          >
+                            💬 WhatsApp
+                          </button>
+                        </div>
+                      </div>
+
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 12 }}>
+                        <div><strong style={{ color: "#64748b" }}>Full Name:</strong> <span style={{ color: "#1e293b", fontWeight: 700 }}>{selectedQuote.fullName || "—"}</span></div>
+                        <div><strong style={{ color: "#64748b" }}>Mobile Number:</strong> <span style={{ color: "#1e293b", fontWeight: 700 }}>{selectedQuote.mobile || "—"}</span></div>
+                        <div><strong style={{ color: "#64748b" }}>Email:</strong> <span>{selectedQuote.email || "—"}</span></div>
+                        <div><strong style={{ color: "#64748b" }}>Company:</strong> <span>{selectedQuote.companyName || "—"}</span></div>
+                        {!isWebQuote ? (
+                          <div>
+                            <strong style={{ color: "#64748b" }}>{isNetworkQuote ? "Premises Type:" : "Property Type:"}</strong>{" "}
+                            <span style={{ color: "#1e293b", fontWeight: 650 }}>{selectedQuote.propertyType || (isNetworkQuote ? "Commercial / Office" : "Standard Site")}</span>
+                          </div>
+                        ) : (
+                          <div>
+                            <strong style={{ color: "#64748b" }}>Service Delivery:</strong>{" "}
+                            <span style={{ color: "#2563eb", fontWeight: 700 }}>100% Digital / Remote Consultation</span>
+                          </div>
+                        )}
+                        <div><strong style={{ color: "#64748b" }}>Created At:</strong> <span>{selectedQuote.createdAt ? new Date(selectedQuote.createdAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "—"}</span></div>
                       </div>
                     </div>
-                  )}
-                </div>
-              </div>
 
-              {/* 3. Preferred Schedule & Location Card */}
-              <div style={{ background: "#f8fafc", padding: 16, borderRadius: 16, border: "1px solid #e2e8f0" }}>
-                <h4 style={{ margin: "0 0 10px 0", fontSize: 12, color: "#1e293b", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em" }}>
-                  📍 Service Schedule &amp; Address
-                </h4>
+                    {/* 2. Service-Specific Scope & Specifications Card */}
+                    {isWebQuote && (
+                      <div style={{ background: "#f8fafc", padding: 16, borderRadius: 16, border: "1px solid #bfdbfe" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                          <h4 style={{ margin: 0, fontSize: 12, color: "#1e40af", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em" }}>
+                            🌐 Website Design &amp; Development Scope
+                          </h4>
+                          <span style={{ background: "#dbeafe", color: "#1e40af", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 6 }}>
+                            Digital Project
+                          </span>
+                        </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 12 }}>
-                  <div>
-                    <strong style={{ color: "#64748b" }}>Preferred Date:</strong>{" "}
-                    <span style={{ color: "#1e293b", fontWeight: 700 }}>
-                      {selectedQuote.preferredVisitDate 
-                        ? new Date(selectedQuote.preferredVisitDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-                        : (selectedQuote.preferredDate || "Flexible / ASAP")}
-                    </span>
-                  </div>
-                  <div>
-                    <strong style={{ color: "#64748b" }}>Preferred Time Slot:</strong>{" "}
-                    <span style={{ color: "#1e293b", fontWeight: 700 }}>
-                      {selectedQuote.preferredVisitTime || selectedQuote.preferredTimeSlot || "Flexible / Any Time"}
-                    </span>
-                  </div>
-                  <div style={{ gridColumn: "span 2" }}>
-                    <strong style={{ color: "#64748b" }}>Full Service Address:</strong>{" "}
-                    <span style={{ color: "#1e293b", fontWeight: 600 }}>{selectedQuote.address || "—"}</span>
-                  </div>
-                  <div>
-                    <strong style={{ color: "#64748b" }}>Locality / Area:</strong>{" "}
-                    <span>{selectedQuote.locality || "—"}</span>
-                  </div>
-                  <div>
-                    <strong style={{ color: "#64748b" }}>Pincode:</strong>{" "}
-                    <span>{selectedQuote.pincode || "—"}</span>
-                  </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 12, marginBottom: 12 }}>
+                          <div>
+                            <strong style={{ color: "#64748b" }}>Service Category:</strong>{" "}
+                            <span style={{ color: "#2563eb", fontWeight: 800 }}>Web Designing</span>
+                          </div>
+                          <div>
+                            <strong style={{ color: "#64748b" }}>Website Project Type:</strong>{" "}
+                            <span style={{ color: "#0f172a", fontWeight: 700 }}>{selectedQuote.subcategory || selectedQuote.service || "Business Website"}</span>
+                          </div>
+                        </div>
 
-                  {/* Google Maps Link if available */}
-                  {(selectedQuote.googleMapsUrl || (selectedQuote.latitude && selectedQuote.longitude)) && (
-                    <div style={{ gridColumn: "span 2", marginTop: 4 }}>
-                      <a 
-                        href={selectedQuote.googleMapsUrl || `https://www.google.com/maps?q=${selectedQuote.latitude},${selectedQuote.longitude}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ 
-                          color: "#2563eb", fontWeight: 700, fontSize: 11, textDecoration: "none",
-                          display: "inline-flex", alignItems: "center", gap: 4, background: "#eff6ff",
-                          padding: "4px 10px", borderRadius: 6, border: "1px solid #bfdbfe"
-                        }}
-                      >
-                        📍 Open Pin on Google Maps ({selectedQuote.latitude ? `${selectedQuote.latitude}, ${selectedQuote.longitude}` : 'View Location'})
-                      </a>
+                        <div style={{ background: "#fff", padding: 14, borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+                          {/* Business / Scope requirements */}
+                          <div>
+                            <strong style={{ color: "#475569", display: "block", marginBottom: 2 }}>Project Requirements &amp; Scope:</strong>
+                            <div style={{ color: "#1e293b", background: "#f8fafc", padding: "8px 10px", borderRadius: 8, border: "1px solid #e2e8f0", lineHeight: 1.5 }}>
+                              {selectedQuote.additionalRequirements || selectedQuote.requirementType || "Custom business website design, responsive layouts, and engineering consultation."}
+                            </div>
+                          </div>
+
+                          {/* Domain & Hosting */}
+                          {webHostingText && (
+                            <div>
+                              <strong style={{ color: "#64748b" }}>Domain &amp; Cloud Hosting:</strong>{" "}
+                              <span style={{ color: "#0f172a", fontWeight: 600 }}>{webHostingText}</span>
+                            </div>
+                          )}
+
+                          {/* Core Interactive Features */}
+                          {webFeaturesList.length > 0 && (
+                            <div>
+                              <strong style={{ color: "#64748b", display: "block", marginBottom: 4 }}>Requested Features &amp; Integrations:</strong>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                {webFeaturesList.map((feat, idx) => (
+                                  <span key={idx} style={{ background: "#eff6ff", color: "#1d4ed8", fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 6, border: "1px solid #bfdbfe" }}>
+                                    ✓ {feat}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* E-Commerce Scope */}
+                          {webEcommerceText && (
+                            <div>
+                              <strong style={{ color: "#64748b" }}>E-Commerce Catalog &amp; Cart Scope:</strong>{" "}
+                              <span style={{ color: "#0f172a", fontWeight: 600 }}>{webEcommerceText}</span>
+                            </div>
+                          )}
+
+                          {/* Reference / Existing URLs */}
+                          {detectedUrls.length > 0 && (
+                            <div>
+                              <strong style={{ color: "#64748b", display: "block", marginBottom: 4 }}>Reference / Existing Website URLs:</strong>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                {detectedUrls.map((u, idx) => (
+                                  <a 
+                                    key={idx} 
+                                    href={u.startsWith("http") ? u : `https://${u}`} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    style={{ color: "#2563eb", fontWeight: 700, textDecoration: "underline", display: "inline-flex", alignItems: "center", gap: 4 }}
+                                  >
+                                    🔗 {u}
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {isNetworkQuote && (
+                      <div style={{ background: "#f8fafc", padding: 16, borderRadius: 16, border: "1px solid #cbd5e1" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                          <h4 style={{ margin: 0, fontSize: 12, color: "#0f766e", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em" }}>
+                            🔌 Networking Infrastructure Scope
+                          </h4>
+                          <span style={{ background: "#ccfbf1", color: "#0f766e", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 6 }}>
+                            IT &amp; Cabling
+                          </span>
+                        </div>
+
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 12, marginBottom: 12 }}>
+                          <div>
+                            <strong style={{ color: "#64748b" }}>Category:</strong>{" "}
+                            <span style={{ color: "#0d9488", fontWeight: 800 }}>Networking</span>
+                          </div>
+                          <div>
+                            <strong style={{ color: "#64748b" }}>Service Type:</strong>{" "}
+                            <span style={{ color: "#0f172a", fontWeight: 700 }}>{selectedQuote.subcategory || selectedQuote.service || "Office Network Setup"}</span>
+                          </div>
+                        </div>
+
+                        <div style={{ background: "#fff", padding: 14, borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+                          <div>
+                            <strong style={{ color: "#64748b" }}>Premises Setup Scope:</strong>{" "}
+                            <span style={{ color: "#0f172a", fontWeight: 700 }}>{selectedQuote.propertyType || "Office / Facility"}</span>
+                          </div>
+
+                          {/* Active Network Equipment */}
+                          {networkEquipmentItems.length > 0 && (
+                            <div>
+                              <strong style={{ color: "#475569", display: "block", marginBottom: 4 }}>Active Network Equipment &amp; Racks:</strong>
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                                {networkEquipmentItems.map((item, idx) => (
+                                  <div key={idx} style={{ background: "#f0fdfa", padding: "6px 10px", borderRadius: 8, border: "1px solid #99f6e4", color: "#115e59" }}>
+                                    <strong>{item.productName}</strong> × {item.quantity}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Structured Cabling */}
+                          {networkCablingItems.length > 0 && (
+                            <div>
+                              <strong style={{ color: "#475569", display: "block", marginBottom: 4 }}>Structured Cabling &amp; LAN Points:</strong>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                {networkCablingItems.map((item, idx) => (
+                                  <span key={idx} style={{ background: "#f8fafc", padding: "4px 8px", borderRadius: 6, border: "1px solid #cbd5e1", color: "#334155" }}>
+                                    📌 {item.productName} (Qty: {item.quantity})
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Wi-Fi Scope */}
+                          {networkWifiItem && (
+                            <div>
+                              <strong style={{ color: "#64748b" }}>Wi-Fi Coverage &amp; AP Standard:</strong>{" "}
+                              <span style={{ color: "#0f172a", fontWeight: 600 }}>{networkWifiItem.productName}</span>
+                            </div>
+                          )}
+
+                          {/* Troubleshooting */}
+                          {networkTroubleshootItem && (
+                            <div>
+                              <strong style={{ color: "#64748b" }}>Diagnostic Scope:</strong>{" "}
+                              <span style={{ color: "#0f172a", fontWeight: 600 }}>{networkTroubleshootItem.productName}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {isCctvQuote && (
+                      <div style={{ background: "#f8fafc", padding: 16, borderRadius: 16, border: "1px solid #e2e8f0" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                          <h4 style={{ margin: 0, fontSize: 12, color: "#1e293b", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em" }}>
+                            🎥 CCTV Surveillance Specifications
+                          </h4>
+                          <span style={{ background: "#fee2e2", color: "#b91c1c", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 6 }}>
+                            Surveillance System
+                          </span>
+                        </div>
+
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 12, marginBottom: 12 }}>
+                          <div>
+                            <strong style={{ color: "#64748b" }}>Category:</strong>{" "}
+                            <span style={{ color: "#2563eb", fontWeight: 800 }}>CCTV</span>
+                          </div>
+                          <div>
+                            <strong style={{ color: "#64748b" }}>Service Type:</strong>{" "}
+                            <span style={{ color: "#0f172a", fontWeight: 700 }}>{selectedQuote.subcategory || selectedQuote.service || "Install New CCTV"}</span>
+                          </div>
+                        </div>
+
+                        <div style={{ background: "#fff", padding: 14, borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+                          <div>
+                            <strong style={{ color: "#64748b" }}>Site Property Type:</strong>{" "}
+                            <span style={{ color: "#0f172a", fontWeight: 700 }}>{selectedQuote.propertyType || "Residential / Commercial"}</span>
+                          </div>
+
+                          {/* Camera Hardware Breakdown */}
+                          {cctvCameraItems.length > 0 && (
+                            <div>
+                              <strong style={{ color: "#475569", display: "block", marginBottom: 4 }}>Camera Hardware Breakdown:</strong>
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                                {cctvCameraItems.map((item, idx) => (
+                                  <div key={idx} style={{ background: "#eff6ff", padding: "6px 10px", borderRadius: 8, border: "1px solid #bfdbfe", color: "#1e40af" }}>
+                                    <strong>{item.productName}</strong> × {item.quantity}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Recorder & Storage */}
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                            <div>
+                              <strong style={{ color: "#64748b" }}>Recorder (NVR/DVR):</strong>{" "}
+                              <span style={{ color: "#0f172a", fontWeight: 600 }}>{cctvRecorderItem ? cctvRecorderItem.productName : (selectedQuote.recorder || "Included in package / Not specified")}</span>
+                            </div>
+                            <div>
+                              <strong style={{ color: "#64748b" }}>Surveillance Storage:</strong>{" "}
+                              <span style={{ color: "#0f172a", fontWeight: 600 }}>{cctvStorageItem ? cctvStorageItem.productName : (selectedQuote.storage || "Included in package / Not specified")}</span>
+                            </div>
+                          </div>
+
+                          {/* Cabling & Fitting */}
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                            <div>
+                              <strong style={{ color: "#64748b" }}>Cabling Specs:</strong>{" "}
+                              <span style={{ color: "#0f172a", fontWeight: 600 }}>{cctvCablingItem ? cctvCablingItem.productName : "Standard Coaxial / Cat6"}</span>
+                            </div>
+                            <div>
+                              <strong style={{ color: "#64748b" }}>Installation Service:</strong>{" "}
+                              <span style={{ color: "#0f172a", fontWeight: 600 }}>{cctvFittingItem ? `${cctvFittingItem.productName} (Qty: ${cctvFittingItem.quantity})` : "Professional Fitting & Alignment"}</span>
+                            </div>
+                          </div>
+
+                          {/* Accessories */}
+                          {cctvAccessoriesItems.length > 0 && (
+                            <div>
+                              <strong style={{ color: "#64748b", display: "block", marginBottom: 4 }}>Racks &amp; Mounting:</strong>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                {cctvAccessoriesItems.map((item, idx) => (
+                                  <span key={idx} style={{ background: "#f8fafc", padding: "4px 8px", borderRadius: 6, border: "1px solid #cbd5e1" }}>
+                                    ✓ {item.productName}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 3. Schedule & Location Card */}
+                    <div style={{ background: "#f8fafc", padding: 16, borderRadius: 16, border: "1px solid #e2e8f0" }}>
+                      <h4 style={{ margin: "0 0 10px 0", fontSize: 12, color: "#1e293b", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em" }}>
+                        {isWebQuote ? "🗓️ Consultation Schedule &amp; Client Location" : "📍 Service Schedule &amp; Site Address"}
+                      </h4>
+
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 12 }}>
+                        <div>
+                          <strong style={{ color: "#64748b" }}>{isWebQuote ? "Preferred Consultation Date:" : "Preferred Visit Date:"}</strong>{" "}
+                          <span style={{ color: "#1e293b", fontWeight: 700 }}>
+                            {selectedQuote.preferredVisitDate 
+                              ? new Date(selectedQuote.preferredVisitDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+                              : (selectedQuote.preferredDate || "Flexible / ASAP")}
+                          </span>
+                        </div>
+                        <div>
+                          <strong style={{ color: "#64748b" }}>{isWebQuote ? "Preferred Discussion Slot:" : "Preferred Time Slot:"}</strong>{" "}
+                          <span style={{ color: "#1e293b", fontWeight: 700 }}>
+                            {selectedQuote.preferredVisitTime || selectedQuote.preferredTimeSlot || "Flexible / Any Time"}
+                          </span>
+                        </div>
+
+                        {isWebQuote ? (
+                          <>
+                            <div style={{ gridColumn: "span 2" }}>
+                              <strong style={{ color: "#64748b" }}>Discussion Mode:</strong>{" "}
+                              <span style={{ color: "#2563eb", fontWeight: 700 }}>Google Meet / Phone Consultation (No physical site visit needed)</span>
+                            </div>
+                            <div style={{ gridColumn: "span 2" }}>
+                              <strong style={{ color: "#64748b" }}>Client / Billing Address:</strong>{" "}
+                              <span style={{ color: "#1e293b", fontWeight: 600 }}>{selectedQuote.address || selectedQuote.locality || "Remote Delivery / Client Address Not Provided"}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div style={{ gridColumn: "span 2" }}>
+                              <strong style={{ color: "#64748b" }}>Full Service Address:</strong>{" "}
+                              <span style={{ color: "#1e293b", fontWeight: 600 }}>{selectedQuote.address || "—"}</span>
+                            </div>
+                            <div>
+                              <strong style={{ color: "#64748b" }}>Locality / Area:</strong>{" "}
+                              <span>{selectedQuote.locality || "—"}</span>
+                            </div>
+                            <div>
+                              <strong style={{ color: "#64748b" }}>Pincode:</strong>{" "}
+                              <span>{selectedQuote.pincode || "—"}</span>
+                            </div>
+                            {(selectedQuote.googleMapsUrl || (selectedQuote.latitude && selectedQuote.longitude)) && (
+                              <div style={{ gridColumn: "span 2", marginTop: 4 }}>
+                                <a 
+                                  href={selectedQuote.googleMapsUrl || `https://www.google.com/maps?q=${selectedQuote.latitude},${selectedQuote.longitude}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{ 
+                                    color: "#2563eb", fontWeight: 700, fontSize: 11, textDecoration: "none",
+                                    display: "inline-flex", alignItems: "center", gap: 4, background: "#eff6ff",
+                                    padding: "4px 10px", borderRadius: 6, border: "1px solid #bfdbfe"
+                                  }}
+                                >
+                                  📍 Open Pin on Google Maps ({selectedQuote.latitude ? `${selectedQuote.latitude}, ${selectedQuote.longitude}` : 'View Location'})
+                                </a>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
-              </div>
+                  </>
+                );
+              })()}
 
               {/* 4. Additional Requirements & Voice Note Player */}
               <div style={{ background: "#f8fafc", padding: 16, borderRadius: 16, border: "1px solid #e2e8f0" }}>
@@ -1101,7 +1422,13 @@ export function QuoteRequestsPage() {
 
                 {/* Assigned staff */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <label style={{ fontSize: 10, fontWeight: 700, color: "#64748b" }}>ASSIGN FIELD ENGINEER / TECHNICIAN</label>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: "#64748b" }}>
+                    {((selectedQuote.serviceCategory || "").toLowerCase().includes("web"))
+                      ? "ASSIGN PROJECT MANAGER / WEB CONSULTANT (OPTIONAL)"
+                      : ((selectedQuote.serviceCategory || "").toLowerCase().includes("network"))
+                      ? "ASSIGN NETWORK ENGINEER / TECHNICIAN"
+                      : "ASSIGN CCTV FIELD TECHNICIAN"}
+                  </label>
                   <select
                     value={assignedTo}
                     onChange={e => setAssignedTo(e.target.value)}
@@ -1110,11 +1437,16 @@ export function QuoteRequestsPage() {
                       borderRadius: 10, fontSize: 12, outline: "none", background: "#fff", fontWeight: 600, color: "#334155"
                     }}
                   >
-                    <option value="">Unassigned</option>
+                    <option value="">{((selectedQuote.serviceCategory || "").toLowerCase().includes("web")) ? "Unassigned (Remote / In-house)" : "Unassigned"}</option>
                     {technicians.map(t => (
                       <option key={t._id} value={t._id}>{t.name} ({t.role})</option>
                     ))}
                   </select>
+                  {((selectedQuote.serviceCategory || "").toLowerCase().includes("web")) && (
+                    <span style={{ fontSize: 10, color: "#64748b", fontStyle: "italic" }}>
+                      Note: Website projects do not require an on-site field technician visit.
+                    </span>
+                  )}
                 </div>
 
                 {/* Follow up date */}

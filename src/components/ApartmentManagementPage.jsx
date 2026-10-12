@@ -59,13 +59,20 @@ export function ApartmentManagementPage() {
   const [replyStatus, setReplyStatus] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
 
+  const [apartmentsError, setApartmentsError] = useState("");
+  const [ticketsError, setTicketsError] = useState("");
+
   // Load Apartments
   const fetchApartments = async () => {
     try {
       setLoadingApartments(true);
+      setApartmentsError("");
       const { payload } = await apiFetch("/api/v2/apartments");
-      setApartments(payload.data || payload || []);
+      const list = Array.isArray(payload.data) ? payload.data : Array.isArray(payload) ? payload : [];
+      setApartments(list);
     } catch (err) {
+      console.warn("Failed to load apartments:", err.message);
+      setApartmentsError(err.message || "Failed to load apartments");
       toast({ title: "Failed to load apartments", description: err.message, type: "error" });
     } finally {
       setLoadingApartments(false);
@@ -76,6 +83,7 @@ export function ApartmentManagementPage() {
   const fetchTickets = async () => {
     try {
       setLoadingTickets(true);
+      setTicketsError("");
       let query = [];
       if (ticketApartmentFilter !== "All") query.push(`apartmentId=${ticketApartmentFilter}`);
       if (ticketRaisedByFilter !== "All") query.push(`raisedByType=${ticketRaisedByFilter}`);
@@ -85,8 +93,11 @@ export function ApartmentManagementPage() {
       
       const queryString = query.length > 0 ? `?${query.join("&")}` : "";
       const { payload } = await apiFetch(`/api/v2/apartments/tickets${queryString}`);
-      setTickets(payload.data || payload || []);
+      const list = Array.isArray(payload.data) ? payload.data : Array.isArray(payload) ? payload : [];
+      setTickets(list);
     } catch (err) {
+      console.warn("Failed to load tickets:", err.message);
+      setTicketsError(err.message || "Failed to load tickets");
       toast({ title: "Failed to load tickets", description: err.message, type: "error" });
     } finally {
       setLoadingTickets(false);
@@ -112,16 +123,36 @@ export function ApartmentManagementPage() {
     }
     try {
       setSavingApartment(true);
+      const formattedAddress = [
+        apartmentForm.address?.street,
+        apartmentForm.address?.city,
+        apartmentForm.address?.state,
+        apartmentForm.address?.pincode
+      ].filter(Boolean).join(", ");
+
+      const submitBody = {
+        name: apartmentForm.name.trim(),
+        address: formattedAddress || apartmentForm.name.trim(),
+        locality: apartmentForm.address?.street || "",
+        city: apartmentForm.address?.city || "Bangalore",
+        pincode: apartmentForm.address?.pincode || "",
+        contactPerson: apartmentForm.contactPerson || "",
+        contactPhone: apartmentForm.contactPhone || "",
+        contactEmail: apartmentForm.contactEmail || "",
+        totalFlats: apartmentForm.totalFlats || "",
+        notes: apartmentForm.notes || "",
+      };
+
       if (selectedApartment && selectedApartment._id) {
         await apiFetch(`/api/v2/apartments/${selectedApartment._id}`, {
           method: "PUT",
-          body: JSON.stringify(apartmentForm),
+          body: JSON.stringify(submitBody),
         });
         toast({ title: "Success", description: "Apartment updated successfully", type: "success" });
       } else {
         await apiFetch("/api/v2/apartments", {
           method: "POST",
-          body: JSON.stringify(apartmentForm),
+          body: JSON.stringify(submitBody),
         });
         toast({ title: "Success", description: "Apartment created successfully", type: "success" });
       }
@@ -135,16 +166,32 @@ export function ApartmentManagementPage() {
     }
   };
 
+  // Format address helper
+  const formatAddress = (apt) => {
+    if (!apt) return "No address specified";
+    if (typeof apt.address === "string" && apt.address.trim()) return apt.address;
+    if (apt.address && typeof apt.address === "object") {
+      const parts = [apt.address.street, apt.address.city, apt.address.state, apt.address.pincode].filter(Boolean);
+      if (parts.length > 0) return parts.join(", ");
+    }
+    const fallback = [apt.locality, apt.city, apt.pincode].filter(Boolean).join(", ");
+    return fallback || "No address specified";
+  };
+
   // Open Edit Apartment
   const handleEditApartment = (apt) => {
     setSelectedApartment(apt);
+    const street = typeof apt.address === "string" ? apt.address : apt.address?.street || "";
+    const city = apt.city || (typeof apt.address === "object" ? apt.address?.city : "") || "Bangalore";
+    const state = apt.state || (typeof apt.address === "object" ? apt.address?.state : "") || "Karnataka";
+    const pincode = apt.pincode || (typeof apt.address === "object" ? apt.address?.pincode : "") || "";
     setApartmentForm({
       name: apt.name || "",
       address: {
-        street: apt.address?.street || "",
-        city: apt.address?.city || "",
-        state: apt.address?.state || "",
-        pincode: apt.address?.pincode || "",
+        street,
+        city,
+        state,
+        pincode,
       },
       contactPerson: apt.contactPerson || "",
       contactPhone: apt.contactPhone || "",
@@ -362,6 +409,19 @@ export function ApartmentManagementPage() {
               Registered Apartment Complexes
             </h2>
 
+            {apartmentsError && (
+              <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "12px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ color: "#b91c1c", fontSize: 13, fontWeight: 600 }}>⚠️ {apartmentsError}</div>
+                <button
+                  type="button"
+                  onClick={fetchApartments}
+                  style={{ background: "#ef4444", color: "#fff", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
             {loadingApartments ? (
               <div style={{ padding: 40, textAlign: "center", color: "#94a3b8" }}>Loading apartments...</div>
             ) : apartments.length === 0 ? (
@@ -392,7 +452,7 @@ export function ApartmentManagementPage() {
                         <div>
                           <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>{apt.name}</div>
                           <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>
-                            {apt.address?.city ? `${apt.address.street || ""}, ${apt.address.city}` : "No address specified"}
+                            {formatAddress(apt)}
                           </div>
                         </div>
 
@@ -736,6 +796,19 @@ export function ApartmentManagementPage() {
             </div>
 
             {/* Tickets Table / List */}
+            {ticketsError && (
+              <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "12px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ color: "#b91c1c", fontSize: 13, fontWeight: 600 }}>⚠️ {ticketsError}</div>
+                <button
+                  type="button"
+                  onClick={fetchTickets}
+                  style={{ background: "#ef4444", color: "#fff", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
             {loadingTickets ? (
               <div style={{ padding: 40, textAlign: "center", color: "#94a3b8" }}>Loading society tickets...</div>
             ) : tickets.length === 0 ? (
