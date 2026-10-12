@@ -94,7 +94,12 @@ export default function AdminDashboardContent() {
     async function checkAuth() {
       try {
         await wakeBackend();
-        const res = await fetch("/api/auth/me", { credentials: "include", cache: "no-store" });
+        const localToken = typeof window !== 'undefined' ? (localStorage.getItem('token') || localStorage.getItem('auth-token')) : null;
+        if (localToken && typeof document !== 'undefined' && !document.cookie.includes('auth-token=')) {
+          document.cookie = `auth-token=${encodeURIComponent(localToken)}; path=/; max-age=604800; SameSite=Lax`;
+        }
+        const headers = localToken ? { Authorization: `Bearer ${localToken}` } : {};
+        const res = await fetch("/api/auth/me", { credentials: "include", cache: "no-store", headers });
         clearTimeout(wakeTimeout);
         if (res.status === 401) {
           router.replace("/login");
