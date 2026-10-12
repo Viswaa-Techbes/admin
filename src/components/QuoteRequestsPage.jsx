@@ -294,16 +294,6 @@ export function QuoteRequestsPage() {
     }
   }
 
-      await refreshQuotes();
-      setSelectedQuote(payload.data || payload);
-      toast.show("Pricing Saved", "Quotation pricing draft updated successfully.");
-    } catch (err) {
-      alert(err.message || "Failed to save pricing");
-    } finally {
-      setSavingPrices(false);
-    }
-  }
-
   // Send Final Quotation to Customer (with WhatsApp Notification)
   async function handleSendQuotation() {
     if (!selectedQuote) return;
@@ -319,18 +309,23 @@ export function QuoteRequestsPage() {
     const targetId = selectedQuote._id || selectedQuote.requestId;
     setSendingQuote(true);
     try {
-      // 1. Ensure latest prices are saved first
+      const itemsPayload = calculatedPricing.items
+        .map(it => ({
+          productName: (it.productName || "Item").trim(),
+          quantity: parseFloat(it.quantity) || 1,
+          unitPrice: parseFloat(it.unitPrice) || 0,
+        }))
+        .filter(it => it.productName.length > 0);
+
+      // 1. Ensure latest prices & terms are saved first
       await apiFetch(`/api/v2/admin/quotes/${encodeURIComponent(targetId)}/price`, {
         method: "POST",
         body: {
-          items: calculatedPricing.items.map(it => ({
-            productName: it.productName,
-            quantity: it.quantity,
-            unitPrice: parseFloat(it.unitPrice) || 0,
-          })),
-          gstRate,
-          validityDays,
+          items: itemsPayload,
+          gstRate: parseFloat(gstRate) || 0,
+          validityDays: parseInt(validityDays, 10) || 15,
           adminNotes,
+          terms: quoteTerms,
         },
       });
 
@@ -1253,116 +1248,274 @@ export function QuoteRequestsPage() {
                 )}
               </div>
 
-              {/* 5. AUTHORITATIVE PRICING ENGINE */}
-              <div style={{ background: "#fff", padding: 18, borderRadius: 16, border: "2px solid #3b82f6", boxShadow: "0 4px 12px rgba(59,130,246,0.08)" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              {/* 5. ADMIN QUOTATION BUILDER (EXCEL-STYLE SPREADSHEET ENTRY) */}
+              <div style={{ background: "#fff", padding: 20, borderRadius: 16, border: "2px solid #2563eb", boxShadow: "0 6px 18px rgba(37,99,235,0.1)" }}>
+                {/* Header Banner */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
                   <div>
-                    <h4 style={{ margin: 0, fontSize: 13, color: "#1e293b", fontWeight: 800, textTransform: "uppercase" }}>
-                      💰 Authoritative Quotation Pricing Engine
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#dbeafe", color: "#1d4ed8", padding: "3px 8px", borderRadius: 6, fontSize: 10, fontWeight: 800, textTransform: "uppercase", marginBottom: 4 }}>
+                      ⚡ Prepare Quotation / Create Quote
+                    </div>
+                    <h4 style={{ margin: 0, fontSize: 14, color: "#0f172a", fontWeight: 800 }}>
+                      📊 Excel-Style Quotation Builder
                     </h4>
-                    <p style={{ margin: 0, fontSize: 11, color: "#64748b" }}>
-                      Review requested items and assign authoritative unit rates. GST and totals recalculate live.
+                    <p style={{ margin: "2px 0 0 0", fontSize: 11, color: "#64748b" }}>
+                      Manually enter line items, unit rates, quantities, and terms. Amounts recalculate automatically.
                     </p>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#64748b" }}>Quote Validity:</span>
+                    <input 
+                      type="number"
+                      min="1"
+                      max="180"
+                      value={validityDays}
+                      onChange={e => setValidityDays(Math.max(1, parseInt(e.target.value, 10) || 15))}
+                      style={{ width: 55, height: 28, padding: "0 6px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 11, fontWeight: 700, textAlign: "center" }}
+                    />
+                    <span style={{ fontSize: 11, color: "#64748b" }}>days</span>
                   </div>
                 </div>
 
-                {/* Items pricing table */}
-                {calculatedPricing.items.length === 0 ? (
-                  <div style={{ padding: 20, textAlign: "center", color: "#94a3b8", fontSize: 12, background: "#f8fafc", borderRadius: 8 }}>
-                    No itemized products attached to this quotation request.
-                  </div>
-                ) : (
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, marginBottom: 14 }}>
+                {/* Excel-Style Table */}
+                <div style={{ overflowX: "auto", border: "1px solid #cbd5e1", borderRadius: 10, background: "#f8fafc", marginBottom: 12 }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 620 }}>
                     <thead>
-                      <tr style={{ background: "#f1f5f9", borderBottom: "1px solid #cbd5e1" }}>
-                        <th style={{ padding: "8px 10px", textAlign: "left", color: "#475569" }}>Requested Product / Scope</th>
-                        <th style={{ padding: "8px 10px", textAlign: "center", color: "#475569", width: 70 }}>Qty</th>
-                        <th style={{ padding: "8px 10px", textAlign: "right", color: "#475569", width: 130 }}>Unit Price (₹)</th>
-                        <th style={{ padding: "8px 10px", textAlign: "right", color: "#475569", width: 110 }}>Line Total</th>
+                      <tr style={{ background: "#e2e8f0", borderBottom: "1.5px solid #cbd5e1", color: "#334155", textAlign: "left" }}>
+                        <th style={{ padding: "8px 10px", width: 36, textAlign: "center", fontSize: 11, fontWeight: 800 }}>#</th>
+                        <th style={{ padding: "8px 10px", fontWeight: 800, color: "#1e293b" }}>Particulars / Item Description</th>
+                        <th style={{ padding: "8px 10px", width: 75, textAlign: "center", fontWeight: 800 }}>Qty</th>
+                        <th style={{ padding: "8px 10px", width: 130, textAlign: "right", fontWeight: 800 }}>Per Unit (₹)</th>
+                        <th style={{ padding: "8px 10px", width: 125, textAlign: "right", fontWeight: 800 }}>Amount (₹)</th>
+                        <th style={{ padding: "8px 8px", width: 44, textAlign: "center", fontWeight: 800 }}></th>
                       </tr>
                     </thead>
                     <tbody>
-                      {calculatedPricing.items.map((item, idx) => (
-                        <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                          <td style={{ padding: "10px", color: "#1e293b" }}>
-                            <div style={{ fontWeight: 700 }}>{item.productName}</div>
-                            {(item.brand || item.sku || item.variant) && (
-                              <div style={{ display: "flex", gap: 4, marginTop: 2 }}>
-                                {item.brand && <span style={{ fontSize: 9, fontWeight: 800, background: "#2563eb", color: "#fff", padding: "1px 5px", borderRadius: 4 }}>{item.brand}</span>}
-                                {item.sku && <span style={{ fontSize: 9, color: "#64748b" }}>SKU: {item.sku}</span>}
-                                {item.variant && <span style={{ fontSize: 9, background: "#f1f5f9", color: "#475569", padding: "1px 5px", borderRadius: 4 }}>{item.variant}</span>}
-                              </div>
-                            )}
-                          </td>
-                          <td style={{ padding: "10px", textAlign: "center", fontWeight: 700, color: "#3b82f6" }}>
-                            {item.quantity}
-                          </td>
-                          <td style={{ padding: "10px", textAlign: "right" }}>
-                            <input 
-                              type="number"
-                              min="0"
-                              step="any"
-                              placeholder="Enter rate"
-                              value={item.unitPrice}
-                              onChange={e => handleUnitPriceChange(idx, e.target.value)}
-                              style={{
-                                width: 105, height: 32, padding: "0 8px", textAlign: "right",
-                                border: "1px solid #93c5fd", borderRadius: 8, fontSize: 12, fontWeight: 700,
-                                color: "#1e293b", background: "#f0f9ff"
-                              }}
-                            />
-                          </td>
-                          <td style={{ padding: "10px", textAlign: "right", fontWeight: 800, color: "#0f172a" }}>
-                            ₹{item.lineTotal.toLocaleString('en-IN')}
+                      {calculatedPricing.items.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} style={{ padding: "24px 16px", textAlign: "center", color: "#64748b", background: "#fff" }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>No quotation line items added yet.</div>
+                            <div style={{ fontSize: 11, color: "#94a3b8" }}>Click &quot;➕ Add Line Item&quot; or choose a preset below to build the quotation.</div>
                           </td>
                         </tr>
-                      ))}
+                      ) : (
+                        calculatedPricing.items.map((item, idx) => (
+                          <tr key={idx} style={{ background: idx % 2 === 0 ? "#ffffff" : "#fbfcfe", borderBottom: "1px solid #e2e8f0" }}>
+                            <td style={{ padding: "8px 6px", textAlign: "center", fontWeight: 700, color: "#64748b", fontSize: 11 }}>
+                              {idx + 1}
+                            </td>
+                            <td style={{ padding: "6px 8px" }}>
+                              <input 
+                                type="text"
+                                placeholder="Enter item description, service deliverable, equipment, or AMC scope..."
+                                value={item.productName}
+                                onChange={e => handleItemFieldChange(idx, "productName", e.target.value)}
+                                style={{
+                                  width: "100%", height: 32, padding: "0 8px", border: "1px solid #cbd5e1",
+                                  borderRadius: 6, fontSize: 12, fontWeight: 600, color: "#1e293b", background: "#fff",
+                                  boxSizing: "border-box"
+                                }}
+                              />
+                            </td>
+                            <td style={{ padding: "6px 6px", textAlign: "center" }}>
+                              <input 
+                                type="number"
+                                min="1"
+                                step="any"
+                                value={item.quantity}
+                                onChange={e => handleItemFieldChange(idx, "quantity", e.target.value)}
+                                style={{
+                                  width: "100%", height: 32, padding: "0 6px", border: "1px solid #cbd5e1",
+                                  borderRadius: 6, fontSize: 12, fontWeight: 700, color: "#1d4ed8",
+                                  textAlign: "center", background: "#fff", boxSizing: "border-box"
+                                }}
+                              />
+                            </td>
+                            <td style={{ padding: "6px 6px", textAlign: "right" }}>
+                              <input 
+                                type="number"
+                                min="0"
+                                step="any"
+                                placeholder="0.00"
+                                value={item.unitPrice}
+                                onChange={e => handleItemFieldChange(idx, "unitPrice", e.target.value)}
+                                style={{
+                                  width: "100%", height: 32, padding: "0 8px", border: "1px solid #93c5fd",
+                                  borderRadius: 6, fontSize: 12, fontWeight: 700, color: "#1e293b",
+                                  textAlign: "right", background: "#eff6ff", boxSizing: "border-box"
+                                }}
+                              />
+                            </td>
+                            <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 800, color: "#0f172a", fontSize: 12 }}>
+                              ₹{item.lineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                            <td style={{ padding: "6px 4px", textAlign: "center" }}>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveLineItem(idx)}
+                                title="Remove line item"
+                                style={{
+                                  background: "#fee2e2", border: "1px solid #fecaca", color: "#dc2626",
+                                  cursor: "pointer", width: 28, height: 28, borderRadius: 6,
+                                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                  fontSize: 12
+                                }}
+                              >
+                                ✕
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
-                )}
+                </div>
 
-                {/* Totals & GST Section */}
-                <div style={{ background: "#f8fafc", padding: 14, borderRadius: 12, border: "1px solid #e2e8f0", display: "flex", flexDirection: "column", gap: 8 }}>
+                {/* Quick Addition Toolbar */}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+                  <button
+                    type="button"
+                    onClick={() => handleAddLineItem("", 1, "")}
+                    style={{
+                      padding: "6px 12px", background: "#2563eb", color: "#fff", border: "none",
+                      borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5
+                    }}
+                  >
+                    ➕ Add Line Item
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAddLineItem("Service Charges", 1, "")}
+                    style={{
+                      padding: "6px 10px", background: "#f1f5f9", color: "#334155", border: "1px solid #cbd5e1",
+                      borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer"
+                    }}
+                  >
+                    + Service Charges
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAddLineItem("Installation & Fitting Charges", 1, "")}
+                    style={{
+                      padding: "6px 10px", background: "#f1f5f9", color: "#334155", border: "1px solid #cbd5e1",
+                      borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer"
+                    }}
+                  >
+                    + Installation Labour
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAddLineItem("PVC Box & Accessories", 1, "")}
+                    style={{
+                      padding: "6px 10px", background: "#f1f5f9", color: "#334155", border: "1px solid #cbd5e1",
+                      borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer"
+                    }}
+                  >
+                    + PVC Box & Accessories
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAddLineItem("Miscellaneous / Cabling", 1, "")}
+                    style={{
+                      padding: "6px 10px", background: "#f1f5f9", color: "#334155", border: "1px solid #cbd5e1",
+                      borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer"
+                    }}
+                  >
+                    + Miscellaneous
+                  </button>
+                </div>
+
+                {/* Tax Configuration & Summary Card */}
+                <div style={{ background: "#f8fafc", padding: 14, borderRadius: 12, border: "1px solid #cbd5e1", display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+                  {/* Tax Rate Selector */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "#475569" }}>Tax Rate (GST):</span>
+                      {[0, 5, 12, 18, 28].map(rate => (
+                        <button
+                          key={rate}
+                          type="button"
+                          onClick={() => setGstRate(rate)}
+                          style={{
+                            padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700,
+                            border: gstRate === rate ? "1.5px solid #2563eb" : "1px solid #cbd5e1",
+                            background: gstRate === rate ? "#eff6ff" : "#fff",
+                            color: gstRate === rate ? "#1d4ed8" : "#475569",
+                            cursor: "pointer"
+                          }}
+                        >
+                          {rate === 0 ? "0% (Exempt)" : `${rate}%`}
+                        </button>
+                      ))}
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 3, marginLeft: 4 }}>
+                        <span style={{ fontSize: 10, color: "#64748b" }}>Custom:</span>
+                        <input 
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={gstRate}
+                          onChange={e => setGstRate(parseFloat(e.target.value) || 0)}
+                          style={{ width: 48, height: 24, padding: "0 4px", border: "1px solid #cbd5e1", borderRadius: 4, fontSize: 11, textAlign: "center", fontWeight: 700 }}
+                        />
+                        <span style={{ fontSize: 11, color: "#64748b" }}>%</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <hr style={{ border: "none", borderTop: "1px solid #e2e8f0", margin: "2px 0" }} />
+
+                  {/* Calculations breakdown */}
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#475569" }}>
                     <span>Items Taxable Subtotal:</span>
-                    <span style={{ fontWeight: 700, color: "#1e293b" }}>₹{calculatedPricing.subtotal.toLocaleString('en-IN')}</span>
+                    <span style={{ fontWeight: 700, color: "#1e293b" }}>
+                      ₹{calculatedPricing.subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
                   </div>
 
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, color: "#475569" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span>Applicable GST Rate (%):</span>
-                      <input 
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={gstRate}
-                        onChange={e => setGstRate(parseFloat(e.target.value) || 0)}
-                        style={{ width: 60, height: 26, padding: "0 6px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 11, textAlign: "center", fontWeight: 700 }}
-                      />
-                    </div>
-                    <span style={{ fontWeight: 700, color: "#d97706" }}>+ ₹{calculatedPricing.gstAmount.toLocaleString('en-IN')}</span>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#475569" }}>
+                    <span>GST ({gstRate}%):</span>
+                    <span style={{ fontWeight: 700, color: "#d97706" }}>
+                      + ₹{calculatedPricing.gstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
                   </div>
 
-                  <hr style={{ border: "none", borderTop: "1px solid #cbd5e1", margin: "4px 0" }} />
-
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 15, fontWeight: 800, color: "#1e293b" }}>
-                    <span>Final Quotation Amount:</span>
-                    <span style={{ color: "#2563eb", fontSize: 16 }}>₹{calculatedPricing.finalAmount.toLocaleString('en-IN')}</span>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 15, fontWeight: 800, color: "#0f172a", paddingTop: 4, borderTop: "1px dashed #cbd5e1" }}>
+                    <span>Grand Total:</span>
+                    <span style={{ color: "#2563eb", fontSize: 17 }}>
+                      ₹{calculatedPricing.finalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
                   </div>
                 </div>
 
+                {/* Terms and Conditions Section */}
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 4 }}>
+                    📜 Quotation Terms &amp; Conditions:
+                  </label>
+                  <textarea 
+                    rows={3}
+                    value={quoteTerms}
+                    onChange={e => setQuoteTerms(e.target.value)}
+                    placeholder="Enter quotation terms and conditions (e.g. 1. 50% advance on confirmation. 2. 1-Year hardware warranty...)"
+                    style={{
+                      width: "100%", padding: "8px 10px", border: "1px solid #cbd5e1", borderRadius: 8,
+                      fontSize: 11, lineHeight: 1.5, color: "#1e293b", background: "#fff", boxSizing: "border-box"
+                    }}
+                  />
+                </div>
+
                 {/* Pricing Action Buttons */}
-                <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+                <div style={{ display: "flex", gap: 10 }}>
                   <button
                     type="button"
                     onClick={() => handleSavePricing(true)}
                     disabled={savingPrices}
                     style={{
-                      flex: 1, height: 38, background: "#f1f5f9", color: "#334155",
-                      border: "1px solid #cbd5e1", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer"
+                      flex: 1, height: 40, background: "#f8fafc", color: "#1e293b",
+                      border: "1.5px solid #cbd5e1", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer"
                     }}
                   >
-                    {savingPrices ? "Saving Draft..." : "💾 Save Pricing Draft"}
+                    {savingPrices ? "Saving Draft..." : "💾 Save Quotation Draft"}
                   </button>
 
                   <button
@@ -1370,12 +1523,12 @@ export function QuoteRequestsPage() {
                     onClick={handleSendQuotation}
                     disabled={sendingQuote || calculatedPricing.finalAmount <= 0}
                     style={{
-                      flex: 1.5, height: 38, background: "linear-gradient(135deg,#2563eb,#1d4ed8)", color: "#fff",
+                      flex: 1.4, height: 40, background: "linear-gradient(135deg,#2563eb,#1d4ed8)", color: "#fff",
                       border: "none", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer",
                       boxShadow: "0 2px 6px rgba(37,99,235,0.3)"
                     }}
                   >
-                    {sendingQuote ? "Sending via WhatsApp..." : "🚀 Send Quotation to Customer"}
+                    {sendingQuote ? "Sending via WhatsApp..." : "🚀 Send Quotation via WhatsApp"}
                   </button>
                 </div>
 
