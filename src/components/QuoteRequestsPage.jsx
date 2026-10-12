@@ -74,10 +74,11 @@ export function QuoteRequestsPage() {
   const [followUpDate, setFollowUpDate] = useState("");
   const [quoteStatus, setQuoteStatus] = useState("");
 
-  // Pricing edit states for requested items
+  // Pricing edit states for requested items (Excel-Style Builder)
   const [pricingItems, setPricingItems] = useState([]);
   const [gstRate, setGstRate] = useState(18);
   const [validityDays, setValidityDays] = useState(15);
+  const [quoteTerms, setQuoteTerms] = useState("");
   const [whatsappResult, setWhatsappResult] = useState(null);
 
   // Extracted unique values for filter options
@@ -99,6 +100,10 @@ export function QuoteRequestsPage() {
       setQuoteStatus(selectedQuote.status || "quotation_requested");
       setGstRate(typeof selectedQuote.gstRate === 'number' ? selectedQuote.gstRate : 18);
       setValidityDays(selectedQuote.validityDays || 15);
+      setQuoteTerms(
+        selectedQuote.terms || 
+        "1. 50% advance on order confirmation, balance on completion.\n2. 1-Year manufacturer warranty on cameras & active equipment.\n3. Physical damage and electrical surges excluded from warranty.\n4. Quote valid for 15 days from date of issue."
+      );
       setWhatsappResult(null);
 
       // Initialize pricing items from quote
@@ -109,7 +114,7 @@ export function QuoteRequestsPage() {
         brand: item.brand || "",
         sku: item.sku || "",
         variant: item.variant || "",
-        quantity: item.quantity || 1,
+        quantity: item.quantity !== undefined && item.quantity !== null ? item.quantity : 1,
         unitPrice: item.unitPrice !== null && item.unitPrice !== undefined ? item.unitPrice : "",
         gstRate: typeof item.gstRate === 'number' ? item.gstRate : (selectedQuote.gstRate || 18),
         lineTotal: item.lineTotal || 0,
@@ -161,10 +166,11 @@ export function QuoteRequestsPage() {
   const calculatedPricing = useMemo(() => {
     let subtotal = 0;
     const computedItems = pricingItems.map(item => {
+      const qty = parseFloat(item.quantity) || 0;
       const price = parseFloat(item.unitPrice) || 0;
-      const lineTotal = Math.round(item.quantity * price * 100) / 100;
+      const lineTotal = Math.round(qty * price * 100) / 100;
       subtotal += lineTotal;
-      return { ...item, lineTotal };
+      return { ...item, quantity: item.quantity, unitPrice: item.unitPrice, lineTotal };
     });
 
     const parsedGstRate = parseFloat(gstRate) || 0;
@@ -173,19 +179,35 @@ export function QuoteRequestsPage() {
 
     return {
       items: computedItems,
-      subtotal,
+      subtotal: Math.round(subtotal * 100) / 100,
       gstAmount,
       finalAmount,
     };
   }, [pricingItems, gstRate]);
 
-  // Handle unit price change for a specific item
-  const handleUnitPriceChange = (index, val) => {
+  // Line item manipulation handlers (Excel-Style Builder)
+  const handleItemFieldChange = (index, field, val) => {
     setPricingItems(prev => {
       const copy = [...prev];
-      copy[index] = { ...copy[index], unitPrice: val };
+      copy[index] = { ...copy[index], [field]: val };
       return copy;
     });
+  };
+
+  const handleAddLineItem = (name = "", qty = 1, unitPrice = "") => {
+    setPricingItems(prev => [
+      ...prev,
+      {
+        productName: name,
+        quantity: qty,
+        unitPrice: unitPrice,
+        lineTotal: 0,
+      }
+    ]);
+  };
+
+  const handleRemoveLineItem = (index) => {
+    setPricingItems(prev => prev.filter((_, i) => i !== index));
   };
 
   // Client-side filtering logic
@@ -242,20 +264,35 @@ export function QuoteRequestsPage() {
     const targetId = selectedQuote._id || selectedQuote.requestId;
     setSavingPrices(true);
     try {
+      const itemsPayload = calculatedPricing.items
+        .map(it => ({
+          productName: (it.productName || "Item").trim(),
+          quantity: parseFloat(it.quantity) || 1,
+          unitPrice: parseFloat(it.unitPrice) || 0,
+        }))
+        .filter(it => it.productName.length > 0);
+
       const { payload } = await apiFetch(`/api/v2/admin/quotes/${encodeURIComponent(targetId)}/price`, {
         method: "POST",
         body: {
-          items: calculatedPricing.items.map(it => ({
-            productName: it.productName,
-            quantity: it.quantity,
-            unitPrice: parseFloat(it.unitPrice) || 0,
-          })),
-          gstRate,
-          validityDays,
+          items: itemsPayload,
+          gstRate: parseFloat(gstRate) || 0,
+          validityDays: parseInt(validityDays, 10) || 15,
           adminNotes,
+          terms: quoteTerms,
           saveAsDraft: asDraft,
         },
       });
+
+      await refreshQuotes();
+      setSelectedQuote(payload.data || payload);
+      toast.show("Pricing Saved", "Quotation pricing draft updated successfully.");
+    } catch (err) {
+      alert(err.message || "Failed to save pricing");
+    } finally {
+      setSavingPrices(false);
+    }
+  }
 
       await refreshQuotes();
       setSelectedQuote(payload.data || payload);
