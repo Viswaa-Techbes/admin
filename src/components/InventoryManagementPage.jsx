@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, Component } from "react";
 import { PageHeader, Card, ActionBtn, useToast } from "./UI";
 import { PlusIcon, EditIcon, TrashIcon, SearchIcon } from "./Icons";
 import { apiFetch } from "../lib/apiClient";
@@ -45,10 +45,61 @@ const TD_STYLE = {
 const GST_RATES = [0, 5, 12, 18, 28];
 const CATEGORIES = ["All", "CCTV", "Networking", "General", "Accessories"];
 
-export function InventoryManagementPage() {
+// Component-level error boundary to protect against unexpected render crashes
+class InventoryErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, info) {
+    console.error("[InventoryManagementPage Crash Caught]:", error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: 32, maxWidth: 640, margin: "40px auto", background: "#ffffff", borderRadius: 16, border: "1px solid #fee2e2", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.05)", textAlign: "center" }}>
+          <div style={{ fontSize: 36, marginBottom: 12 }}>⚠️</div>
+          <h3 style={{ fontSize: 18, fontWeight: 750, color: "#991b1b", margin: "0 0 8px" }}>
+            Inventory Management Encountered an Error
+          </h3>
+          <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 20px" }}>
+            {this.state.error?.message || "A client-side exception occurred while rendering the inventory view."}
+          </p>
+          <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+            <button
+              type="button"
+              onClick={() => this.setState({ hasError: false, error: null })}
+              style={{ padding: "8px 18px", borderRadius: 10, border: "1px solid #cbd5e1", background: "#f8fafc", color: "#334155", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+            >
+              Reset View
+            </button>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              style={{ padding: "8px 18px", borderRadius: 10, border: "none", background: "#6366f1", color: "#ffffff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+            >
+              Reload Page
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function InventoryManagementInner() {
   const toast = useToast();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedStatus, setSelectedStatus] = useState("all");
@@ -77,64 +128,132 @@ export function InventoryManagementPage() {
     status: "active",
   });
 
-  const loadProducts = async () => {
-    setLoading(true);
+  const notify = (msg, type = "info") => {
+    try {
+      if (typeof toast === "function") {
+        toast(msg, { type });
+      } else if (toast?.show) {
+        toast.show(msg, type);
+      }
+    } catch (_) {
+      console.log(`[Notification ${type}]:`, msg);
+    }
+  };
+
+  const extractArray = (payload) => {
+    if (Array.isArray(payload)) return payload;
+    if (payload && typeof payload === "object") {
+      if (Array.isArray(payload.data)) return payload.data;
+      if (Array.isArray(payload.products)) return payload.products;
+      if (Array.isArray(payload.items)) return payload.items;
+      if (payload.data && typeof payload.data === "object" && Array.isArray(payload.data.products)) return payload.data.products;
+      if (payload.payload && Array.isArray(payload.payload.data)) return payload.payload.data;
+      if (payload.payload && Array.isArray(payload.payload)) return payload.payload;
+    }
+    return null;
+  };
+
+  const loadProducts = async (isManualRefresh = false) => {
+    if (isManualRefresh) setRefreshing(true);
+    else setLoading(true);
+    setError(null);
+
+    let loadedList = null;
+    let lastError = null;
+
+    // 1. Try primary admin inventory endpoint
     try {
       const res = await apiFetch("/api/v2/admin/inventory/products");
-      if (res.payload?.success && Array.isArray(res.payload.data)) {
-        setProducts(res.payload.data);
-      } else {
-        // Fallback to /api/v2/inventory/products
-        const fallbackRes = await apiFetch("/api/v2/inventory/products");
-        if (fallbackRes.payload?.data) {
-          setProducts(fallbackRes.payload.data);
-        }
+      const list = extractArray(res.payload ?? res.data);
+      if (list !== null) {
+        loadedList = list;
       }
     } catch (err) {
-      console.error("Failed to load inventory products:", err.message);
-      toast?.show("Failed to load inventory products", "error");
-    } finally {
-      setLoading(false);
+      lastError = err;
+      console.warn("Primary admin inventory endpoint warning:", err.message);
     }
+
+    // 2. Try fallback inventory endpoint if primary failed or returned nothing
+    if (loadedList === null) {
+      try {
+        const fallbackRes = await apiFetch("/api/v2/inventory/products");
+        const list = extractArray(fallbackRes.payload ?? fallbackRes.data);
+        if (list !== null) {
+          loadedList = list;
+          lastError = null; // Fallback succeeded
+        }
+      } catch (fallbackErr) {
+        console.warn("Fallback inventory endpoint warning:", fallbackErr.message);
+        if (!lastError) lastError = fallbackErr;
+      }
+    }
+
+    if (loadedList !== null) {
+      // Ensure only valid objects are kept
+      const sanitized = loadedList.filter((item) => item && typeof item === "object");
+      setProducts(sanitized);
+      setError(null);
+    } else {
+      setProducts([]);
+      if (lastError) {
+        setError(lastError.message || "Unable to retrieve inventory data. Please try again.");
+      }
+    }
+
+    setLoading(false);
+    setRefreshing(false);
   };
 
   useEffect(() => {
     loadProducts();
   }, []);
 
+  // Safe products array guaranteed
+  const safeProducts = useMemo(() => {
+    return Array.isArray(products) ? products.filter((p) => p && typeof p === "object") : [];
+  }, [products]);
+
   // Filtered products
   const filteredProducts = useMemo(() => {
-    return products.filter((p) => {
-      const q = search.trim().toLowerCase();
+    const q = (search || "").trim().toLowerCase();
+    const catFilter = (selectedCategory || "All").toLowerCase();
+
+    return safeProducts.filter((p) => {
+      const name = String(p.name || "").toLowerCase();
+      const brand = String(p.brand || "").toLowerCase();
+      const model = String(p.modelNumber || "").toLowerCase();
+      const sku = String(p.sku || "").toLowerCase();
+      const variant = String(p.variant || "").toLowerCase();
+      const category = String(p.category || "General").toLowerCase();
+
       const matchSearch =
         !q ||
-        (p.name && p.name.toLowerCase().includes(q)) ||
-        (p.brand && p.brand.toLowerCase().includes(q)) ||
-        (p.modelNumber && p.modelNumber.toLowerCase().includes(q)) ||
-        (p.sku && p.sku.toLowerCase().includes(q)) ||
-        (p.variant && p.variant.toLowerCase().includes(q));
+        name.includes(q) ||
+        brand.includes(q) ||
+        model.includes(q) ||
+        sku.includes(q) ||
+        variant.includes(q);
 
       const matchCategory =
-        selectedCategory === "All" ||
-        (p.category && p.category.toLowerCase() === selectedCategory.toLowerCase());
+        catFilter === "all" || category === catFilter;
 
       const matchStatus =
         selectedStatus === "all" || p.status === selectedStatus;
 
       return matchSearch && matchCategory && matchStatus;
     });
-  }, [products, search, selectedCategory, selectedStatus]);
+  }, [safeProducts, search, selectedCategory, selectedStatus]);
 
   // Statistics
   const stats = useMemo(() => {
-    const total = products.length;
-    const active = products.filter((p) => p.status === "active").length;
-    const inactive = products.filter((p) => p.status === "inactive").length;
-    const lowStock = products.filter(
-      (p) => (p.stock || 0) <= (p.minStock || 2) && p.status === "active"
+    const total = safeProducts.length;
+    const active = safeProducts.filter((p) => p.status === "active").length;
+    const inactive = safeProducts.filter((p) => p.status === "inactive").length;
+    const lowStock = safeProducts.filter(
+      (p) => (Number(p.stock) || 0) <= (Number(p.minStock) || 2) && p.status === "active"
     ).length;
     return { total, active, inactive, lowStock };
-  }, [products]);
+  }, [safeProducts]);
 
   // Open Add Modal
   const handleAddNew = () => {
@@ -163,9 +282,10 @@ export function InventoryManagementPage() {
 
   // Open Edit Modal
   const handleEdit = (p) => {
+    if (!p) return;
     setIsEditing(true);
     setForm({
-      _id: p._id,
+      _id: p._id || p.id,
       name: p.name || "",
       brand: p.brand || "",
       category: p.category || "CCTV",
@@ -174,11 +294,11 @@ export function InventoryManagementPage() {
       sku: p.sku || "",
       variant: p.variant || "",
       specifications: p.specifications || "",
-      basePrice: p.basePrice ?? p.price ?? 0,
-      gstRate: p.gstRate ?? 18,
+      basePrice: Number(p.basePrice ?? p.price ?? 0) || 0,
+      gstRate: Number(p.gstRate ?? 18) || 0,
       isTaxInclusive: Boolean(p.isTaxInclusive),
-      stock: p.stock ?? 0,
-      minStock: p.minStock ?? 0,
+      stock: Number(p.stock ?? 0) || 0,
+      minStock: Number(p.minStock ?? 0) || 0,
       unit: p.unit || "each",
       image: p.image || "",
       description: p.description || "",
@@ -190,18 +310,18 @@ export function InventoryManagementPage() {
   // Submit Add / Edit
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!form.name.trim()) {
-      toast?.show("Product name is required", "error");
+    if (!form.name || !String(form.name).trim()) {
+      notify("Product name is required", "error");
       return;
     }
-    if (form.basePrice < 0) {
-      toast?.show("Base price cannot be negative", "error");
+    if (Number(form.basePrice) < 0) {
+      notify("Base price cannot be negative", "error");
       return;
     }
 
     setSaving(true);
     try {
-      const endpoint = isEditing
+      const endpoint = isEditing && form._id
         ? `/api/v2/admin/inventory/products/${form._id}`
         : "/api/v2/admin/inventory/products";
       const method = isEditing ? "PUT" : "POST";
@@ -211,18 +331,18 @@ export function InventoryManagementPage() {
         body: form,
       });
 
-      if (res.payload?.success) {
-        toast?.show(
+      if (res.payload?.success || res.payload?.data) {
+        notify(
           isEditing ? "Product updated successfully" : "Product added to inventory",
           "success"
         );
         setShowModal(false);
-        loadProducts();
+        loadProducts(true);
       } else {
-        toast?.show(res.payload?.message || "Failed to save product", "error");
+        notify(res.payload?.message || "Failed to save product", "error");
       }
     } catch (err) {
-      toast?.show(err.message || "An error occurred", "error");
+      notify(err.message || "An error occurred while saving product", "error");
     } finally {
       setSaving(false);
     }
@@ -230,41 +350,46 @@ export function InventoryManagementPage() {
 
   // Safe Deactivate / Reactivate Toggle
   const handleToggleStatus = async (p) => {
+    const id = p?._id || p?.id;
+    if (!id) return;
     try {
-      const res = await apiFetch(`/api/v2/admin/inventory/products/${p._id}/status`, {
+      const res = await apiFetch(`/api/v2/admin/inventory/products/${id}/status`, {
         method: "PATCH",
       });
       if (res.payload?.success) {
-        toast?.show(
+        notify(
           `Product marked as ${res.payload.data?.status || "updated"}`,
           "success"
         );
-        loadProducts();
+        loadProducts(true);
       } else {
-        toast?.show("Failed to update product status", "error");
+        notify(res.payload?.message || "Failed to update product status", "error");
       }
     } catch (err) {
-      toast?.show(err.message, "error");
+      notify(err.message || "Failed to update status", "error");
     }
   };
 
   // Soft Delete / Deactivate
   const handleSoftDelete = async (p) => {
-    if (!confirm(`Are you sure you want to deactivate "${p.name}"? It will be safely hidden from new customer searches.`)) {
+    const id = p?._id || p?.id;
+    if (!id) return;
+    const name = p.name || "this product";
+    if (typeof window !== "undefined" && !window.confirm(`Are you sure you want to deactivate "${name}"? It will be safely hidden from new customer searches.`)) {
       return;
     }
     try {
-      const res = await apiFetch(`/api/v2/admin/inventory/products/${p._id}`, {
+      const res = await apiFetch(`/api/v2/admin/inventory/products/${id}`, {
         method: "DELETE",
       });
       if (res.payload?.success) {
-        toast?.show("Product deactivated safely", "success");
-        loadProducts();
+        notify("Product deactivated safely", "success");
+        loadProducts(true);
       } else {
-        toast?.show("Failed to deactivate product", "error");
+        notify(res.payload?.message || "Failed to deactivate product", "error");
       }
     } catch (err) {
-      toast?.show(err.message, "error");
+      notify(err.message || "Failed to deactivate product", "error");
     }
   };
 
@@ -295,12 +420,38 @@ export function InventoryManagementPage() {
         title="Inventory Management"
         subtitle="Manage hardware products, base pricing, GST tax rates, stock, and live customer search suggestions"
         actions={
-          <ActionBtn
-            icon={<PlusIcon />}
-            label="Add Product"
-            primary
-            onClick={handleAddNew}
-          />
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              type="button"
+              onClick={() => loadProducts(true)}
+              disabled={loading || refreshing}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "9px 16px",
+                borderRadius: 12,
+                border: "1px solid #cbd5e1",
+                background: "#ffffff",
+                color: "#475569",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: loading || refreshing ? "not-allowed" : "pointer",
+                opacity: loading || refreshing ? 0.6 : 1,
+              }}
+            >
+              <span style={{ display: "inline-block", transform: refreshing ? "rotate(180deg)" : "none", transition: "transform 0.3s ease" }}>
+                🔄
+              </span>
+              Refresh
+            </button>
+            <ActionBtn
+              icon={<PlusIcon />}
+              label="Add Product"
+              primary
+              onClick={handleAddNew}
+            />
+          </div>
         }
       />
 
@@ -404,7 +555,7 @@ export function InventoryManagementPage() {
         </div>
       </Card>
 
-      {/* Products Table */}
+      {/* Products Table Card */}
       <Card style={{ padding: 0, overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
@@ -425,20 +576,94 @@ export function InventoryManagementPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={10} style={{ padding: 40, textAlign: "center", color: "#64748b", fontSize: 14 }}>
-                    Loading inventory products...
+                  <td colSpan={10} style={{ padding: 48, textAlign: "center", color: "#64748b" }}>
+                    <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+                      <div style={{
+                        width: 28, height: 28, border: "3px solid #e2e8f0", borderTopColor: "#6366f1",
+                        borderRadius: "50%", animation: "spin 0.8s linear infinite"
+                      }} />
+                      <span style={{ fontSize: 13, fontWeight: 600 }}>Loading inventory catalog...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={10} style={{ padding: 36, textAlign: "center" }}>
+                    <div style={{ maxWidth: 440, margin: "0 auto", padding: 20, background: "#fef2f2", borderRadius: 14, border: "1px solid #fecaca" }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "#991b1b", marginBottom: 6 }}>
+                        Unable to Load Inventory Data
+                      </div>
+                      <p style={{ fontSize: 12, color: "#7f1d1d", margin: "0 0 14px", lineHeight: 1.5 }}>
+                        {error}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => loadProducts(true)}
+                        style={{
+                          padding: "8px 18px", borderRadius: 10, border: "none",
+                          background: "#dc2626", color: "#fff", fontSize: 12,
+                          fontWeight: 700, cursor: "pointer"
+                        }}
+                      >
+                        Retry Loading
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ) : safeProducts.length === 0 ? (
+                <tr>
+                  <td colSpan={10} style={{ padding: 48, textAlign: "center" }}>
+                    <div style={{ maxWidth: 420, margin: "0 auto" }}>
+                      <div style={{ fontSize: 32, marginBottom: 8 }}>📦</div>
+                      <div style={{ fontSize: 16, fontWeight: 750, color: "#0f172a", marginBottom: 6 }}>
+                        No Products in Catalog Yet
+                      </div>
+                      <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 18px", lineHeight: 1.5 }}>
+                        Your inventory list is currently empty. Add your first hardware product, CCTV camera, or networking device to populate customer quotation suggestions.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleAddNew}
+                        style={{
+                          padding: "9px 20px", borderRadius: 10, border: "none",
+                          background: "linear-gradient(135deg,#6366f1,#4f46e5)", color: "#fff",
+                          fontSize: 13, fontWeight: 700, cursor: "pointer"
+                        }}
+                      >
+                        + Add First Product
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ) : filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={10} style={{ padding: 40, textAlign: "center", color: "#94a3b8", fontSize: 14 }}>
-                    No products found matching your filter criteria.
+                  <td colSpan={10} style={{ padding: 40, textAlign: "center" }}>
+                    <div style={{ maxWidth: 360, margin: "0 auto" }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "#334155", marginBottom: 4 }}>
+                        No Matching Products
+                      </div>
+                      <p style={{ fontSize: 12, color: "#64748b", margin: "0 0 12px" }}>
+                        No products match your current search and filter criteria.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => { setSearch(""); setSelectedCategory("All"); setSelectedStatus("all"); }}
+                        style={{
+                          padding: "6px 14px", borderRadius: 8, border: "1px solid #cbd5e1",
+                          background: "#f8fafc", color: "#475569", fontSize: 12,
+                          fontWeight: 600, cursor: "pointer"
+                        }}
+                      >
+                        Clear Filters
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ) : (
-                filteredProducts.map((p) => {
-                  const base = p.basePrice ?? p.price ?? 0;
-                  const rate = p.gstRate ?? 18;
+                filteredProducts.map((p, idx) => {
+                  const id = p._id || p.id || `prod-${idx}`;
+                  const base = Math.max(0, Number(p.basePrice ?? p.price ?? 0) || 0);
+                  const rate = Math.max(0, Number(p.gstRate ?? 18) || 0);
                   const isInc = Boolean(p.isTaxInclusive);
                   const total = isInc
                     ? base
@@ -446,11 +671,11 @@ export function InventoryManagementPage() {
                   const isActive = p.status === "active";
 
                   return (
-                    <tr key={p._id} style={{ transition: "background 0.15s ease" }}>
+                    <tr key={id} style={{ transition: "background 0.15s ease" }}>
                       <td style={TD_STYLE}>
                         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                           <span style={{ fontWeight: 700, color: "#0f172a" }}>
-                            {p.name}
+                            {p.name || "Unnamed Product"}
                           </span>
                           {p.brand && (
                             <span style={{ fontSize: 11, fontWeight: 700, color: "#6366f1", letterSpacing: ".3px" }}>
@@ -495,9 +720,9 @@ export function InventoryManagementPage() {
                         <span style={{
                           fontWeight: 700,
                           fontSize: 12,
-                          color: (p.stock || 0) <= (p.minStock || 2) ? "#ea580c" : "#16a34a"
+                          color: (Number(p.stock) || 0) <= (Number(p.minStock) || 2) ? "#ea580c" : "#16a34a"
                         }}>
-                          {p.stock ?? 0} {p.unit || "each"}
+                          {Number(p.stock) || 0} {p.unit || "each"}
                         </span>
                       </td>
                       <td style={{ ...TD_STYLE, textAlign: "center" }}>
@@ -586,7 +811,7 @@ export function InventoryManagementPage() {
             border: "1px solid #e2e8f0",
             padding: 24,
           }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, borderBottom: "1px solid #f1f5f9", pb: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, borderBottom: "1px solid #f1f5f9", paddingBottom: 16 }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#0f172a" }}>
                   {isEditing ? "Edit Inventory Product" : "Add New Inventory Product"}
@@ -865,5 +1090,13 @@ export function InventoryManagementPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export function InventoryManagementPage() {
+  return (
+    <InventoryErrorBoundary>
+      <InventoryManagementInner />
+    </InventoryErrorBoundary>
   );
 }

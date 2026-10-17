@@ -290,8 +290,16 @@ export function useToast() {
     return fallbackFn;
   }
   const toastFn = (msg, opts) => ctx.show(msg, opts);
-  toastFn.show = (titleOrMsg, desc) => {
-    const text = desc ? `${titleOrMsg}: ${desc}` : titleOrMsg;
+  toastFn.show = (titleOrMsg, descOrType) => {
+    if (typeof descOrType === 'string' && ['error', 'success', 'info', 'warning'].includes(descOrType.toLowerCase())) {
+      ctx.show(titleOrMsg, { type: descOrType.toLowerCase() });
+      return;
+    }
+    if (typeof descOrType === 'object' && descOrType !== null) {
+      ctx.show(titleOrMsg, descOrType);
+      return;
+    }
+    const text = descOrType ? `${titleOrMsg}: ${descOrType}` : titleOrMsg;
     ctx.show(text);
   };
   return toastFn;

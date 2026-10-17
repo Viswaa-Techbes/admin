@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Material from '@/models/Material';
+import { fetchBackend, getAuthToken } from '@/lib/backendApi';
 
 export async function PATCH(req, { params }) {
   try {
@@ -21,7 +22,17 @@ export async function PATCH(req, { params }) {
       data: product,
     });
   } catch (err) {
-    console.error('Error toggling product status in admin:', err);
-    return NextResponse.json({ success: false, message: err.message }, { status: 500 });
+    console.error('Direct DB status update failed, falling back to backend:', err.message);
+    try {
+      const { id } = await params;
+      const { response, payload } = await fetchBackend(`/api/v2/admin/inventory/products/${id}/status`, {
+        method: 'PATCH',
+        token: getAuthToken(req),
+      });
+      return NextResponse.json(payload, { status: response.status });
+    } catch (proxyErr) {
+      return NextResponse.json({ success: false, message: err.message }, { status: 500 });
+    }
   }
 }
+

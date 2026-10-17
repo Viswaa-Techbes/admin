@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Material from '@/models/Material';
+import { fetchBackend, getAuthToken } from '@/lib/backendApi';
 
 export async function GET(req) {
   try {
@@ -33,8 +34,18 @@ export async function GET(req) {
     const items = await Material.find(filter).sort({ createdAt: -1 }).lean();
     return NextResponse.json({ success: true, count: items.length, data: items });
   } catch (err) {
-    console.error('Error fetching inventory products in admin:', err);
-    return NextResponse.json({ success: false, message: err.message }, { status: 500 });
+    console.error('Direct DB fetch failed in admin inventory, falling back to backend:', err.message);
+    try {
+      const { searchParams } = new URL(req.url);
+      const queryString = searchParams.toString();
+      const backendPath = queryString ? `/api/v2/admin/inventory/products?${queryString}` : '/api/v2/admin/inventory/products';
+      const { response, payload } = await fetchBackend(backendPath, {
+        token: getAuthToken(req),
+      });
+      return NextResponse.json(payload, { status: response.status });
+    } catch (proxyErr) {
+      return NextResponse.json({ success: false, message: err.message }, { status: 500 });
+    }
   }
 }
 
@@ -114,7 +125,16 @@ export async function POST(req) {
       { status: 201 }
     );
   } catch (err) {
-    console.error('Error creating product in admin:', err);
-    return NextResponse.json({ success: false, message: err.message }, { status: 500 });
+    console.error('Direct DB product creation failed, falling back to backend:', err.message);
+    try {
+      const { response, payload } = await fetchBackend('/api/v2/admin/inventory/products', {
+        method: 'POST',
+        token: getAuthToken(req),
+        body,
+      });
+      return NextResponse.json(payload, { status: response.status });
+    } catch (proxyErr) {
+      return NextResponse.json({ success: false, message: err.message }, { status: 500 });
+    }
   }
 }

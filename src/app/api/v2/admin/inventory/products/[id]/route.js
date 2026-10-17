@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Material from '@/models/Material';
+import { fetchBackend, getAuthToken } from '@/lib/backendApi';
 
 export async function PUT(req, { params }) {
   try {
@@ -95,8 +96,18 @@ export async function PUT(req, { params }) {
       data: product,
     });
   } catch (err) {
-    console.error('Error updating product in admin:', err);
-    return NextResponse.json({ success: false, message: err.message }, { status: 500 });
+    console.error('Direct DB update failed, falling back to backend:', err.message);
+    try {
+      const { id } = await params;
+      const { response, payload } = await fetchBackend(`/api/v2/admin/inventory/products/${id}`, {
+        method: 'PUT',
+        token: getAuthToken(req),
+        body,
+      });
+      return NextResponse.json(payload, { status: response.status });
+    } catch (proxyErr) {
+      return NextResponse.json({ success: false, message: err.message }, { status: 500 });
+    }
   }
 }
 
@@ -120,7 +131,16 @@ export async function DELETE(req, { params }) {
       data: product,
     });
   } catch (err) {
-    console.error('Error deactivating product in admin:', err);
-    return NextResponse.json({ success: false, message: err.message }, { status: 500 });
+    console.error('Direct DB deactivation failed, falling back to backend:', err.message);
+    try {
+      const { id } = await params;
+      const { response, payload } = await fetchBackend(`/api/v2/admin/inventory/products/${id}`, {
+        method: 'DELETE',
+        token: getAuthToken(req),
+      });
+      return NextResponse.json(payload, { status: response.status });
+    } catch (proxyErr) {
+      return NextResponse.json({ success: false, message: err.message }, { status: 500 });
+    }
   }
 }

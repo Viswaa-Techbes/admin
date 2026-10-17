@@ -294,6 +294,51 @@ export default function AdminDashboardContent() {
     apartments: <ApartmentManagementPage />,
   };
 
+class PageErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error("[Admin Page Error Boundary]:", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: 32, maxWidth: 600, margin: "40px auto", background: "#ffffff", borderRadius: 16, border: "1px solid #fee2e2", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.05)", textAlign: "center" }}>
+          <div style={{ fontSize: 36, marginBottom: 12 }}>⚠️</div>
+          <h3 style={{ fontSize: 18, fontWeight: 750, color: "#991b1b", margin: "0 0 8px" }}>
+            Something went wrong while loading this section
+          </h3>
+          <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 20px" }}>
+            {this.state.error?.message || "An unexpected error occurred while rendering the page component."}
+          </p>
+          <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+            <button
+              type="button"
+              onClick={() => this.setState({ hasError: false, error: null })}
+              style={{ padding: "8px 18px", borderRadius: 10, border: "1px solid #cbd5e1", background: "#f8fafc", color: "#334155", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+            >
+              Try Again
+            </button>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              style={{ padding: "8px 18px", borderRadius: 10, border: "none", background: "#6366f1", color: "#ffffff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+            >
+              Reload Page
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
   return (
     <div style={{ display: "flex", height: "100vh", background: "#f1f5f9", fontFamily: "'Geist', 'DM Sans', system-ui, sans-serif" }}>
       <Sidebar 
@@ -320,7 +365,9 @@ export default function AdminDashboardContent() {
           
           <main key={refreshKey} style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
             <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
-              {pages[activePage] || pages.dashboard}
+              <PageErrorBoundary key={activePage}>
+                {pages[activePage] || pages.dashboard}
+              </PageErrorBoundary>
             </div>
           </main>
         </ToastProvider>
