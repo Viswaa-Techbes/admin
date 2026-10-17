@@ -98,7 +98,17 @@ export async function fetchBackend(
           cache: 'no-store',
         }, effectiveTimeout);
 
+        const contentType = response.headers.get('content-type') || '';
+        const isPdf = contentType.includes('application/pdf');
+        const isBinary = isPdf || contentType.includes('application/octet-stream');
+
         let payload = {};
+        if (isBinary) {
+          const arrayBuffer = await response.arrayBuffer();
+          payload = Buffer.from(arrayBuffer);
+          return { response, payload, isBinary: true, contentType };
+        }
+
         try {
           payload = await response.json();
         } catch {
@@ -114,7 +124,7 @@ export async function fetchBackend(
           continue;
         }
 
-        return { response, payload };
+        return { response, payload, isBinary: false, contentType };
       } catch (err) {
         lastError = err;
         if (attempt < effectiveRetries && isRetryable(err)) {

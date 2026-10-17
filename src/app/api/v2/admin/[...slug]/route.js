@@ -9,9 +9,20 @@ export async function GET(req, { params }) {
   const fullPath = queryString ? `${path}?${queryString}` : path;
 
   try {
-    const { response, payload } = await fetchBackend('/api/v2/admin' + fullPath, {
+    const { response, payload, isBinary, contentType } = await fetchBackend('/api/v2/admin' + fullPath, {
       token: getAuthToken(req),
     });
+
+    if (isBinary) {
+      return new Response(payload, {
+        status: response.status,
+        headers: {
+          'Content-Type': contentType || 'application/pdf',
+          'Content-Disposition': response.headers.get('content-disposition') || 'inline; filename="quotation.pdf"',
+        },
+      });
+    }
+
     return NextResponse.json(payload, { status: response.status });
   } catch (err) {
     return NextResponse.json({ success: false, message: err.message }, { status: 500 });
@@ -21,7 +32,13 @@ export async function GET(req, { params }) {
 export async function POST(req, { params }) {
   const { slug } = await params;
   const path = '/' + slug.join('/');
-  const body = await req.json();
+
+  let body = undefined;
+  try {
+    body = await req.json();
+  } catch (_) {
+    body = undefined;
+  }
 
   try {
     const { response, payload } = await fetchBackend('/api/v2/admin' + path, {
@@ -38,7 +55,13 @@ export async function POST(req, { params }) {
 export async function PUT(req, { params }) {
   const { slug } = await params;
   const path = '/' + slug.join('/');
-  const body = await req.json();
+
+  let body = undefined;
+  try {
+    body = await req.json();
+  } catch (_) {
+    body = undefined;
+  }
 
   try {
     const { response, payload } = await fetchBackend('/api/v2/admin' + path, {
@@ -55,7 +78,13 @@ export async function PUT(req, { params }) {
 export async function PATCH(req, { params }) {
   const { slug } = await params;
   const path = '/' + slug.join('/');
-  const body = await req.json();
+
+  let body = undefined;
+  try {
+    body = await req.json();
+  } catch (_) {
+    body = undefined;
+  }
 
   try {
     const { response, payload } = await fetchBackend('/api/v2/admin' + path, {

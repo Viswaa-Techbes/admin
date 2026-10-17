@@ -66,6 +66,7 @@ export function QuoteRequestsPage() {
   const [savingNotes, setSavingNotes] = useState(false);
   const [savingPrices, setSavingPrices] = useState(false);
   const [sendingQuote, setSendingQuote] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [converting, setConverting] = useState(false);
 
   // Form edit states inside modal
@@ -294,15 +295,80 @@ export function QuoteRequestsPage() {
     }
   }
 
-  // Send Final Quotation to Customer (with WhatsApp Notification)
+  // Download Authoritative Quotation PDF
+  async function handleDownloadPdf(quote) {
+    if (!quote || downloadingPdf) return;
+    const targetId = quote._id || quote.requestId;
+    setDownloadingPdf(true);
+    try {
+      // First ensure any pending price edits are saved so the PDF reflects latest numbers
+      if (calculatedPricing.finalAmount > 0) {
+        const itemsPayload = calculatedPricing.items
+          .map(it => ({
+            productName: (it.productName || "Item").trim(),
+            quantity: parseFloat(it.quantity) || 1,
+            unitPrice: parseFloat(it.unitPrice) || 0,
+          }))
+          .filter(it => it.productName.length > 0);
+
+        await apiFetch(`/api/v2/admin/quotes/${encodeURIComponent(targetId)}/price`, {
+          method: "POST",
+          body: {
+            items: itemsPayload,
+            gstRate: parseFloat(gstRate) || 0,
+            validityDays: parseInt(validityDays, 10) || 15,
+            adminNotes,
+            terms: quoteTerms,
+          },
+        });
+      }
+
+      const res = await fetch(`/api/v2/admin/quotes/${encodeURIComponent(targetId)}/pdf`, {
+        method: "GET",
+        headers: { Accept: "application/pdf" },
+      });
+
+      if (!res.ok) {
+        let errMsg = "Failed to generate quotation PDF";
+        try {
+          const json = await res.json();
+          errMsg = json.message || errMsg;
+        } catch (_) {}
+        throw new Error(errMsg);
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `TechBes_Quotation_${quote.requestId || targetId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.show("PDF Generated", `Quotation PDF #${quote.requestId || targetId} downloaded successfully.`);
+    } catch (err) {
+      alert(err.message || "Failed to download quotation PDF");
+    } finally {
+      setDownloadingPdf(false);
+    }
+  }
+
+  // Send Final Quotation to Customer (with PDF Generation & WhatsApp Notification)
   async function handleSendQuotation() {
-    if (!selectedQuote) return;
+    if (!selectedQuote || sendingQuote) return;
     if (calculatedPricing.finalAmount <= 0) {
       alert("Please enter unit prices so that Final Amount is greater than 0 before sending.");
       return;
     }
 
-    if (!window.confirm(`Send Quotation #${selectedQuote.requestId} (Total: ₹${calculatedPricing.finalAmount.toLocaleString('en-IN')}) to customer via WhatsApp?`)) {
+    const rawPhone = String(selectedQuote.mobile || selectedQuote.whatsapp || "").replace(/[^\d]/g, "");
+    if (!rawPhone || rawPhone.length < 10) {
+      alert("Customer mobile number is missing or invalid. Please verify the customer phone number.");
+      return;
+    }
+
+    if (!window.confirm(`Generate PDF & Send Quotation #${selectedQuote.requestId} (Total: ₹${calculatedPricing.finalAmount.toLocaleString('en-IN')}) to customer via WhatsApp?`)) {
       return;
     }
 
@@ -329,22 +395,28 @@ export function QuoteRequestsPage() {
         },
       });
 
-      // 2. Dispatch Send Quotation + WhatsApp
+      // 2. Dispatch Send Quotation + PDF Generation + WhatsApp
       const { payload } = await apiFetch(`/api/v2/admin/quotes/${encodeURIComponent(targetId)}/send`, {
         method: "POST",
+        body: {},
       });
 
       await refreshQuotes();
       setSelectedQuote(payload.data?.quote || payload.data || selectedQuote);
       setWhatsappResult(payload.data);
 
-      toast.show("Quotation Sent", `Quotation sent to ${selectedQuote.fullName}. WhatsApp notification dispatched.`);
+      if (payload.data?.whatsappSent) {
+        toast.show("Quotation Sent", `Quotation PDF sent directly to ${selectedQuote.fullName} via WhatsApp carrier gateway.`);
+      } else {
+        toast.show("PDF Ready", `Quotation PDF generated. Click 'Download PDF + Open WhatsApp' to send.`);
+      }
     } catch (err) {
       alert(err.message || "Failed to send quotation");
     } finally {
       setSendingQuote(false);
     }
   }
+
 
   // Update administrative notes / status
   async function handleUpdateQuoteDetails(e) {
@@ -711,7 +783,19 @@ export function QuoteRequestsPage() {
             >
               ← Back to Quote Requests
             </button>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={() => handleDownloadPdf(selectedQuote)}
+                disabled={downloadingPdf || calculatedPricing.finalAmount <= 0}
+                style={{
+                  background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe",
+                  borderRadius: 8, padding: "5px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer",
+                  display: "inline-flex", alignItems: "center", gap: 6
+                }}
+              >
+                📄 {downloadingPdf ? "Generating PDF..." : "Download Quotation PDF"}
+              </button>
               <span style={{ fontSize: 11, color: "#64748b" }}>Status:</span>
               <StatusBadge status={selectedQuote.status} />
               {loadingDetail && (
@@ -1505,17 +1589,30 @@ export function QuoteRequestsPage() {
                 </div>
 
                 {/* Pricing Action Buttons */}
-                <div style={{ display: "flex", gap: 10 }}>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                   <button
                     type="button"
                     onClick={() => handleSavePricing(true)}
                     disabled={savingPrices}
                     style={{
-                      flex: 1, height: 40, background: "#f8fafc", color: "#1e293b",
+                      flex: 1, minWidth: 140, height: 40, background: "#f8fafc", color: "#1e293b",
                       border: "1.5px solid #cbd5e1", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer"
                     }}
                   >
-                    {savingPrices ? "Saving Draft..." : "💾 Save Quotation Draft"}
+                    {savingPrices ? "Saving Draft..." : "💾 Save Draft"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadPdf(selectedQuote)}
+                    disabled={downloadingPdf || calculatedPricing.finalAmount <= 0}
+                    style={{
+                      flex: 1, minWidth: 140, height: 40, background: "#f0fdf4", color: "#166534",
+                      border: "1.5px solid #bbf7d0", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer",
+                      display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5
+                    }}
+                  >
+                    📄 {downloadingPdf ? "Generating PDF..." : "Download PDF"}
                   </button>
 
                   <button
@@ -1523,36 +1620,71 @@ export function QuoteRequestsPage() {
                     onClick={handleSendQuotation}
                     disabled={sendingQuote || calculatedPricing.finalAmount <= 0}
                     style={{
-                      flex: 1.4, height: 40, background: "linear-gradient(135deg,#2563eb,#1d4ed8)", color: "#fff",
+                      flex: 1.4, minWidth: 190, height: 40, background: "linear-gradient(135deg,#2563eb,#1d4ed8)", color: "#fff",
                       border: "none", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer",
-                      boxShadow: "0 2px 6px rgba(37,99,235,0.3)"
+                      boxShadow: "0 2px 6px rgba(37,99,235,0.3)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6
                     }}
                   >
-                    {sendingQuote ? "Sending via WhatsApp..." : "🚀 Send Quotation via WhatsApp"}
+                    {sendingQuote ? (
+                      <>
+                        <span className="spinner" style={{ display: "inline-block", width: 12, height: 12, border: "2px solid #fff", borderTopColor: "transparent", borderRadius: "50%" }} />
+                        Sending via WhatsApp...
+                      </>
+                    ) : (
+                      "🚀 Send via WhatsApp"
+                    )}
                   </button>
                 </div>
 
                 {/* WhatsApp delivery result notice */}
                 {whatsappResult && (
-                  <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: "#f0fdf4", border: "1px solid #bbf7d0", fontSize: 11 }}>
-                    <div style={{ color: "#166534", fontWeight: 700, marginBottom: 4 }}>
-                      ✓ Quotation status updated to &apos;Quotation Sent&apos;!
+                  <div style={{ marginTop: 14, padding: 14, borderRadius: 12, background: whatsappResult.whatsappSent ? "#f0fdf4" : "#eff6ff", border: `1.5px solid ${whatsappResult.whatsappSent ? "#bbf7d0" : "#bfdbfe"}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, flexWrap: "wrap", gap: 6 }}>
+                      <div style={{ color: whatsappResult.whatsappSent ? "#166534" : "#1e40af", fontWeight: 800, fontSize: 13 }}>
+                        {whatsappResult.whatsappSent ? "✓ Quotation Delivered via WhatsApp Gateway" : "📄 Professional PDF Generated &amp; WhatsApp Link Ready"}
+                      </div>
+                      <span style={{ fontSize: 11, background: "#fff", padding: "2px 8px", borderRadius: 6, fontWeight: 700, color: "#475569", border: "1px solid #cbd5e1" }}>
+                        Status: QUOTATION SENT
+                      </span>
                     </div>
+
                     {whatsappResult.whatsappSent ? (
-                      <div style={{ color: "#15803d" }}>✓ WhatsApp notification delivered successfully via carrier gateway.</div>
+                      <div style={{ color: "#15803d", fontSize: 12, lineHeight: 1.5 }}>
+                        Official quotation PDF was verified, and the notification was confirmed delivered to the customer (+91 {selectedQuote.mobile}) via carrier gateway.
+                      </div>
                     ) : (
-                      <div>
-                        <span style={{ color: "#854d0e" }}>WhatsApp automated gateway is in sandbox/fallback mode. </span>
-                        {whatsappResult.clickToChatUrl && (
-                          <a 
-                            href={whatsappResult.clickToChatUrl} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            style={{ color: "#2563eb", fontWeight: 700, textDecoration: "underline", marginLeft: 4 }}
+                      <div style={{ fontSize: 12, color: "#334155", lineHeight: 1.5 }}>
+                        <p style={{ margin: "0 0 10px 0" }}>
+                          Automated WhatsApp gateway is in fallback/sandbox mode. The TechBes quotation PDF has been generated. Use the button below to download the PDF and open WhatsApp Web/App to attach it with one click:
+                        </p>
+                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await handleDownloadPdf(selectedQuote);
+                              if (whatsappResult.clickToChatUrl) {
+                                window.open(whatsappResult.clickToChatUrl, "_blank", "noopener,noreferrer");
+                              }
+                            }}
+                            style={{
+                              padding: "8px 16px", background: "#2563eb", color: "#fff", border: "none",
+                              borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6,
+                              boxShadow: "0 2px 4px rgba(37,99,235,0.25)"
+                            }}
                           >
-                            Click here to open WhatsApp Web / App
-                          </a>
-                        )}
+                            📥 Download PDF + Open WhatsApp
+                          </button>
+                          {whatsappResult.clickToChatUrl && (
+                            <a 
+                              href={whatsappResult.clickToChatUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              style={{ color: "#2563eb", fontWeight: 700, textDecoration: "underline", fontSize: 12 }}
+                            >
+                              Open WhatsApp Only →
+                            </a>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
