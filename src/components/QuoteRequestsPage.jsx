@@ -591,6 +591,7 @@ export function QuoteRequestsPage() {
               <option value="CCTV">CCTV Surveillance</option>
               <option value="Networking">Networking</option>
               <option value="Website Development">Website / Web Designing</option>
+              <option value="Digital Marketing">Digital Marketing &amp; Podcasting</option>
             </select>
           </div>
 
@@ -834,7 +835,13 @@ export function QuoteRequestsPage() {
                 const cat = (selectedQuote.serviceCategory || "CCTV").toLowerCase();
                 const isWebQuote = cat.includes("web") || cat.includes("website");
                 const isNetworkQuote = cat.includes("network");
-                const isCctvQuote = !isWebQuote && !isNetworkQuote;
+                const isDigitalMarketingQuote = cat.includes("market") || cat.includes("digital");
+                const isPodcastQuote = isDigitalMarketingQuote && (
+                  (selectedQuote.subcategory || "").toLowerCase().includes("podcast") ||
+                  (selectedQuote.service || "").toLowerCase().includes("podcast") ||
+                  (selectedQuote.items || []).some(it => it.productName?.toLowerCase().includes("podcast"))
+                );
+                const isCctvQuote = !isWebQuote && !isNetworkQuote && !isDigitalMarketingQuote;
 
                 // Web extractions
                 const webExistingUrlItem = (selectedQuote.items || []).find(it => 
@@ -959,15 +966,22 @@ export function QuoteRequestsPage() {
                         <div><strong style={{ color: "#64748b" }}>Mobile Number:</strong> <span style={{ color: "#1e293b", fontWeight: 700 }}>{selectedQuote.mobile || "—"}</span></div>
                         <div><strong style={{ color: "#64748b" }}>Email:</strong> <span>{selectedQuote.email || "—"}</span></div>
                         <div><strong style={{ color: "#64748b" }}>Company:</strong> <span>{selectedQuote.companyName || "—"}</span></div>
-                        {!isWebQuote ? (
+                        {isDigitalMarketingQuote ? (
                           <div>
-                            <strong style={{ color: "#64748b" }}>{isNetworkQuote ? "Premises Type:" : "Property Type:"}</strong>{" "}
-                            <span style={{ color: "#1e293b", fontWeight: 650 }}>{selectedQuote.propertyType || (isNetworkQuote ? "Commercial / Office" : "Standard Site")}</span>
+                            <strong style={{ color: "#64748b" }}>Service Delivery:</strong>{" "}
+                            <span style={{ color: "#7c3aed", fontWeight: 700 }}>
+                              {isPodcastQuote ? "TechBes Soundproof Studio / Bangalore" : "100% Digital / Growth Marketing"}
+                            </span>
                           </div>
-                        ) : (
+                        ) : isWebQuote ? (
                           <div>
                             <strong style={{ color: "#64748b" }}>Service Delivery:</strong>{" "}
                             <span style={{ color: "#2563eb", fontWeight: 700 }}>100% Digital / Remote Consultation</span>
+                          </div>
+                        ) : (
+                          <div>
+                            <strong style={{ color: "#64748b" }}>{isNetworkQuote ? "Premises Type:" : "Property Type:"}</strong>{" "}
+                            <span style={{ color: "#1e293b", fontWeight: 650 }}>{selectedQuote.propertyType || (isNetworkQuote ? "Commercial / Office" : "Standard Site")}</span>
                           </div>
                         )}
                         <div><strong style={{ color: "#64748b" }}>Created At:</strong> <span>{selectedQuote.createdAt ? new Date(selectedQuote.createdAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "—"}</span></div>
@@ -1051,6 +1065,52 @@ export function QuoteRequestsPage() {
                                   >
                                     🔗 {u}
                                   </a>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {isDigitalMarketingQuote && (
+                      <div style={{ background: "#f8fafc", padding: 16, borderRadius: 16, border: isPodcastQuote ? "1px solid #e9d5ff" : "1px solid #bfdbfe" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                          <h4 style={{ margin: 0, fontSize: 12, color: isPodcastQuote ? "#7c3aed" : "#1e40af", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em" }}>
+                            {isPodcastQuote ? "🎙️ Podcasting Studio & Production Scope" : "📈 Digital Marketing & Growth Scope"}
+                          </h4>
+                          <span style={{ background: isPodcastQuote ? "#f3e8ff" : "#dbeafe", color: isPodcastQuote ? "#7c3aed" : "#1e40af", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 6 }}>
+                            {isPodcastQuote ? "Podcast Studio" : "Growth Marketing"}
+                          </span>
+                        </div>
+
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 12, marginBottom: 12 }}>
+                          <div>
+                            <strong style={{ color: "#64748b" }}>Category:</strong>{" "}
+                            <span style={{ color: isPodcastQuote ? "#7c3aed" : "#2563eb", fontWeight: 800 }}>Digital Marketing</span>
+                          </div>
+                          <div>
+                            <strong style={{ color: "#64748b" }}>Service Type:</strong>{" "}
+                            <span style={{ color: "#0f172a", fontWeight: 700 }}>{selectedQuote.subcategory || selectedQuote.service || (isPodcastQuote ? "Podcasting" : "Digital Marketing")}</span>
+                          </div>
+                        </div>
+
+                        <div style={{ background: "#fff", padding: 14, borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+                          <div>
+                            <strong style={{ color: "#475569", display: "block", marginBottom: 2 }}>Requirements &amp; Scope Summary:</strong>
+                            <div style={{ color: "#1e293b", background: "#f8fafc", padding: "8px 10px", borderRadius: 8, border: "1px solid #e2e8f0", lineHeight: 1.5 }}>
+                              {selectedQuote.additionalRequirements || selectedQuote.requirementType || (isPodcastQuote ? "Professional podcast recording, multi-camera 4K filming, and audio post-production." : "Data-driven marketing, Google & Meta campaigns, and growth strategy.")}
+                            </div>
+                          </div>
+
+                          {(selectedQuote.items || []).length > 0 && (
+                            <div>
+                              <strong style={{ color: "#64748b", display: "block", marginBottom: 4 }}>Requested Items &amp; Package Selections:</strong>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                {(selectedQuote.items || []).map((item, idx) => (
+                                  <div key={idx} style={{ background: isPodcastQuote ? "#faf5ff" : "#f0f9ff", padding: "6px 10px", borderRadius: 8, border: isPodcastQuote ? "1px solid #f3e8ff" : "1px solid #e0f2fe", color: "#1e293b", fontSize: 12 }}>
+                                    <strong>{item.productName}</strong> {item.quantity > 1 ? `× ${item.quantity}` : ""}
+                                  </div>
                                 ))}
                               </div>
                             </div>
