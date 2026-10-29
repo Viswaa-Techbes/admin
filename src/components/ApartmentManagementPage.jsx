@@ -26,6 +26,9 @@ export function ApartmentManagementPage() {
   const [editingResident, setEditingResident] = useState(null);
   const [savingResident, setSavingResident] = useState(false);
   const [invitationModalData, setInvitationModalData] = useState(null);
+  const [inchargeCredModal, setInchargeCredModal] = useState(null);
+  const [reassignModalUser, setReassignModalUser] = useState(null);
+  const [reassigningUser, setReassigningUser] = useState(false);
 
   // Search & Filters inside Apartment
   const [apartmentSearch, setApartmentSearch] = useState("");
@@ -304,13 +307,17 @@ export function ApartmentManagementPage() {
     if (!selectedApartment) return;
     try {
       setSavingAssocUser(true);
-      await apiFetch(`/api/v2/apartments/${selectedApartment._id}/association-users`, {
+      const { payload: resPayload } = await apiFetch(`/api/v2/apartments/${selectedApartment._id}/association-users`, {
         method: "POST",
         body: JSON.stringify(assocUserForm),
       });
       toast({ title: "Account Created", description: "Association committee account registered successfully", type: "success" });
       setShowAssocUserModal(false);
       setAssocUserForm({ name: "", mobileNumber: "", email: "", password: "" });
+
+      if (resPayload?.data?.temporaryPassword) {
+        setInchargeCredModal(resPayload.data);
+      }
 
       // Refresh apartment
       const { payload } = await apiFetch(`/api/v2/apartments/${selectedApartment._id}`);
@@ -320,6 +327,69 @@ export function ApartmentManagementPage() {
       alert(err.message || "Failed to add association user");
     } finally {
       setSavingAssocUser(false);
+    }
+  };
+
+  // Toggle In-Charge Account Status (Activate / Deactivate)
+  const handleToggleAssocStatus = async (userId, currentIsDeleted) => {
+    if (!selectedApartment) return;
+    const action = currentIsDeleted ? "activate" : "deactivate";
+    if (!confirm(`Are you sure you want to ${action} this in-charge account?`)) return;
+    try {
+      await apiFetch(`/api/v2/apartments/${selectedApartment._id}/association-users/${userId}/status`, {
+        method: "PUT",
+        body: JSON.stringify({ isDeleted: !currentIsDeleted, status: !currentIsDeleted ? "deactivated" : "active" }),
+      });
+      toast({
+        title: `Account ${action === "activate" ? "Activated" : "Deactivated"}`,
+        description: `In-charge account has been ${action === "activate" ? "reactivated" : "deactivated"} successfully`,
+        type: "success",
+      });
+      const { payload } = await apiFetch(`/api/v2/apartments/${selectedApartment._id}`);
+      setSelectedApartment(payload.data || payload);
+      fetchApartments();
+    } catch (err) {
+      alert(err.message || `Failed to ${action} user`);
+    }
+  };
+
+  // Resend / Generate Credentials for In-Charge
+  const handleResendAssocInvite = async (user) => {
+    if (!selectedApartment) return;
+    try {
+      const { payload } = await apiFetch(`/api/v2/apartments/${selectedApartment._id}/association-users/${user._id}/resend-invite`, {
+        method: "POST",
+      });
+      const data = payload.data || payload;
+      setInchargeCredModal(data);
+      toast({ title: "Credentials Generated", description: "Temporary login credentials ready", type: "success" });
+      const { payload: aptPayload } = await apiFetch(`/api/v2/apartments/${selectedApartment._id}`);
+      setSelectedApartment(aptPayload.data || aptPayload);
+      fetchApartments();
+    } catch (err) {
+      alert(err.message || "Failed to generate credentials");
+    }
+  };
+
+  // Reassign In-Charge to another apartment
+  const handleReassignAssocUser = async (e) => {
+    e.preventDefault();
+    if (!selectedApartment || !reassignModalUser?.targetApartmentId) return;
+    try {
+      setReassigningUser(true);
+      await apiFetch(`/api/v2/apartments/${selectedApartment._id}/association-users/${reassignModalUser.userId}/reassign`, {
+        method: "PUT",
+        body: JSON.stringify({ targetApartmentId: reassignModalUser.targetApartmentId }),
+      });
+      toast({ title: "In-Charge Reassigned", description: "User moved to target apartment successfully", type: "success" });
+      setReassignModalUser(null);
+      const { payload } = await apiFetch(`/api/v2/apartments/${selectedApartment._id}`);
+      setSelectedApartment(payload.data || payload);
+      fetchApartments();
+    } catch (err) {
+      alert(err.message || "Failed to reassign user");
+    } finally {
+      setReassigningUser(false);
     }
   };
 
@@ -1212,45 +1282,137 @@ export function ApartmentManagementPage() {
                         No association committee accounts created yet. Up to 3 accounts can be added.
                       </div>
                     ) : (
-                      selectedApartment.associationUsers.map((u, idx) => (
-                        <div
-                          key={u._id || idx}
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            padding: "12px 16px",
-                            background: "#f8fafc",
-                            borderRadius: 8,
-                            border: "1px solid #e2e8f0",
-                          }}
-                        >
-                          <div>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>
-                              {u.name || `Committee Member ${idx + 1}`}
-                            </div>
-                            <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
-                              Phone: <strong>{u.mobileNumber}</strong> {u.email ? `• ${u.email}` : ""}
-                            </div>
-                          </div>
-
-                          <button
-                            onClick={() => handleRemoveAssocUser(u._id, u.name)}
+                      selectedApartment.associationUsers.map((u, idx) => {
+                        const isDeactivated = Boolean(u.isDeleted) || u.employeeStatus === 'Inactive';
+                        return (
+                          <div
+                            key={u._id || idx}
                             style={{
-                              padding: "5px 10px",
-                              background: "#fee2e2",
-                              border: "none",
-                              borderRadius: 6,
-                              color: "#dc2626",
-                              fontSize: 11,
-                              fontWeight: 700,
-                              cursor: "pointer",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              padding: "14px 16px",
+                              background: isDeactivated ? "#fef2f2" : "#f8fafc",
+                              borderRadius: 8,
+                              border: isDeactivated ? "1px solid #fecaca" : "1px solid #e2e8f0",
+                              flexWrap: "wrap",
+                              gap: 12,
                             }}
                           >
-                            Remove Access
-                          </button>
-                        </div>
-                      ))
+                            <div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>
+                                  {u.name || `Committee Member ${idx + 1}`}
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    padding: "2px 8px",
+                                    borderRadius: 4,
+                                    background: "#eff6ff",
+                                    color: "#2563eb",
+                                    textTransform: "uppercase",
+                                  }}
+                                >
+                                  In-Charge ({u.role || "association"})
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    padding: "2px 8px",
+                                    borderRadius: 4,
+                                    background: isDeactivated ? "#fee2e2" : "#dcfce7",
+                                    color: isDeactivated ? "#b91c1c" : "#15803d",
+                                  }}
+                                >
+                                  {isDeactivated ? "● Deactivated" : "● Active"}
+                                </span>
+                              </div>
+                              <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
+                                Phone: <strong>{u.mobileNumber}</strong> {u.email ? `• ${u.email}` : ""} • Complex: <strong>{selectedApartment.name}</strong>
+                              </div>
+                            </div>
+
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                              <button
+                                onClick={() => handleResendAssocInvite(u)}
+                                title="Generate secure temporary credentials or invitation"
+                                style={{
+                                  padding: "6px 10px",
+                                  background: "#f1f5f9",
+                                  border: "1px solid #cbd5e1",
+                                  borderRadius: 6,
+                                  color: "#334155",
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                🔑 Credentials / Invite
+                              </button>
+
+                              <button
+                                onClick={() => handleToggleAssocStatus(u._id, isDeactivated)}
+                                title={isDeactivated ? "Reactivate in-charge account" : "Deactivate in-charge account"}
+                                style={{
+                                  padding: "6px 10px",
+                                  background: isDeactivated ? "#dcfce7" : "#fef3c7",
+                                  border: "1px solid " + (isDeactivated ? "#86efac" : "#fde68a"),
+                                  borderRadius: 6,
+                                  color: isDeactivated ? "#15803d" : "#b45309",
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                {isDeactivated ? "🔓 Reactivate" : "🔒 Deactivate"}
+                              </button>
+
+                              <button
+                                onClick={() => setReassignModalUser({
+                                  userId: u._id,
+                                  name: u.name,
+                                  mobileNumber: u.mobileNumber,
+                                  currentApartmentId: selectedApartment._id,
+                                  targetApartmentId: "",
+                                })}
+                                title="Reassign to another apartment"
+                                style={{
+                                  padding: "6px 10px",
+                                  background: "#e0e7ff",
+                                  border: "1px solid #c7d2fe",
+                                  borderRadius: 6,
+                                  color: "#4338ca",
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                🔄 Reassign
+                              </button>
+
+                              <button
+                                onClick={() => handleRemoveAssocUser(u._id, u.name)}
+                                title="Permanently remove in-charge access"
+                                style={{
+                                  padding: "6px 10px",
+                                  background: "#fee2e2",
+                                  border: "1px solid #fecaca",
+                                  borderRadius: 6,
+                                  color: "#dc2626",
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                ✕ Remove
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
                     )}
                   </div>
                 </div>
@@ -2319,6 +2481,137 @@ export function ApartmentManagementPage() {
                 Done
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL 4B: IN-CHARGE CREDENTIALS & INVITATION POPUP ─── */}
+      {inchargeCredModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100, padding: 16 }}>
+          <div style={{ background: "#fff", borderRadius: 12, padding: 24, width: "100%", maxWidth: 460 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <h3 style={{ fontSize: 17, fontWeight: 800, margin: 0, color: "#0f172a" }}>
+                🔐 In-Charge Account Credentials
+              </h3>
+              <button onClick={() => setInchargeCredModal(null)} style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "#64748b" }}>✕</button>
+            </div>
+
+            <p style={{ fontSize: 12, color: "#475569", margin: "0 0 14px 0" }}>
+              Secure credentials for Society In-Charge / Association Administrator <strong>{inchargeCredModal.name}</strong> for <strong>{inchargeCredModal.apartmentName || selectedApartment?.name}</strong>.
+            </p>
+
+            <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: 12, marginBottom: 12, fontSize: 12 }}>
+              <div style={{ marginBottom: 6 }}>
+                <span style={{ color: "#64748b" }}>Assigned Role: </span>
+                <strong style={{ color: "#2563eb" }}>Association Administrator (In-Charge)</strong>
+              </div>
+              <div style={{ marginBottom: 6 }}>
+                <span style={{ color: "#64748b" }}>Assigned Apartment: </span>
+                <strong>{inchargeCredModal.apartmentName || selectedApartment?.name}</strong>
+              </div>
+              <div>
+                <span style={{ color: "#64748b" }}>Login Mobile / Username: </span>
+                <strong>{inchargeCredModal.mobileNumber}</strong>
+              </div>
+            </div>
+
+            <div style={{ background: "#eff6ff", border: "2px dashed #3b82f6", borderRadius: 10, padding: 14, textAlign: "center", marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#1d4ed8", textTransform: "uppercase" }}>Temporary Password</div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: "#1e3a8a", letterSpacing: 2, margin: "6px 0", fontFamily: "monospace" }}>
+                {inchargeCredModal.temporaryPassword || "Password unchanged"}
+              </div>
+              <div style={{ fontSize: 11, color: "#64748b" }}>Share securely with the in-charge for initial sign-in</div>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748b", marginBottom: 4 }}>Admin & Association Login Portal:</label>
+              <input
+                type="text"
+                readOnly
+                value={inchargeCredModal.loginUrl || "https://cpad.techbes.co.in/login"}
+                style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 11, background: "#f8fafc", boxSizing: "border-box" }}
+              />
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard?.writeText(
+                    `Hello ${inchargeCredModal.name}, your TechBes In-Charge Administrator account for ${inchargeCredModal.apartmentName || selectedApartment?.name} is ready.\nLogin ID: ${inchargeCredModal.mobileNumber}\nTemporary Password: ${inchargeCredModal.temporaryPassword}\nLogin Portal: ${inchargeCredModal.loginUrl || 'https://cpad.techbes.co.in/login'}`
+                  );
+                  alert("Login instructions copied to clipboard!");
+                }}
+                style={{ padding: "8px 14px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+              >
+                📋 Copy Login Details
+              </button>
+              <button
+                type="button"
+                onClick={() => setInchargeCredModal(null)}
+                style={{ padding: "8px 16px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL 4C: REASSIGN IN-CHARGE MODAL ─── */}
+      {reassignModalUser && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100, padding: 16 }}>
+          <div style={{ background: "#fff", borderRadius: 12, padding: 24, width: "100%", maxWidth: 440 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <h3 style={{ fontSize: 17, fontWeight: 800, margin: 0, color: "#0f172a" }}>
+                🔄 Reassign In-Charge Account
+              </h3>
+              <button onClick={() => setReassignModalUser(null)} style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "#64748b" }}>✕</button>
+            </div>
+
+            <p style={{ fontSize: 12, color: "#475569", margin: "0 0 14px 0" }}>
+              Move in-charge <strong>{reassignModalUser.name}</strong> ({reassignModalUser.mobileNumber}) to a different apartment complex.
+            </p>
+
+            <form onSubmit={handleReassignAssocUser} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#475569", marginBottom: 4 }}>
+                  Select Target Apartment *
+                </label>
+                <select
+                  required
+                  value={reassignModalUser.targetApartmentId}
+                  onChange={(e) => setReassignModalUser({ ...reassignModalUser, targetApartmentId: e.target.value })}
+                  style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 12, boxSizing: "border-box" }}
+                >
+                  <option value="">-- Choose Target Apartment --</option>
+                  {apartments
+                    .filter((a) => a._id !== reassignModalUser.currentApartmentId)
+                    .map((apt) => (
+                      <option key={apt._id} value={apt._id}>
+                        {apt.name} ({(apt.associationUsers || []).length}/3 in-charge accounts)
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setReassignModalUser(null)}
+                  style={{ padding: "8px 14px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={reassigningUser || !reassignModalUser.targetApartmentId}
+                  style={{ padding: "8px 18px", background: "#4338ca", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                >
+                  {reassigningUser ? "Reassigning..." : "Confirm Reassignment"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
