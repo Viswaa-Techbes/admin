@@ -2067,6 +2067,35 @@ export function ProjectsPage() {
   const [form, setForm] = useState({ title: "", serviceType: "installation", customerName: "", customerPhone: "", location: "", technicianId: "", price: "", description: "" });
   const [statusSavingId, setStatusSavingId] = useState("");
 
+  useEffect(() => {
+    const socket = io(process.env.NEXT_PUBLIC_API_BASE_URL || '', { 
+      path: '/socket.io',
+      transports: ['websocket', 'polling']
+    });
+
+    socket.on('connect', () => {
+      socket.emit('join_admin');
+    });
+
+    socket.on('jobStatusUpdated', (data) => {
+      console.log('[Admin ProjectsPage] Real-time jobStatusUpdated:', data);
+      refreshJobs();
+    });
+
+    socket.on('bookingStatusUpdated', (data) => {
+      console.log('[Admin ProjectsPage] Real-time bookingStatusUpdated:', data);
+      refreshJobs();
+    });
+
+    socket.on('newBooking', () => {
+      refreshJobs();
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [refreshJobs]);
+
   const jobStatusOptions = [
     "pending",
     "not_visited",

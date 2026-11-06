@@ -53,6 +53,64 @@ export function DashboardPage({ onNavigate }) {
 
   return (
     <div>
+      {/* High-Level Business & Conversion Metrics */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 16 }}>
+        <Card style={{ padding: 18, border: "1px solid #e2e8f0", background: "linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)", color: "#fff" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.85, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Authoritative Total Revenue</div>
+          <div style={{ fontSize: 26, fontWeight: 900, marginBottom: 4 }}>
+            {loading ? "..." : `₹${Number(summary.totalRevenue || 0).toLocaleString("en-IN")}`}
+          </div>
+          <div style={{ fontSize: 11, opacity: 0.8 }}>From all completed & verified bookings</div>
+        </Card>
+
+        <button
+          type="button"
+          onClick={() => onNavigate?.("quotes")}
+          style={{ border: "none", background: "transparent", padding: 0, cursor: "pointer", textAlign: "left" }}
+        >
+          <Card style={{ padding: 18, border: "1px solid #e2e8f0", height: "100%" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Quotations Pipeline</div>
+              <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 6px", borderRadius: 6, background: "#ecfdf5", color: "#166534" }}>
+                {summary.quoteConversionRate || 0}% Converted
+              </span>
+            </div>
+            <div style={{ fontSize: 24, fontWeight: 900, color: "#0f172a", marginBottom: 4 }}>
+              {loading ? "..." : `${summary.quotesAccepted || 0} / ${summary.totalQuotes || 0}`}
+            </div>
+            <div style={{ fontSize: 11, color: "#64748b" }}>
+              Pipeline Value: ₹{Number(summary.quotePipelineValue || 0).toLocaleString("en-IN")}
+            </div>
+          </Card>
+        </button>
+
+        <Card style={{ padding: 18, border: "1px solid #e2e8f0" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Customer Conversion</div>
+            <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 6px", borderRadius: 6, background: "#eff6ff", color: "#1d4ed8" }}>
+              {summary.customerConversionRate || 0}%
+            </span>
+          </div>
+          <div style={{ fontSize: 24, fontWeight: 900, color: "#0f172a", marginBottom: 4 }}>
+            {loading ? "..." : `${summary.clientsWithBookingsCount || 0} / ${summary.totalClients || 0}`}
+          </div>
+          <div style={{ fontSize: 11, color: "#64748b" }}>Registered clients with confirmed jobs</div>
+        </Card>
+
+        <Card style={{ padding: 18, border: "1px solid #e2e8f0" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Technician Performance</div>
+            <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 6px", borderRadius: 6, background: "#fef3c7", color: "#b45309" }}>
+              ★ {summary.averageTechnicianRating || "5.0"}
+            </span>
+          </div>
+          <div style={{ fontSize: 24, fontWeight: 900, color: "#0f172a", marginBottom: 4 }}>
+            {loading ? "..." : `${summary.bookingCompletionRate || 0}%`}
+          </div>
+          <div style={{ fontSize: 11, color: "#64748b" }}>Overall booking completion rate</div>
+        </Card>
+      </div>
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 14, marginBottom: 20 }}>
         {STAT_META.map((item) => (
           <button
