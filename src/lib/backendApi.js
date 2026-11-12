@@ -68,7 +68,10 @@ export async function fetchBackend(
   const effectiveTimeout = timeoutMs !== undefined ? timeoutMs : (isAuthRoute ? AUTH_FETCH_TIMEOUT_MS : FETCH_TIMEOUT_MS);
   const effectiveRetries = retries !== undefined ? retries : (isAuthRoute ? 1 : MAX_RETRIES);
 
-  const headers = {};
+  const headers = {
+    'X-Requested-With': 'XMLHttpRequest',
+    'X-CSRF-Protection': '1',
+  };
   if (body !== undefined) {
     headers['Content-Type'] = 'application/json';
   }

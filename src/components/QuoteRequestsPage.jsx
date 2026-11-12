@@ -86,6 +86,21 @@ export function QuoteRequestsPage() {
   const [accessoriesCharge, setAccessoriesCharge] = useState(0);
   const [miscCharge, setMiscCharge] = useState(0);
   const [advancePercentage, setAdvancePercentage] = useState(50);
+  const [inventoryCatalog, setInventoryCatalog] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    apiFetch("/api/v2/admin/inventory/products?status=active&limit=200")
+      .then(({ payload }) => {
+        if (active && Array.isArray(payload?.data)) {
+          setInventoryCatalog(payload.data);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Extracted unique values for filter options
   const uniqueAreas = useMemo(() => {
@@ -223,10 +238,14 @@ export function QuoteRequestsPage() {
     });
   };
 
-  const handleAddLineItem = (name = "", qty = 1, unitPrice = "") => {
+  const handleAddLineItem = (name = "", qty = 1, unitPrice = "", extra = {}) => {
     setPricingItems(prev => [
       ...prev,
       {
+        productId: extra.productId || null,
+        sku: extra.sku || "",
+        brand: extra.brand || "",
+        variant: extra.variant || "",
         productName: name,
         quantity: qty,
         unitPrice: unitPrice,
@@ -295,6 +314,10 @@ export function QuoteRequestsPage() {
     try {
       const itemsPayload = calculatedPricing.items
         .map(it => ({
+          ...(it.productId ? { productId: it.productId } : {}),
+          ...(it.sku ? { sku: it.sku } : {}),
+          ...(it.brand ? { brand: it.brand } : {}),
+          ...(it.variant ? { variant: it.variant } : {}),
           productName: (it.productName || "Item").trim(),
           quantity: parseFloat(it.quantity) || 1,
           unitPrice: parseFloat(it.unitPrice) || 0,
@@ -322,7 +345,12 @@ export function QuoteRequestsPage() {
 
       await refreshQuotes();
       setSelectedQuote(payload.data || payload);
-      toast.show("Pricing Saved", "Quotation pricing draft updated successfully.");
+      if (payload?.stockValidation?.insufficientItems?.length > 0) {
+        const names = payload.stockValidation.insufficientItems.map((i) => i.name).join(", ");
+        toast.show("Saved with Stock Alert", `Low/insufficient stock for: ${names}`);
+      } else {
+        toast.show("Pricing Saved", "Quotation pricing draft updated successfully.");
+      }
     } catch (err) {
       alert(err.message || "Failed to save pricing");
     } finally {
@@ -1560,6 +1588,46 @@ export function QuoteRequestsPage() {
 
                 {/* Quick Addition Toolbar */}
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+                  {inventoryCatalog.length > 0 && (
+                    <select
+                      defaultValue=""
+                      onChange={(e) => {
+                        const chosen = inventoryCatalog.find((m) => m._id === e.target.value);
+                        if (chosen) {
+                          handleAddLineItem(
+                            chosen.name,
+                            1,
+                            chosen.sellingPrice ?? chosen.basePrice ?? chosen.price ?? 0,
+                            {
+                              productId: chosen._id,
+                              sku: chosen.sku,
+                              brand: chosen.brand,
+                              variant: chosen.variant,
+                            }
+                          );
+                          e.target.value = "";
+                        }
+                      }}
+                      style={{
+                        padding: "6px 10px",
+                        background: "#eef2ff",
+                        color: "#3730a3",
+                        border: "1px solid #c7d2fe",
+                        borderRadius: 8,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        maxWidth: 260,
+                      }}
+                    >
+                      <option value="">+ Add from Inventory ({inventoryCatalog.length})</option>
+                      {inventoryCatalog.map((m) => (
+                        <option key={m._id} value={m._id}>
+                          {m.name} ({m.sku || m.category}) — ₹{m.sellingPrice ?? m.price ?? 0} [Stock: {m.stock}]
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   <button
                     type="button"
                     onClick={() => handleAddLineItem("", 1, "")}

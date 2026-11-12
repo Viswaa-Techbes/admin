@@ -1,51 +1,22 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, Component } from "react";
-import { PageHeader, Card, ActionBtn, useToast } from "./UI";
-import { PlusIcon, EditIcon, TrashIcon, SearchIcon } from "./Icons";
+import React, { useState, useEffect, useMemo, useCallback, Component } from "react";
+import { PageHeader, ActionBtn, useToast } from "./UI";
+import { PlusIcon } from "./Icons";
 import { apiFetch } from "../lib/apiClient";
+import { DEFAULT_CATEGORIES, getBtnStyle } from "./inventory/inventoryStyles";
+import InventoryDashboardTab from "./inventory/InventoryDashboardTab";
+import InventoryItemsTab from "./inventory/InventoryItemsTab";
+import InventoryPricingTab from "./inventory/InventoryPricingTab";
+import InventoryStockTab from "./inventory/InventoryStockTab";
+import {
+  InventoryItemModal,
+  StockAdjustmentModal,
+  PricingRuleModal,
+  ItemDetailModal,
+  DeleteArchiveModal,
+} from "./inventory/InventoryModals";
 
-const INPUT_STYLE = {
-  padding: "10px 14px",
-  borderRadius: 12,
-  border: "1px solid #cbd5e1",
-  fontSize: 13,
-  width: "100%",
-  outline: "none",
-  background: "#ffffff",
-  color: "#1e293b",
-};
-
-const LABEL_STYLE = {
-  fontSize: 12,
-  fontWeight: 700,
-  color: "#475569",
-  display: "block",
-  marginBottom: 6,
-};
-
-const TH_STYLE = {
-  padding: "14px 18px",
-  fontSize: 11,
-  fontWeight: 700,
-  color: "#64748b",
-  background: "#f8fafc",
-  borderBottom: "1px solid #e2e8f0",
-  letterSpacing: ".05em",
-  textTransform: "uppercase",
-};
-
-const TD_STYLE = {
-  padding: "14px 18px",
-  fontSize: 13,
-  borderBottom: "1px solid #f1f5f9",
-  color: "#334155",
-};
-
-const GST_RATES = [0, 5, 12, 18, 28];
-const CATEGORIES = ["All", "CCTV", "Networking", "General", "Accessories"];
-
-// Component-level error boundary to protect against unexpected render crashes
 class InventoryErrorBoundary extends Component {
   constructor(props) {
     super(props);
@@ -57,36 +28,36 @@ class InventoryErrorBoundary extends Component {
   }
 
   componentDidCatch(error, info) {
-    console.error("[InventoryManagementPage Crash Caught]:", error, info);
+    console.error("[InventoryManagementPage Error]:", error, info);
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: 32, maxWidth: 640, margin: "40px auto", background: "#ffffff", borderRadius: 16, border: "1px solid #fee2e2", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.05)", textAlign: "center" }}>
-          <div style={{ fontSize: 36, marginBottom: 12 }}>⚠️</div>
-          <h3 style={{ fontSize: 18, fontWeight: 750, color: "#991b1b", margin: "0 0 8px" }}>
+        <div
+          style={{
+            padding: 32,
+            maxWidth: 640,
+            margin: "40px auto",
+            background: "#ffffff",
+            borderRadius: 16,
+            border: "1px solid #fee2e2",
+            textAlign: "center",
+          }}
+        >
+          <h3 style={{ fontSize: 18, fontWeight: 700, color: "#991b1b", margin: "0 0 8px" }}>
             Inventory Management Encountered an Error
           </h3>
           <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 20px" }}>
-            {this.state.error?.message || "A client-side exception occurred while rendering the inventory view."}
+            {this.state.error?.message || "An error occurred while rendering inventory."}
           </p>
-          <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-            <button
-              type="button"
-              onClick={() => this.setState({ hasError: false, error: null })}
-              style={{ padding: "8px 18px", borderRadius: 10, border: "1px solid #cbd5e1", background: "#f8fafc", color: "#334155", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
-            >
-              Reset View
-            </button>
-            <button
-              type="button"
-              onClick={() => window.location.reload()}
-              style={{ padding: "8px 18px", borderRadius: 10, border: "none", background: "#6366f1", color: "#ffffff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
-            >
-              Reload Page
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => this.setState({ hasError: false, error: null })}
+            style={getBtnStyle("secondary")}
+          >
+            Reset View
+          </button>
         </div>
       );
     }
@@ -96,999 +67,562 @@ class InventoryErrorBoundary extends Component {
 
 function InventoryManagementInner() {
   const toast = useToast();
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(null);
-  const [search, setSearch] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("All");
-  const [selectedStatus, setSelectedStatus] = useState("all");
 
-  // Modal states
-  const [showModal, setShowModal] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    name: "",
-    brand: "",
-    category: "CCTV",
-    subcategory: "",
-    modelNumber: "",
-    sku: "",
-    variant: "",
-    specifications: "",
-    basePrice: 0,
-    gstRate: 18,
-    isTaxInclusive: false,
-    stock: 10,
-    minStock: 2,
-    unit: "each",
-    image: "",
-    description: "",
-    status: "active",
-  });
-
-  const notify = (msg, type = "info") => {
-    try {
-      if (typeof toast === "function") {
-        toast(msg, { type });
-      } else if (toast?.show) {
+  const notify = useCallback(
+    (msg, type = "info") => {
+      if (typeof toast?.show === "function") {
         toast.show(msg, type);
       }
-    } catch (_) {
-      console.log(`[Notification ${type}]:`, msg);
-    }
-  };
+    },
+    [toast]
+  );
 
-  const extractArray = (payload) => {
-    if (Array.isArray(payload)) return payload;
-    if (payload && typeof payload === "object") {
-      if (Array.isArray(payload.data)) return payload.data;
-      if (Array.isArray(payload.products)) return payload.products;
-      if (Array.isArray(payload.items)) return payload.items;
-      if (payload.data && typeof payload.data === "object" && Array.isArray(payload.data.products)) return payload.data.products;
-      if (payload.payload && Array.isArray(payload.payload.data)) return payload.payload.data;
-      if (payload.payload && Array.isArray(payload.payload)) return payload.payload;
-    }
-    return null;
-  };
+  const [activeTab, setActiveTab] = useState("dashboard");
 
-  const loadProducts = async (isManualRefresh = false) => {
-    if (isManualRefresh) setRefreshing(true);
-    else setLoading(true);
-    setError(null);
+  // Data state
+  const [dashboard, setDashboard] = useState(null);
+  const [items, setItems] = useState([]);
+  const [pricingRules, setPricingRules] = useState([]);
+  const [lowStockAlerts, setLowStockAlerts] = useState([]);
+  const [transactions, setTransactions] = useState([]);
 
-    let loadedList = null;
-    let lastError = null;
+  // Loading & error state
+  const [loadingDashboard, setLoadingDashboard] = useState(true);
+  const [loadingItems, setLoadingItems] = useState(true);
+  const [loadingRules, setLoadingRules] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [errorBanner, setErrorBanner] = useState("");
+  const [saving, setSaving] = useState(false);
 
-    // 1. Try primary admin inventory endpoint
+  // Filters
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [itemTypeFilter, setItemTypeFilter] = useState("all");
+  const [stockHealthFilter, setStockHealthFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [historySearch, setHistorySearch] = useState("");
+  const [txTypeFilter, setTxTypeFilter] = useState("all");
+
+  // Modals
+  const [itemModalOpen, setItemModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [itemDetails, setItemDetails] = useState(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [stockModalOpen, setStockModalOpen] = useState(false);
+  const [stockTargetItem, setStockTargetItem] = useState(null);
+  const [stockDefaultType, setStockDefaultType] = useState("addition");
+  const [ruleModalOpen, setRuleModalOpen] = useState(false);
+  const [editingRule, setEditingRule] = useState(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteTargetItem, setDeleteTargetItem] = useState(null);
+
+  const fetchDashboard = useCallback(async () => {
+    setLoadingDashboard(true);
     try {
-      const res = await apiFetch("/api/v2/admin/inventory/products");
-      const list = extractArray(res.payload ?? res.data);
-      if (list !== null) {
-        loadedList = list;
-      }
+      const { payload } = await apiFetch("/api/v2/admin/inventory/dashboard");
+      setDashboard(payload.data);
+      setErrorBanner("");
     } catch (err) {
-      lastError = err;
-      console.warn("Primary admin inventory endpoint warning:", err.message);
+      setErrorBanner(err.message || "Failed to load inventory dashboard");
+    } finally {
+      setLoadingDashboard(false);
     }
-
-    // 2. Try fallback inventory endpoint if primary failed or returned nothing
-    if (loadedList === null) {
-      try {
-        const fallbackRes = await apiFetch("/api/v2/inventory/products");
-        const list = extractArray(fallbackRes.payload ?? fallbackRes.data);
-        if (list !== null) {
-          loadedList = list;
-          lastError = null; // Fallback succeeded
-        }
-      } catch (fallbackErr) {
-        console.warn("Fallback inventory endpoint warning:", fallbackErr.message);
-        if (!lastError) lastError = fallbackErr;
-      }
-    }
-
-    if (loadedList !== null) {
-      // Ensure only valid objects are kept
-      const sanitized = loadedList.filter((item) => item && typeof item === "object");
-      setProducts(sanitized);
-      setError(null);
-    } else {
-      setProducts([]);
-      if (lastError) {
-        setError(lastError.message || "Unable to retrieve inventory data. Please try again.");
-      }
-    }
-
-    setLoading(false);
-    setRefreshing(false);
-  };
-
-  useEffect(() => {
-    loadProducts();
   }, []);
 
-  // Safe products array guaranteed
-  const safeProducts = useMemo(() => {
-    return Array.isArray(products) ? products.filter((p) => p && typeof p === "object") : [];
-  }, [products]);
+  const fetchItems = useCallback(async () => {
+    setLoadingItems(true);
+    try {
+      const params = new URLSearchParams();
+      if (search.trim()) params.set("search", search.trim());
+      if (categoryFilter !== "all") params.set("category", categoryFilter);
+      if (itemTypeFilter !== "all") params.set("itemType", itemTypeFilter);
+      if (stockHealthFilter !== "all") params.set("stockHealth", stockHealthFilter);
+      if (statusFilter !== "all") params.set("status", statusFilter);
+      if (statusFilter === "archived") params.set("includeArchived", "true");
 
-  // Filtered products
-  const filteredProducts = useMemo(() => {
-    const q = (search || "").trim().toLowerCase();
-    const catFilter = (selectedCategory || "All").toLowerCase();
+      const qs = params.toString();
+      const { payload } = await apiFetch(
+        `/api/v2/admin/inventory/products${qs ? `?${qs}` : ""}`
+      );
+      setItems(Array.isArray(payload.data) ? payload.data : []);
+      setErrorBanner("");
+    } catch (err) {
+      setErrorBanner(err.message || "Failed to fetch inventory items");
+    } finally {
+      setLoadingItems(false);
+    }
+  }, [search, categoryFilter, itemTypeFilter, stockHealthFilter, statusFilter]);
 
-    return safeProducts.filter((p) => {
-      const name = String(p.name || "").toLowerCase();
-      const brand = String(p.brand || "").toLowerCase();
-      const model = String(p.modelNumber || "").toLowerCase();
-      const sku = String(p.sku || "").toLowerCase();
-      const variant = String(p.variant || "").toLowerCase();
-      const category = String(p.category || "General").toLowerCase();
+  const fetchPricingRules = useCallback(async () => {
+    setLoadingRules(true);
+    try {
+      const { payload } = await apiFetch("/api/v2/admin/inventory/pricing-rules");
+      setPricingRules(Array.isArray(payload.data) ? payload.data : []);
+    } catch (err) {
+      notify(err.message || "Could not load pricing rules", "error");
+    } finally {
+      setLoadingRules(false);
+    }
+  }, [notify]);
 
-      const matchSearch =
-        !q ||
-        name.includes(q) ||
-        brand.includes(q) ||
-        model.includes(q) ||
-        sku.includes(q) ||
-        variant.includes(q);
+  const fetchStockAlertsAndHistory = useCallback(async () => {
+    setLoadingHistory(true);
+    try {
+      const params = new URLSearchParams();
+      if (historySearch.trim()) params.set("search", historySearch.trim());
+      if (txTypeFilter !== "all") params.set("transactionType", txTypeFilter);
+      const qs = params.toString();
 
-      const matchCategory =
-        catFilter === "all" || category === catFilter;
+      const [alertRes, histRes] = await Promise.all([
+        apiFetch("/api/v2/admin/inventory/stock/low-stock"),
+        apiFetch(`/api/v2/admin/inventory/stock/history${qs ? `?${qs}` : ""}`),
+      ]);
 
-      const matchStatus =
-        selectedStatus === "all" || p.status === selectedStatus;
+      setLowStockAlerts(Array.isArray(alertRes.payload?.data) ? alertRes.payload.data : []);
+      setTransactions(Array.isArray(histRes.payload?.data) ? histRes.payload.data : []);
+    } catch (err) {
+      notify(err.message || "Failed to fetch stock logs", "error");
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [historySearch, txTypeFilter, notify]);
 
-      return matchSearch && matchCategory && matchStatus;
-    });
-  }, [safeProducts, search, selectedCategory, selectedStatus]);
+  const refreshAll = useCallback(() => {
+    fetchDashboard();
+    fetchItems();
+    fetchPricingRules();
+    fetchStockAlertsAndHistory();
+  }, [fetchDashboard, fetchItems, fetchPricingRules, fetchStockAlertsAndHistory]);
 
-  // Statistics
-  const stats = useMemo(() => {
-    const total = safeProducts.length;
-    const active = safeProducts.filter((p) => p.status === "active").length;
-    const inactive = safeProducts.filter((p) => p.status === "inactive").length;
-    const lowStock = safeProducts.filter(
-      (p) => (Number(p.stock) || 0) <= (Number(p.minStock) || 2) && p.status === "active"
-    ).length;
-    return { total, active, inactive, lowStock };
-  }, [safeProducts]);
+  useEffect(() => {
+    fetchDashboard();
+    fetchPricingRules();
+  }, [fetchDashboard, fetchPricingRules]);
 
-  // Open Add Modal
-  const handleAddNew = () => {
-    setIsEditing(false);
-    setForm({
-      name: "",
-      brand: "",
-      category: "CCTV",
-      subcategory: "",
-      modelNumber: "",
-      sku: "",
-      variant: "",
-      specifications: "",
-      basePrice: 0,
-      gstRate: 18,
-      isTaxInclusive: false,
-      stock: 10,
-      minStock: 2,
-      unit: "each",
-      image: "",
-      description: "",
-      status: "active",
-    });
-    setShowModal(true);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchItems();
+    }, 180);
+    return () => clearTimeout(timer);
+  }, [fetchItems]);
+
+  useEffect(() => {
+    if (activeTab === "stock") {
+      const timer = setTimeout(() => {
+        fetchStockAlertsAndHistory();
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [activeTab, fetchStockAlertsAndHistory]);
+
+  const categories = useMemo(() => {
+    const set = new Set(DEFAULT_CATEGORIES);
+    for (const item of items) {
+      if (item.category) set.add(item.category);
+    }
+    for (const r of pricingRules) {
+      if (r.serviceCategory && r.serviceCategory !== "Global") set.add(r.serviceCategory);
+    }
+    return Array.from(set);
+  }, [items, pricingRules]);
+
+  const handleViewItem = async (id) => {
+    setDetailModalOpen(true);
+    setLoadingDetails(true);
+    setItemDetails(null);
+    try {
+      const { payload } = await apiFetch(`/api/v2/admin/inventory/products/${id}`);
+      setItemDetails(payload.data);
+    } catch (err) {
+      notify(err.message || "Error loading item details", "error");
+      setDetailModalOpen(false);
+    } finally {
+      setLoadingDetails(false);
+    }
   };
 
-  // Open Edit Modal
-  const handleEdit = (p) => {
-    if (!p) return;
-    setIsEditing(true);
-    setForm({
-      _id: p._id || p.id,
-      name: p.name || "",
-      brand: p.brand || "",
-      category: p.category || "CCTV",
-      subcategory: p.subcategory || "",
-      modelNumber: p.modelNumber || "",
-      sku: p.sku || "",
-      variant: p.variant || "",
-      specifications: p.specifications || "",
-      basePrice: Number(p.basePrice ?? p.price ?? 0) || 0,
-      gstRate: Number(p.gstRate ?? 18) || 0,
-      isTaxInclusive: Boolean(p.isTaxInclusive),
-      stock: Number(p.stock ?? 0) || 0,
-      minStock: Number(p.minStock ?? 0) || 0,
-      unit: p.unit || "each",
-      image: p.image || "",
-      description: p.description || "",
-      status: p.status || "active",
-    });
-    setShowModal(true);
-  };
-
-  // Submit Add / Edit
-  const handleSave = async (e) => {
-    e.preventDefault();
-    if (!form.name || !String(form.name).trim()) {
-      notify("Product name is required", "error");
-      return;
-    }
-    if (Number(form.basePrice) < 0) {
-      notify("Base price cannot be negative", "error");
-      return;
-    }
-
+  const handleSaveItem = async (formPayload) => {
     setSaving(true);
     try {
-      const endpoint = isEditing && form._id
-        ? `/api/v2/admin/inventory/products/${form._id}`
+      const isEdit = Boolean(formPayload._id);
+      const url = isEdit
+        ? `/api/v2/admin/inventory/products/${formPayload._id}`
         : "/api/v2/admin/inventory/products";
-      const method = isEditing ? "PUT" : "POST";
-
-      const res = await apiFetch(endpoint, {
-        method,
-        body: form,
+      const { payload } = await apiFetch(url, {
+        method: isEdit ? "PUT" : "POST",
+        body: formPayload,
       });
-
-      if (res.payload?.success || res.payload?.data) {
-        notify(
-          isEditing ? "Product updated successfully" : "Product added to inventory",
-          "success"
-        );
-        setShowModal(false);
-        loadProducts(true);
-      } else {
-        notify(res.payload?.message || "Failed to save product", "error");
-      }
+      notify(payload.message || "Inventory item saved", "success");
+      setItemModalOpen(false);
+      setEditingItem(null);
+      refreshAll();
     } catch (err) {
-      notify(err.message || "An error occurred while saving product", "error");
+      notify(err.message || "Error saving item", "error");
     } finally {
       setSaving(false);
     }
   };
 
-  // Safe Deactivate / Reactivate Toggle
-  const handleToggleStatus = async (p) => {
-    const id = p?._id || p?.id;
-    if (!id) return;
+  const handleToggleStatus = async (item) => {
     try {
-      const res = await apiFetch(`/api/v2/admin/inventory/products/${id}/status`, {
+      const { payload } = await apiFetch(`/api/v2/admin/inventory/products/${item._id}/status`, {
         method: "PATCH",
+        body: { restore: Boolean(item.isArchived) },
       });
-      if (res.payload?.success) {
-        notify(
-          `Product marked as ${res.payload.data?.status || "updated"}`,
-          "success"
-        );
-        loadProducts(true);
-      } else {
-        notify(res.payload?.message || "Failed to update product status", "error");
-      }
+      notify(payload.message || "Item status updated", "success");
+      refreshAll();
     } catch (err) {
-      notify(err.message || "Failed to update status", "error");
+      notify(err.message || "Status update failed", "error");
     }
   };
 
-  // Soft Delete / Deactivate
-  const handleSoftDelete = async (p) => {
-    const id = p?._id || p?.id;
-    if (!id) return;
-    const name = p.name || "this product";
-    if (typeof window !== "undefined" && !window.confirm(`Are you sure you want to deactivate "${name}"? It will be safely hidden from new customer searches.`)) {
-      return;
-    }
+  const handleConfirmDeleteOrArchive = async (id, mode) => {
+    setSaving(true);
     try {
-      const res = await apiFetch(`/api/v2/admin/inventory/products/${id}`, {
+      const { payload } = await apiFetch(
+        `/api/v2/admin/inventory/products/${id}?mode=${encodeURIComponent(mode)}`,
+        { method: "DELETE" }
+      );
+      notify(payload.message || "Item updated", "success");
+      setDeleteModalOpen(false);
+      setDeleteTargetItem(null);
+      setDetailModalOpen(false);
+      refreshAll();
+    } catch (err) {
+      notify(err.message || "Could not remove item", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAdjustStock = async (itemId, stockPayload) => {
+    setSaving(true);
+    try {
+      const { payload } = await apiFetch(`/api/v2/admin/inventory/products/${itemId}/stock`, {
+        method: "POST",
+        body: stockPayload,
+      });
+      notify(payload.message || "Stock adjusted", "success");
+      setStockModalOpen(false);
+      setStockTargetItem(null);
+      refreshAll();
+    } catch (err) {
+      notify(err.message || "Failed to adjust stock", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSavePricingRule = async (rulePayload) => {
+    setSaving(true);
+    try {
+      const isEdit = Boolean(rulePayload._id);
+      const url = isEdit
+        ? `/api/v2/admin/inventory/pricing-rules/${rulePayload._id}`
+        : "/api/v2/admin/inventory/pricing-rules";
+      const { payload } = await apiFetch(url, {
+        method: isEdit ? "PUT" : "POST",
+        body: rulePayload,
+      });
+      notify(payload.message || "Pricing rule saved", "success");
+      setRuleModalOpen(false);
+      setEditingRule(null);
+      refreshAll();
+    } catch (err) {
+      notify(err.message || "Failed to save pricing rule", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteRule = async (rule) => {
+    try {
+      await apiFetch(`/api/v2/admin/inventory/pricing-rules/${rule._id}`, {
         method: "DELETE",
       });
-      if (res.payload?.success) {
-        notify("Product deactivated safely", "success");
-        loadProducts(true);
-      } else {
-        notify(res.payload?.message || "Failed to deactivate product", "error");
-      }
+      notify("Pricing rule removed", "success");
+      fetchPricingRules();
     } catch (err) {
-      notify(err.message || "Failed to deactivate product", "error");
+      notify(err.message || "Failed to delete pricing rule", "error");
     }
   };
 
-  // Live tax calculation preview for modal
-  const modalCalculations = useMemo(() => {
-    const base = Math.max(0, Number(form.basePrice) || 0);
-    const rate = Math.max(0, Number(form.gstRate) || 0);
-    let taxable = base;
-    let gstAmt = 0;
-    let total = 0;
+  const attentionCount =
+    (dashboard?.metrics?.lowStockItems || 0) + (dashboard?.metrics?.outOfStockItems || 0);
 
-    if (form.isTaxInclusive) {
-      total = base;
-      taxable = Math.round((total / (1 + rate / 100)) * 100) / 100;
-      gstAmt = Math.round((total - taxable) * 100) / 100;
-    } else {
-      taxable = base;
-      gstAmt = Math.round(((taxable * rate) / 100) * 100) / 100;
-      total = Math.round((taxable + gstAmt) * 100) / 100;
-    }
-
-    return { taxable, gstAmt, total };
-  }, [form.basePrice, form.gstRate, form.isTaxInclusive]);
+  const tabs = [
+    { id: "dashboard", label: "Dashboard" },
+    { id: "items", label: `Inventory Items (${dashboard?.metrics?.totalItems ?? items.length})` },
+    { id: "pricing", label: `Dynamic Pricing (${pricingRules.length})` },
+    {
+      id: "stock",
+      label: attentionCount > 0 ? `Stock & History (${attentionCount} alerts)` : "Stock & History",
+    },
+  ];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       <PageHeader
-        title="Inventory Management"
-        subtitle="Manage hardware products, base pricing, GST tax rates, stock, and live customer search suggestions"
+        title="Inventory & Dynamic Pricing Management"
+        subtitle="Manage materials, products, service charges, GST rules, and tracked stock movements"
         actions={
-          <div style={{ display: "flex", gap: 10 }}>
-            <button
-              type="button"
-              onClick={() => loadProducts(true)}
-              disabled={loading || refreshing}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "9px 16px",
-                borderRadius: 12,
-                border: "1px solid #cbd5e1",
-                background: "#ffffff",
-                color: "#475569",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: loading || refreshing ? "not-allowed" : "pointer",
-                opacity: loading || refreshing ? 0.6 : 1,
-              }}
-            >
-              <span style={{ display: "inline-block", transform: refreshing ? "rotate(180deg)" : "none", transition: "transform 0.3s ease" }}>
-                🔄
-              </span>
-              Refresh
-            </button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <ActionBtn
-              icon={<PlusIcon />}
-              label="Add Product"
+              label="Adjust Stock"
+              onClick={() => {
+                setStockTargetItem(null);
+                setStockDefaultType("addition");
+                setStockModalOpen(true);
+              }}
+            />
+            <ActionBtn
+              label="+ Pricing Rule"
+              onClick={() => {
+                setEditingRule(null);
+                setRuleModalOpen(true);
+              }}
+            />
+            <ActionBtn
               primary
-              onClick={handleAddNew}
+              icon={<PlusIcon />}
+              label="Add Inventory Item"
+              onClick={() => {
+                setEditingItem(null);
+                setItemModalOpen(true);
+              }}
             />
           </div>
         }
       />
 
-      {/* Summary KPI Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 16 }}>
-        <Card style={{ padding: "18px 20px" }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
-            Total Catalog Products
-          </div>
-          <div style={{ fontSize: 26, fontWeight: 800, color: "#0f172a", marginTop: 4 }}>
-            {stats.total}
-          </div>
-        </Card>
-        <Card style={{ padding: "18px 20px" }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "#16a34a", textTransform: "uppercase" }}>
-            Active / Searchable
-          </div>
-          <div style={{ fontSize: 26, fontWeight: 800, color: "#16a34a", marginTop: 4 }}>
-            {stats.active}
-          </div>
-        </Card>
-        <Card style={{ padding: "18px 20px" }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
-            Inactive / Deactivated
-          </div>
-          <div style={{ fontSize: 26, fontWeight: 800, color: "#475569", marginTop: 4 }}>
-            {stats.inactive}
-          </div>
-        </Card>
-        <Card style={{ padding: "18px 20px" }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "#ea580c", textTransform: "uppercase" }}>
-            Low Stock Alerts
-          </div>
-          <div style={{ fontSize: 26, fontWeight: 800, color: "#ea580c", marginTop: 4 }}>
-            {stats.lowStock}
-          </div>
-        </Card>
-      </div>
-
-      {/* Search and Filters Bar */}
-      <Card style={{ padding: "16px 20px" }}>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 14, alignItems: "center", justifyContent: "space-between" }}>
-          {/* Search box */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: 12, padding: "8px 14px", flex: "1 1 280px", maxWidth: 420 }}>
-            <SearchIcon style={{ width: 16, height: 16, color: "#64748b" }} />
-            <input
-              type="text"
-              placeholder="Search by name, brand, model, SKU, variant..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{ border: "none", background: "transparent", outline: "none", fontSize: 13, width: "100%", color: "#1e293b" }}
-            />
-          </div>
-
-          {/* Category Filter Pills */}
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {CATEGORIES.map((cat) => (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => setSelectedCategory(cat)}
-                style={{
-                  padding: "6px 14px",
-                  borderRadius: 20,
-                  fontSize: 12,
-                  fontWeight: 700,
-                  border: "none",
-                  cursor: "pointer",
-                  background: selectedCategory === cat ? "#6366f1" : "#f1f5f9",
-                  color: selectedCategory === cat ? "#ffffff" : "#475569",
-                  transition: "all 0.15s ease",
-                }}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-
-          {/* Status Filter Dropdown */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>Status:</span>
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              style={{
-                padding: "6px 12px",
-                borderRadius: 10,
-                border: "1px solid #cbd5e1",
-                fontSize: 12,
-                fontWeight: 600,
-                color: "#334155",
-                background: "#ffffff",
-                outline: "none",
-              }}
-            >
-              <option value="all">All Statuses</option>
-              <option value="active">Active Only</option>
-              <option value="inactive">Inactive Only</option>
-            </select>
-          </div>
-        </div>
-      </Card>
-
-      {/* Products Table Card */}
-      <Card style={{ padding: 0, overflow: "hidden" }}>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
-            <thead>
-              <tr>
-                <th style={TH_STYLE}>Product & Brand</th>
-                <th style={TH_STYLE}>Category</th>
-                <th style={TH_STYLE}>Model / SKU</th>
-                <th style={TH_STYLE}>Variant / Resolution</th>
-                <th style={{ ...TH_STYLE, textAlign: "right" }}>Base Price (₹)</th>
-                <th style={{ ...TH_STYLE, textAlign: "center" }}>GST Rate</th>
-                <th style={{ ...TH_STYLE, textAlign: "right" }}>Total (₹)</th>
-                <th style={{ ...TH_STYLE, textAlign: "center" }}>Stock</th>
-                <th style={{ ...TH_STYLE, textAlign: "center" }}>Status</th>
-                <th style={{ ...TH_STYLE, textAlign: "right" }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={10} style={{ padding: 48, textAlign: "center", color: "#64748b" }}>
-                    <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-                      <div style={{
-                        width: 28, height: 28, border: "3px solid #e2e8f0", borderTopColor: "#6366f1",
-                        borderRadius: "50%", animation: "spin 0.8s linear infinite"
-                      }} />
-                      <span style={{ fontSize: 13, fontWeight: 600 }}>Loading inventory catalog...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : error ? (
-                <tr>
-                  <td colSpan={10} style={{ padding: 36, textAlign: "center" }}>
-                    <div style={{ maxWidth: 440, margin: "0 auto", padding: 20, background: "#fef2f2", borderRadius: 14, border: "1px solid #fecaca" }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "#991b1b", marginBottom: 6 }}>
-                        Unable to Load Inventory Data
-                      </div>
-                      <p style={{ fontSize: 12, color: "#7f1d1d", margin: "0 0 14px", lineHeight: 1.5 }}>
-                        {error}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => loadProducts(true)}
-                        style={{
-                          padding: "8px 18px", borderRadius: 10, border: "none",
-                          background: "#dc2626", color: "#fff", fontSize: 12,
-                          fontWeight: 700, cursor: "pointer"
-                        }}
-                      >
-                        Retry Loading
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ) : safeProducts.length === 0 ? (
-                <tr>
-                  <td colSpan={10} style={{ padding: 48, textAlign: "center" }}>
-                    <div style={{ maxWidth: 420, margin: "0 auto" }}>
-                      <div style={{ fontSize: 32, marginBottom: 8 }}>📦</div>
-                      <div style={{ fontSize: 16, fontWeight: 750, color: "#0f172a", marginBottom: 6 }}>
-                        No Products in Catalog Yet
-                      </div>
-                      <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 18px", lineHeight: 1.5 }}>
-                        Your inventory list is currently empty. Add your first hardware product, CCTV camera, or networking device to populate customer quotation suggestions.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={handleAddNew}
-                        style={{
-                          padding: "9px 20px", borderRadius: 10, border: "none",
-                          background: "linear-gradient(135deg,#6366f1,#4f46e5)", color: "#fff",
-                          fontSize: 13, fontWeight: 700, cursor: "pointer"
-                        }}
-                      >
-                        + Add First Product
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ) : filteredProducts.length === 0 ? (
-                <tr>
-                  <td colSpan={10} style={{ padding: 40, textAlign: "center" }}>
-                    <div style={{ maxWidth: 360, margin: "0 auto" }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "#334155", marginBottom: 4 }}>
-                        No Matching Products
-                      </div>
-                      <p style={{ fontSize: 12, color: "#64748b", margin: "0 0 12px" }}>
-                        No products match your current search and filter criteria.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => { setSearch(""); setSelectedCategory("All"); setSelectedStatus("all"); }}
-                        style={{
-                          padding: "6px 14px", borderRadius: 8, border: "1px solid #cbd5e1",
-                          background: "#f8fafc", color: "#475569", fontSize: 12,
-                          fontWeight: 600, cursor: "pointer"
-                        }}
-                      >
-                        Clear Filters
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                filteredProducts.map((p, idx) => {
-                  const id = p._id || p.id || `prod-${idx}`;
-                  const base = Math.max(0, Number(p.basePrice ?? p.price ?? 0) || 0);
-                  const rate = Math.max(0, Number(p.gstRate ?? 18) || 0);
-                  const isInc = Boolean(p.isTaxInclusive);
-                  const total = isInc
-                    ? base
-                    : Math.round((base + (base * rate) / 100) * 100) / 100;
-                  const isActive = p.status === "active";
-
-                  return (
-                    <tr key={id} style={{ transition: "background 0.15s ease" }}>
-                      <td style={TD_STYLE}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                          <span style={{ fontWeight: 700, color: "#0f172a" }}>
-                            {p.name || "Unnamed Product"}
-                          </span>
-                          {p.brand && (
-                            <span style={{ fontSize: 11, fontWeight: 700, color: "#6366f1", letterSpacing: ".3px" }}>
-                              {p.brand}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td style={TD_STYLE}>
-                        <span style={{ padding: "3px 8px", borderRadius: 6, background: "#f1f5f9", fontSize: 11, fontWeight: 600, color: "#475569" }}>
-                          {p.category || "General"}
-                        </span>
-                      </td>
-                      <td style={TD_STYLE}>
-                        <div style={{ fontSize: 12, color: "#475569" }}>
-                          {p.modelNumber && <div><strong style={{ color: "#64748b" }}>Mod:</strong> {p.modelNumber}</div>}
-                          {p.sku && <div><strong style={{ color: "#64748b" }}>SKU:</strong> {p.sku}</div>}
-                          {!p.modelNumber && !p.sku && <span style={{ color: "#94a3b8" }}>—</span>}
-                        </div>
-                      </td>
-                      <td style={TD_STYLE}>
-                        {p.variant ? (
-                          <span style={{ padding: "3px 8px", borderRadius: 6, background: "#e0e7ff", color: "#3730a3", fontSize: 11, fontWeight: 700 }}>
-                            {p.variant}
-                          </span>
-                        ) : (
-                          <span style={{ color: "#94a3b8" }}>Standard</span>
-                        )}
-                      </td>
-                      <td style={{ ...TD_STYLE, textAlign: "right", fontWeight: 700, color: "#1e293b" }}>
-                        ₹{base.toLocaleString("en-IN")}
-                      </td>
-                      <td style={{ ...TD_STYLE, textAlign: "center" }}>
-                        <span style={{ padding: "2px 8px", borderRadius: 99, background: "#fef3c7", color: "#92400e", fontSize: 11, fontWeight: 700 }}>
-                          {rate}% {isInc ? "Incl." : ""}
-                        </span>
-                      </td>
-                      <td style={{ ...TD_STYLE, textAlign: "right", fontWeight: 800, color: "#0f172a" }}>
-                        ₹{total.toLocaleString("en-IN")}
-                      </td>
-                      <td style={{ ...TD_STYLE, textAlign: "center" }}>
-                        <span style={{
-                          fontWeight: 700,
-                          fontSize: 12,
-                          color: (Number(p.stock) || 0) <= (Number(p.minStock) || 2) ? "#ea580c" : "#16a34a"
-                        }}>
-                          {Number(p.stock) || 0} {p.unit || "each"}
-                        </span>
-                      </td>
-                      <td style={{ ...TD_STYLE, textAlign: "center" }}>
-                        <button
-                          type="button"
-                          onClick={() => handleToggleStatus(p)}
-                          title="Click to toggle availability"
-                          style={{
-                            padding: "4px 10px",
-                            borderRadius: 99,
-                            border: "none",
-                            cursor: "pointer",
-                            fontSize: 11,
-                            fontWeight: 700,
-                            background: isActive ? "#dcfce7" : "#f1f5f9",
-                            color: isActive ? "#15803d" : "#64748b",
-                          }}
-                        >
-                          {isActive ? "● Active" : "○ Inactive"}
-                        </button>
-                      </td>
-                      <td style={{ ...TD_STYLE, textAlign: "right" }}>
-                        <div style={{ display: "inline-flex", gap: 6 }}>
-                          <button
-                            type="button"
-                            onClick={() => handleEdit(p)}
-                            title="Edit Product"
-                            style={{
-                              padding: "6px 10px",
-                              borderRadius: 8,
-                              border: "1px solid #cbd5e1",
-                              background: "#ffffff",
-                              color: "#334155",
-                              cursor: "pointer",
-                            }}
-                          >
-                            <EditIcon style={{ width: 14, height: 14 }} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleSoftDelete(p)}
-                            title="Deactivate Product Safely"
-                            style={{
-                              padding: "6px 10px",
-                              borderRadius: 8,
-                              border: "1px solid #fecaca",
-                              background: "#fff1f2",
-                              color: "#e11d48",
-                              cursor: "pointer",
-                            }}
-                          >
-                            <TrashIcon style={{ width: 14, height: 14 }} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      {/* Add / Edit Product Modal */}
-      {showModal && (
-        <div style={{
-          position: "fixed",
-          inset: 0,
-          background: "rgba(15, 23, 42, 0.6)",
-          backdropFilter: "blur(4px)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 9999,
-          padding: 16,
-        }}>
-          <div style={{
-            background: "#ffffff",
-            borderRadius: 20,
-            maxWidth: 680,
-            width: "100%",
-            maxHeight: "92vh",
-            overflowY: "auto",
-            boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)",
-            border: "1px solid #e2e8f0",
-            padding: 24,
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, borderBottom: "1px solid #f1f5f9", paddingBottom: 16 }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#0f172a" }}>
-                  {isEditing ? "Edit Inventory Product" : "Add New Inventory Product"}
-                </h3>
-                <p style={{ margin: "4px 0 0", fontSize: 12, color: "#64748b" }}>
-                  Configure product specifications, base pricing, GST tax rate, and availability
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowModal(false)}
-                style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#94a3b8" }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {/* Product Name & Brand */}
-              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14 }}>
-                <div>
-                  <label style={LABEL_STYLE}>Product Name *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. CP Plus 2MP Full HD Dome Camera"
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    style={INPUT_STYLE}
-                  />
-                </div>
-                <div>
-                  <label style={LABEL_STYLE}>Brand</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. CP Plus"
-                    value={form.brand}
-                    onChange={(e) => setForm({ ...form, brand: e.target.value })}
-                    style={INPUT_STYLE}
-                  />
-                </div>
-              </div>
-
-              {/* Category, Subcategory, Unit */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
-                <div>
-                  <label style={LABEL_STYLE}>Category</label>
-                  <select
-                    value={form.category}
-                    onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    style={INPUT_STYLE}
-                  >
-                    <option value="CCTV">CCTV</option>
-                    <option value="Networking">Networking</option>
-                    <option value="General">General</option>
-                    <option value="Accessories">Accessories</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={LABEL_STYLE}>Subcategory</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. IP Cameras, Routers"
-                    value={form.subcategory}
-                    onChange={(e) => setForm({ ...form, subcategory: e.target.value })}
-                    style={INPUT_STYLE}
-                  />
-                </div>
-                <div>
-                  <label style={LABEL_STYLE}>Unit</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. each, meter, roll"
-                    value={form.unit}
-                    onChange={(e) => setForm({ ...form, unit: e.target.value })}
-                    style={INPUT_STYLE}
-                  />
-                </div>
-              </div>
-
-              {/* Model Number, SKU, Variant */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
-                <div>
-                  <label style={LABEL_STYLE}>Model Number</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. CP-UNC-DA21L2"
-                    value={form.modelNumber}
-                    onChange={(e) => setForm({ ...form, modelNumber: e.target.value })}
-                    style={INPUT_STYLE}
-                  />
-                </div>
-                <div>
-                  <label style={LABEL_STYLE}>SKU</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. CPP-2MP-01"
-                    value={form.sku}
-                    onChange={(e) => setForm({ ...form, sku: e.target.value.toUpperCase() })}
-                    style={INPUT_STYLE}
-                  />
-                </div>
-                <div>
-                  <label style={LABEL_STYLE}>Variant / Spec</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 2MP, 4MP, 8-Port"
-                    value={form.variant}
-                    onChange={(e) => setForm({ ...form, variant: e.target.value })}
-                    style={INPUT_STYLE}
-                  />
-                </div>
-              </div>
-
-              {/* Base Price, GST Rate, Tax Type */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
-                <div>
-                  <label style={LABEL_STYLE}>Base Price (₹) *</label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={1}
-                    required
-                    value={form.basePrice}
-                    onChange={(e) => setForm({ ...form, basePrice: Number(e.target.value) })}
-                    style={INPUT_STYLE}
-                  />
-                </div>
-                <div>
-                  <label style={LABEL_STYLE}>Applicable GST Rate</label>
-                  <select
-                    value={form.gstRate}
-                    onChange={(e) => setForm({ ...form, gstRate: Number(e.target.value) })}
-                    style={INPUT_STYLE}
-                  >
-                    {GST_RATES.map((rate) => (
-                      <option key={rate} value={rate}>
-                        {rate}% GST
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label style={LABEL_STYLE}>Tax Configuration</label>
-                  <select
-                    value={form.isTaxInclusive ? "inclusive" : "exclusive"}
-                    onChange={(e) =>
-                      setForm({ ...form, isTaxInclusive: e.target.value === "inclusive" })
-                    }
-                    style={INPUT_STYLE}
-                  >
-                    <option value="exclusive">Exclusive (Price + GST)</option>
-                    <option value="inclusive">Inclusive (GST included)</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Live Tax Breakdown Card */}
-              <div style={{
-                background: "#f8fafc",
-                border: "1px solid #e2e8f0",
-                borderRadius: 14,
-                padding: "12px 16px",
-                display: "grid",
-                gridTemplateColumns: "repeat(3, 1fr)",
-                gap: 12,
-                textAlign: "center",
-              }}>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b" }}>TAXABLE AMOUNT</div>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: "#1e293b", marginTop: 2 }}>
-                    ₹{modalCalculations.taxable.toLocaleString("en-IN")}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#92400e" }}>
-                    GST ({form.gstRate}%)
-                  </div>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: "#b45309", marginTop: 2 }}>
-                    ₹{modalCalculations.gstAmt.toLocaleString("en-IN")}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#15803d" }}>TOTAL UNIT PRICE</div>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: "#15803d", marginTop: 2 }}>
-                    ₹{modalCalculations.total.toLocaleString("en-IN")}
-                  </div>
-                </div>
-              </div>
-
-              {/* Stock, Min Stock, Status */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
-                <div>
-                  <label style={LABEL_STYLE}>Stock Quantity</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={form.stock}
-                    onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })}
-                    style={INPUT_STYLE}
-                  />
-                </div>
-                <div>
-                  <label style={LABEL_STYLE}>Low Stock Alert At</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={form.minStock}
-                    onChange={(e) => setForm({ ...form, minStock: Number(e.target.value) })}
-                    style={INPUT_STYLE}
-                  />
-                </div>
-                <div>
-                  <label style={LABEL_STYLE}>Availability Status</label>
-                  <select
-                    value={form.status}
-                    onChange={(e) => setForm({ ...form, status: e.target.value })}
-                    style={INPUT_STYLE}
-                  >
-                    <option value="active">Active (Available)</option>
-                    <option value="inactive">Inactive (Hidden)</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Description */}
-              <div>
-                <label style={LABEL_STYLE}>Product Description / Specifications</label>
-                <textarea
-                  rows={2}
-                  placeholder="Key technical specifications, warranty, or features..."
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  style={{ ...INPUT_STYLE, resize: "vertical" }}
-                />
-              </div>
-
-              {/* Buttons */}
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8 }}>
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  style={{
-                    padding: "9px 18px",
-                    borderRadius: 10,
-                    border: "1px solid #cbd5e1",
-                    background: "#f8fafc",
-                    color: "#475569",
-                    fontWeight: 700,
-                    fontSize: 13,
-                    cursor: "pointer",
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  style={{
-                    padding: "9px 22px",
-                    borderRadius: 10,
-                    border: "none",
-                    background: "linear-gradient(135deg,#6366f1,#4f46e5)",
-                    color: "#ffffff",
-                    fontWeight: 700,
-                    fontSize: 13,
-                    cursor: saving ? "not-allowed" : "pointer",
-                    opacity: saving ? 0.7 : 1,
-                  }}
-                >
-                  {saving ? "Saving..." : isEditing ? "Save Changes" : "Create Product"}
-                </button>
-              </div>
-            </form>
-          </div>
+      {errorBanner && (
+        <div
+          style={{
+            padding: "12px 16px",
+            borderRadius: 12,
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
+            color: "#b91c1c",
+            fontSize: 13,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <span>{errorBanner}</span>
+          <button
+            type="button"
+            onClick={refreshAll}
+            style={{ ...getBtnStyle("secondary"), padding: "4px 10px", fontSize: 12 }}
+          >
+            Retry
+          </button>
         </div>
       )}
+
+      {/* Navigation Tabs */}
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          borderBottom: "1px solid #e2e8f0",
+          paddingBottom: 10,
+          flexWrap: "wrap",
+        }}
+      >
+        {tabs.map((tab) => {
+          const active = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                padding: "9px 16px",
+                borderRadius: 10,
+                border: active ? "1px solid #4f46e5" : "1px solid #e2e8f0",
+                background: active ? "#4f46e5" : "#ffffff",
+                color: active ? "#ffffff" : "#475569",
+                fontWeight: 700,
+                fontSize: 13,
+                cursor: "pointer",
+              }}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {activeTab === "dashboard" && (
+        <InventoryDashboardTab
+          dashboard={dashboard}
+          loading={loadingDashboard}
+          onNavigateTab={setActiveTab}
+          onFilterStockHealth={(health) => {
+            setStockHealthFilter(health);
+            setActiveTab("items");
+          }}
+          onViewItem={handleViewItem}
+          onOpenStockModal={(item, type) => {
+            setStockTargetItem(item);
+            setStockDefaultType(type || "addition");
+            setStockModalOpen(true);
+          }}
+        />
+      )}
+
+      {activeTab === "items" && (
+        <InventoryItemsTab
+          items={items}
+          loading={loadingItems}
+          categories={categories}
+          search={search}
+          onSearchChange={setSearch}
+          categoryFilter={categoryFilter}
+          onCategoryFilterChange={setCategoryFilter}
+          itemTypeFilter={itemTypeFilter}
+          onItemTypeFilterChange={setItemTypeFilter}
+          stockHealthFilter={stockHealthFilter}
+          onStockHealthFilterChange={setStockHealthFilter}
+          statusFilter={statusFilter}
+          onStatusFilterChange={setStatusFilter}
+          onOpenAdd={() => {
+            setEditingItem(null);
+            setItemModalOpen(true);
+          }}
+          onViewItem={handleViewItem}
+          onEditItem={(item) => {
+            setEditingItem(item);
+            setItemModalOpen(true);
+          }}
+          onOpenStockModal={(item, type) => {
+            setStockTargetItem(item);
+            setStockDefaultType(type || "addition");
+            setStockModalOpen(true);
+          }}
+          onToggleStatus={handleToggleStatus}
+          onOpenDeleteModal={(item) => {
+            setDeleteTargetItem(item);
+            setDeleteModalOpen(true);
+          }}
+        />
+      )}
+
+      {activeTab === "pricing" && (
+        <InventoryPricingTab
+          items={items}
+          pricingRules={pricingRules}
+          categories={categories}
+          loadingRules={loadingRules}
+          onOpenRuleModal={(rule) => {
+            setEditingRule(rule);
+            setRuleModalOpen(true);
+          }}
+          onDeleteRule={handleDeleteRule}
+          onRefreshAll={refreshAll}
+          addToast={notify}
+        />
+      )}
+
+      {activeTab === "stock" && (
+        <InventoryStockTab
+          lowStockAlerts={lowStockAlerts}
+          transactions={transactions}
+          loadingHistory={loadingHistory}
+          historySearch={historySearch}
+          onHistorySearchChange={setHistorySearch}
+          txTypeFilter={txTypeFilter}
+          onTxTypeFilterChange={setTxTypeFilter}
+          onOpenStockModal={(item, type) => {
+            setStockTargetItem(item);
+            setStockDefaultType(type || "addition");
+            setStockModalOpen(true);
+          }}
+          onViewItem={handleViewItem}
+        />
+      )}
+
+      {/* Modals */}
+      {itemModalOpen && (
+        <InventoryItemModal
+          key={editingItem?._id || "new-item"}
+          open={itemModalOpen}
+          onClose={() => {
+            setItemModalOpen(false);
+            setEditingItem(null);
+          }}
+          initialItem={editingItem}
+          categories={categories}
+          saving={saving}
+          onSubmit={handleSaveItem}
+        />
+      )}
+
+      <ItemDetailModal
+        open={detailModalOpen}
+        onClose={() => setDetailModalOpen(false)}
+        details={itemDetails}
+        loading={loadingDetails}
+        onEdit={(item) => {
+          setDetailModalOpen(false);
+          setEditingItem(item);
+          setItemModalOpen(true);
+        }}
+        onAdjustStock={(item) => {
+          setDetailModalOpen(false);
+          setStockTargetItem(item);
+          setStockDefaultType("addition");
+          setStockModalOpen(true);
+        }}
+        onDeleteOrArchive={(item) => {
+          setDeleteTargetItem(item);
+          setDeleteModalOpen(true);
+        }}
+      />
+
+      {stockModalOpen && (
+        <StockAdjustmentModal
+          key={`${stockTargetItem?._id || "any"}-${stockDefaultType}`}
+          open={stockModalOpen}
+          onClose={() => {
+            setStockModalOpen(false);
+            setStockTargetItem(null);
+          }}
+          selectedItem={stockTargetItem}
+          items={items}
+          defaultType={stockDefaultType}
+          saving={saving}
+          onSubmit={handleAdjustStock}
+        />
+      )}
+
+      {ruleModalOpen && (
+        <PricingRuleModal
+          key={editingRule?._id || "new-rule"}
+          open={ruleModalOpen}
+          onClose={() => {
+            setRuleModalOpen(false);
+            setEditingRule(null);
+          }}
+          initialRule={editingRule}
+          categories={categories}
+          saving={saving}
+          onSubmit={handleSavePricingRule}
+        />
+      )}
+
+      <DeleteArchiveModal
+        open={deleteModalOpen}
+        onClose={() => {
+          setDeleteModalOpen(false);
+          setDeleteTargetItem(null);
+        }}
+        item={deleteTargetItem}
+        saving={saving}
+        onConfirm={handleConfirmDeleteOrArchive}
+      />
     </div>
   );
 }
@@ -1100,3 +634,5 @@ export function InventoryManagementPage() {
     </InventoryErrorBoundary>
   );
 }
+
+export default InventoryManagementPage;
