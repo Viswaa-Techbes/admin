@@ -794,6 +794,21 @@ export function QuoteRequestsPage() {
                       </td>
                       <td style={{ padding: "14px 16px", fontSize: 12, color: "#334155", whiteSpace: "nowrap" }}>
                         <span style={{ fontWeight: 700, color: "#0f172a" }}>{q.serviceCategory || "CCTV"}</span>
+                        {q.source === 'AI Service Assistant' && (
+                          <span style={{
+                            marginLeft: 6,
+                            padding: "2px 7px",
+                            background: "#e0e7ff",
+                            color: "#4338ca",
+                            borderRadius: 6,
+                            fontSize: 10,
+                            fontWeight: 800,
+                            border: "1px solid #c7d2fe",
+                            display: "inline-block"
+                          }}>
+                            ✨ AI
+                          </span>
+                        )}
                         {q.subcategory && <div style={{ fontSize: 10, color: "#64748b", fontWeight: 500 }}>{q.subcategory}</div>}
                       </td>
                       <td style={{ padding: "14px 16px", fontSize: 12, color: "#475569", whiteSpace: "nowrap" }}>
@@ -870,6 +885,22 @@ export function QuoteRequestsPage() {
               </button>
               <span style={{ fontSize: 11, color: "#64748b" }}>Status:</span>
               <StatusBadge status={selectedQuote.status} />
+              {selectedQuote.source && (
+                <span style={{
+                  fontSize: 11,
+                  fontWeight: 800,
+                  padding: "3px 8px",
+                  borderRadius: 6,
+                  background: selectedQuote.source === 'AI Service Assistant' ? "#e0e7ff" : "#f1f5f9",
+                  color: selectedQuote.source === 'AI Service Assistant' ? "#4338ca" : "#475569",
+                  border: selectedQuote.source === 'AI Service Assistant' ? "1px solid #c7d2fe" : "1px solid #cbd5e1",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4
+                }}>
+                  {selectedQuote.source === 'AI Service Assistant' ? "✨ AI Assistant Quote" : `Origin: ${selectedQuote.source}`}
+                </span>
+              )}
               {loadingDetail && (
                 <span style={{ fontSize: 11, color: "#2563eb", fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
                   <span className="spinner" style={{ display: "inline-block", width: 10, height: 10, border: "2px solid #93c5fd", borderTopColor: "#2563eb", borderRadius: "50%" }} />
