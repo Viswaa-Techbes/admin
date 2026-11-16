@@ -69,6 +69,10 @@ export function QuoteRequestsPage() {
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [converting, setConverting] = useState(false);
 
+  // Delete Quote States
+  const [quoteToDelete, setQuoteToDelete] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+
   // Form edit states inside modal
   const [adminNotes, setAdminNotes] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
@@ -543,6 +547,29 @@ export function QuoteRequestsPage() {
     }
   }
 
+  const handleDeleteQuote = async (q, force = false) => {
+    if (!q) return;
+    const targetId = q._id || q.requestId;
+    try {
+      setDeletingId(targetId);
+      const url = `/api/v2/admin/quotes/${encodeURIComponent(targetId)}${force ? "?force=true" : ""}`;
+      const { payload } = await apiFetch(url, {
+        method: "DELETE"
+      });
+      toast.show(payload?.message || `Quote Request ${q.requestId || targetId} deleted successfully.`, "success");
+      setQuoteToDelete(null);
+      if (selectedQuote && (selectedQuote._id === q._id || selectedQuote.requestId === q.requestId)) {
+        setShowDetailModal(false);
+        setSelectedQuote(null);
+      }
+      await refreshQuotes();
+    } catch (err) {
+      toast.show(err.message || "Failed to delete quote request", "error");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const makeCall = (phone) => {
     if (!phone) return;
     window.open(`tel:${phone}`, "_self");
@@ -761,11 +788,11 @@ export function QuoteRequestsPage() {
             <p style={{ margin: "4px 0 0", fontSize: 12 }}>Try adjusting your filters or search keywords.</p>
           </div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+          <div style={{ overflowX: "auto", width: "100%", WebkitOverflowScrolling: "touch" }}>
+            <table style={{ width: "100%", minWidth: 1080, borderCollapse: "collapse", textAlign: "left" }}>
               <thead>
                 <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
-                  <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>REQUEST ID</th>
+                  <th style={{ padding: "12px 18px", paddingLeft: 22, fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>REQUEST ID</th>
                   <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>CUSTOMER</th>
                   <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>CATEGORY &amp; SERVICE</th>
                   <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>MOBILE</th>
@@ -773,7 +800,7 @@ export function QuoteRequestsPage() {
                   <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>STATUS</th>
                   <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>ASSIGNED STAFF</th>
                   <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap" }}>CREATED DATE</th>
-                  <th style={{ padding: "12px 16px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap", textAlign: "center" }}>ACTION</th>
+                  <th style={{ padding: "12px 18px", fontSize: 11, fontWeight: 750, color: "#475569", whiteSpace: "nowrap", textAlign: "center" }}>ACTION</th>
                 </tr>
               </thead>
               <tbody>
@@ -784,7 +811,7 @@ export function QuoteRequestsPage() {
 
                   return (
                     <tr key={q._id || q.requestId} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                      <td style={{ padding: "14px 16px", fontSize: 12, fontWeight: 750, color: "#1e293b", whiteSpace: "nowrap" }}>
+                      <td style={{ padding: "14px 18px", paddingLeft: 22, fontSize: 12, fontWeight: 750, color: "#1e293b", whiteSpace: "nowrap" }}>
                         <span style={{ fontFamily: "monospace", color: "#2563eb", fontWeight: 800 }}>
                           {q.requestId || q._id}
                         </span>
@@ -826,19 +853,34 @@ export function QuoteRequestsPage() {
                       <td style={{ padding: "14px 16px", fontSize: 11, color: "#64748b", whiteSpace: "nowrap" }}>
                         {createdDate}
                       </td>
-                      <td style={{ padding: "14px 16px", textAlign: "center", whiteSpace: "nowrap" }}>
-                        <button 
-                          type="button"
-                          onClick={() => handleInspectQuote(q)}
-                          style={{
-                            background: "linear-gradient(135deg,#3b82f6,#2563eb)", color: "#fff",
-                            border: "none", borderRadius: 8, padding: "7px 16px", fontSize: 12,
-                            fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 4px rgba(59,130,246,0.25)",
-                            display: "inline-flex", alignItems: "center", gap: 5
-                          }}
-                        >
-                          🔍 Inspect
-                        </button>
+                      <td style={{ padding: "14px 18px", textAlign: "center", whiteSpace: "nowrap" }}>
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                          <button 
+                            type="button"
+                            onClick={() => handleInspectQuote(q)}
+                            style={{
+                              background: "linear-gradient(135deg,#3b82f6,#2563eb)", color: "#fff",
+                              border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 12,
+                              fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 4px rgba(59,130,246,0.25)",
+                              display: "inline-flex", alignItems: "center", gap: 5
+                            }}
+                          >
+                            🔍 Inspect
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => setQuoteToDelete(q)}
+                            title="Delete Quotation Request"
+                            style={{
+                              background: "#fee2e2", color: "#dc2626",
+                              border: "1px solid #fca5a5", borderRadius: 8, padding: "7px 12px", fontSize: 12,
+                              fontWeight: 700, cursor: "pointer",
+                              display: "inline-flex", alignItems: "center", gap: 4, transition: "all 0.2s"
+                            }}
+                          >
+                            🗑️ Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -882,6 +924,17 @@ export function QuoteRequestsPage() {
                 }}
               >
                 📄 {downloadingPdf ? "Generating PDF..." : "Download Quotation PDF"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setQuoteToDelete(selectedQuote)}
+                style={{
+                  background: "#fee2e2", color: "#dc2626", border: "1px solid #fca5a5",
+                  borderRadius: 8, padding: "5px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer",
+                  display: "inline-flex", alignItems: "center", gap: 6
+                }}
+              >
+                🗑️ Delete Quote
               </button>
               <span style={{ fontSize: 11, color: "#64748b" }}>Status:</span>
               <StatusBadge status={selectedQuote.status} />
@@ -2128,6 +2181,76 @@ export function QuoteRequestsPage() {
               </button>
             </form>
 
+          </div>
+        </Modal>
+      )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      {quoteToDelete && (
+        <Modal
+          open={Boolean(quoteToDelete)}
+          onClose={() => !deletingId && setQuoteToDelete(null)}
+          title="Confirm Quotation Deletion"
+          width="min(520px, 95%)"
+        >
+          <div style={{ padding: "8px 0" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: 12, background: "#fee2e2",
+                color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 22, flexShrink: 0
+              }}>
+                ⚠️
+              </div>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ margin: "0 0 6px", fontSize: 16, fontWeight: 800, color: "#0f172a" }}>
+                  Delete Quote Request #{quoteToDelete.requestId || quoteToDelete._id}?
+                </h3>
+                <p style={{ margin: 0, fontSize: 13, color: "#475569", lineHeight: 1.5 }}>
+                  Are you sure you want to delete the quotation for <strong>{quoteToDelete.fullName || "Customer"}</strong> ({quoteToDelete.serviceCategory || "CCTV"})?
+                </p>
+                <p style={{ margin: "8px 0 0", fontSize: 12, color: "#dc2626", fontWeight: 600 }}>
+                  This action is permanent and cannot be undone.
+                </p>
+                {(quoteToDelete.orderId || ['converted_to_order', 'Converted to Booking', 'Converted'].includes(quoteToDelete.status)) && (
+                  <div style={{
+                    marginTop: 10, padding: "8px 12px", background: "#fef2f2",
+                    border: "1px solid #fecaca", borderRadius: 8, fontSize: 11, color: "#991b1b"
+                  }}>
+                    ⚠️ Note: This quotation is marked as converted to a booking. Deletion will require force approval.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 24 }}>
+              <button
+                type="button"
+                disabled={Boolean(deletingId)}
+                onClick={() => setQuoteToDelete(null)}
+                style={{
+                  background: "#f1f5f9", color: "#475569", border: "1px solid #cbd5e1",
+                  borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700,
+                  cursor: "pointer"
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={Boolean(deletingId)}
+                onClick={() => handleDeleteQuote(quoteToDelete, Boolean(quoteToDelete.orderId))}
+                style={{
+                  background: "#dc2626", color: "#fff", border: "none",
+                  borderRadius: 8, padding: "8px 20px", fontSize: 13, fontWeight: 700,
+                  cursor: deletingId ? "not-allowed" : "pointer",
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  boxShadow: "0 2px 6px rgba(220,38,38,0.3)"
+                }}
+              >
+                {deletingId ? "Deleting..." : "🗑️ Confirm Delete"}
+              </button>
+            </div>
           </div>
         </Modal>
       )}
