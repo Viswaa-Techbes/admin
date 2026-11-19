@@ -37,6 +37,7 @@ export function InventoryItemModal({
           brand: initialItem.brand || "",
           modelNumber: initialItem.modelNumber || "",
           variant: initialItem.variant || "",
+          tier: initialItem.tier || "",
           unit: initialItem.unit || "Piece",
           purchasePrice: initialItem.purchasePrice ?? 0,
           sellingPrice: initialItem.sellingPrice ?? initialItem.basePrice ?? initialItem.price ?? 0,
@@ -67,6 +68,7 @@ export function InventoryItemModal({
           brand: "",
           modelNumber: "",
           variant: "",
+          tier: "",
           unit: "Piece",
           purchasePrice: 0,
           sellingPrice: 0,
@@ -264,7 +266,7 @@ export function InventoryItemModal({
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 12 }}>
           <div>
             <label style={LABEL_STYLE}>Available Stock</label>
             <input
@@ -296,6 +298,20 @@ export function InventoryItemModal({
               placeholder="e.g. 2MP / 305m Roll"
               style={INPUT_STYLE}
             />
+          </div>
+          <div>
+            <label style={LABEL_STYLE}>Tier / Grade</label>
+            <select
+              value={form.tier}
+              onChange={(e) => setForm((p) => ({ ...p, tier: e.target.value }))}
+              style={INPUT_STYLE}
+            >
+              <option value="">Auto-infer</option>
+              <option value="budget">Budget (Essential)</option>
+              <option value="standard">Standard (Popular)</option>
+              <option value="premium">Premium (Pro / 4K)</option>
+              <option value="enterprise">Enterprise</option>
+            </select>
           </div>
           <div>
             <label style={LABEL_STYLE}>Status</label>
@@ -962,7 +978,7 @@ export function ItemDetailModal({
           </div>
 
           <div style={{ fontSize: 13, color: "#334155", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div><strong>Brand / Model:</strong> {[item.brand, item.modelNumber, item.variant].filter(Boolean).join(" • ") || "—"}</div>
+            <div><strong>Brand / Model:</strong> {[item.brand, item.modelNumber, item.variant, item.tier ? `[${item.tier.toUpperCase()}]` : null].filter(Boolean).join(" • ") || "—"}</div>
             <div><strong>Supplier / Warranty:</strong> {item.supplier || "—"} {item.warrantyMonths ? `• ${item.warrantyMonths} mo` : ""}</div>
             <div style={{ gridColumn: "1 / -1" }}><strong>Specifications:</strong> {item.specifications || "—"}</div>
             <div style={{ gridColumn: "1 / -1" }}><strong>Description:</strong> {item.description || "—"}</div>

@@ -173,7 +173,7 @@ export default function InventoryItemsTab({
                           {item.name}
                         </div>
                         <div style={{ fontSize: 11, color: "#64748b" }}>
-                          {[item.brand, item.modelNumber, item.variant].filter(Boolean).join(" • ") ||
+                          {[item.brand, item.modelNumber, item.variant, item.tier ? `[${item.tier.toUpperCase()}]` : null].filter(Boolean).join(" • ") ||
                             item.specifications ||
                             "No brand/model set"}
                         </div>
