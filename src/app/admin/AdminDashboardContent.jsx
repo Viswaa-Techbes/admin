@@ -77,6 +77,8 @@ export default function AdminDashboardContent() {
 
     socket.on("newBooking", handleUpdate);
     socket.on("jobStatusUpdated", handleUpdate);
+    socket.on("bookingStatusUpdated", handleUpdate);
+    socket.on("technicianDeclined", handleUpdate);
     socket.on("technicianStatusUpdate", handleUpdate);
     socket.on("technicianLocationUpdate", handleUpdate);
     socket.on("bookingAssigned", handleUpdate);

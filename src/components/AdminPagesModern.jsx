@@ -2743,6 +2743,11 @@ export function ServiceRequestsPage() {
   const [selectedTech, setSelectedTech] = useState("");
   const [assigning, setAssigning] = useState(false);
   const [assignError, setAssignError] = useState("");
+  const [availableTechs, setAvailableTechs] = useState([]);
+  const [techLoading, setTechLoading] = useState(false);
+  const [dispatchNote, setDispatchNote] = useState("");
+  const [techSearch, setTechSearch] = useState("");
+  const [techFilter, setTechFilter] = useState("all");
 
   useEffect(() => {
     if (!selectedRequestId) return;
@@ -2909,10 +2914,31 @@ export function ServiceRequestsPage() {
     return () => clearInterval(interval);
   }, [loadBookings]);
 
-  function openAssign(booking) {
+  async function openAssign(booking) {
     setAssignModal(booking);
     setSelectedTech(booking.technicianId || "");
+    setDispatchNote(booking.dispatchNote || "");
     setAssignError("");
+    setTechSearch("");
+    setTechFilter("all");
+    setTechLoading(true);
+    try {
+      const res = await apiFetch(`/api/v2/admin/technicians/available?bookingId=${booking.id}`);
+      setAvailableTechs(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("Failed to load available technicians:", err);
+      setAvailableTechs(technicians.map(t => ({
+        ...t,
+        id: t._id || t.id,
+        availabilityStatus: t.availabilityStatus || "ONLINE",
+        isOnline: t.availabilityStatus === "ONLINE",
+        activeJobsCount: 0,
+        rating: t.rating || 5,
+        distanceKm: null,
+      })));
+    } finally {
+      setTechLoading(false);
+    }
   }
 
   async function handleAssign() {
@@ -2920,12 +2946,19 @@ export function ServiceRequestsPage() {
     try {
       setAssigning(true);
       setAssignError("");
-      await apiFetch(`/api/v2/dispatch/override/${assignModal.id}`, {
+      await apiFetch(`/api/v2/admin/bookings/${assignModal.id}/assign`, {
         method: "POST",
-        body: { technicianId: selectedTech },
+        body: {
+          technicianId: selectedTech,
+          dispatchNote: dispatchNote.trim(),
+        },
       });
       setAssignModal(null);
       await loadBookings();
+      if (viewModal?.id === assignModal.id) {
+        const { data } = await apiFetch(`/api/v2/admin/service-requests/${assignModal.id}`);
+        setViewModal(data);
+      }
       toast("Technician assigned and dispatched successfully");
     } catch (err) {
       setAssignError(err.message);
@@ -2934,13 +2967,34 @@ export function ServiceRequestsPage() {
     }
   }
 
+  const filteredTechs = useMemo(() => {
+    return availableTechs.filter(t => {
+      if (techFilter === "online" && t.availabilityStatus !== "ONLINE") return false;
+      if (techFilter === "available" && t.activeJobsCount > 0) return false;
+      if (techSearch.trim()) {
+        const q = techSearch.toLowerCase();
+        const matchesName = (t.name || "").toLowerCase().includes(q);
+        const matchesSkill = (t.specialty || "").toLowerCase().includes(q);
+        return matchesName || matchesSkill;
+      }
+      return true;
+    });
+  }, [availableTechs, techFilter, techSearch]);
+
   const STATUS_COLORS = {
     pending: { bg: "#fef9c3", color: "#854d0e" },
     assigned: { bg: "#dbeafe", color: "#1d4ed8" },
-    in_progress: { bg: "#fce7f3", color: "#9d174d" },
+    accepted: { bg: "#e0e7ff", color: "#4338ca" },
+    travelling: { bg: "#ffedd5", color: "#c2410c" },
+    arrived: { bg: "#ccfbf1", color: "#0f766e" },
+    working: { bg: "#fce7f3", color: "#9d174d" },
     started: { bg: "#fce7f3", color: "#9d174d" },
+    in_progress: { bg: "#fce7f3", color: "#9d174d" },
+    work_uploaded: { bg: "#ede9fe", color: "#6d28d9" },
+    completion_requested: { bg: "#fef3c7", color: "#b45309" },
     completed: { bg: "#dcfce7", color: "#15803d" },
     cancelled: { bg: "#fee2e2", color: "#b91c1c" },
+    closed: { bg: "#f1f5f9", color: "#475569" },
   };
 
   function StatusChip({ status }) {
@@ -2984,9 +3038,225 @@ export function ServiceRequestsPage() {
     return null;
   }, [viewModal, editForm, technicians]);
 
-  const statusOptions = ["all", "pending", "assigned", "in_progress", "completed"];
+  function ExecutionTimeline({ booking, statusHistory = [] }) {
+    const STAGES = [
+      { key: "pending", label: "Booked", desc: "Customer placed service request" },
+      { key: "assigned", label: "Technician Assigned", desc: "Assigned by Admin" },
+      { key: "accepted", label: "Accepted", desc: "Technician accepted request" },
+      { key: "travelling", label: "En Route", desc: "Technician travelling to site" },
+      { key: "arrived", label: "Arrived", desc: "Technician arrived at site" },
+      { key: "working", label: "In Progress", desc: "Work started (OTP verified)" },
+      { key: "work_uploaded", label: "Worksheet & Proof", desc: "Photos & worksheet uploaded" },
+      { key: "completed", label: "Completed", desc: "Job verified & finished" },
+    ];
+
+    const stageKeys = STAGES.map(s => s.key);
+    const currentStatus = (booking.status === "started" || booking.status === "in_progress")
+      ? "working"
+      : (booking.status === "completion_requested" ? "work_uploaded" : booking.status);
+
+    let currentIdx = stageKeys.indexOf(currentStatus);
+    if (currentIdx === -1 && booking.status === "completed") currentIdx = stageKeys.length - 1;
+
+    const historyMap = {};
+    if (Array.isArray(statusHistory)) {
+      statusHistory.forEach(h => {
+        const k = (h.status === "started" || h.status === "in_progress")
+          ? "working"
+          : (h.status === "completion_requested" ? "work_uploaded" : h.status);
+        if (!historyMap[k] || new Date(h.timestamp) > new Date(historyMap[k].timestamp)) {
+          historyMap[k] = h;
+        }
+      });
+    }
+
+    return (
+      <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 14, padding: 18, marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, borderBottom: "1px solid #f1f5f9", paddingBottom: 10 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#4338ca", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Live Execution Tracker
+            </div>
+            <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
+              Stage: <b style={{ color: "#0f172a", textTransform: "uppercase" }}>{booking.status?.replace(/_/g, " ")}</b>
+              {booking.technicianName && <span> · Assigned to <b style={{ color: "#0f172a" }}>{booking.technicianName}</b></span>}
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {["travelling", "arrived", "working", "started", "in_progress"].includes(booking.status) && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#ecfdf5", color: "#047857", padding: "4px 10px", borderRadius: 99, fontSize: 11, fontWeight: 700 }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981", animation: "pulse 1.5s infinite" }} />
+                LIVE IN FIELD
+              </span>
+            )}
+            <StatusChip status={booking.status} />
+          </div>
+        </div>
+
+        {booking.dispatchNote && (
+          <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: "10px 14px", marginBottom: 16, display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <span style={{ fontSize: 16 }}>📋</span>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#92400e", textTransform: "uppercase" }}>Admin Dispatch Instructions</div>
+              <div style={{ fontSize: 13, color: "#78350f", marginTop: 2, fontWeight: 500 }}>{booking.dispatchNote}</div>
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {STAGES.map((stage, idx) => {
+            const isPassed = currentIdx > idx || booking.status === "completed";
+            const isCurrent = currentIdx === idx && booking.status !== "completed";
+            const record = historyMap[stage.key];
+            const recordTime = record?.timestamp
+              ? new Date(record.timestamp).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" })
+              : (stage.key === "completed" && booking.completedAt ? new Date(booking.completedAt).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" }) : null);
+
+            return (
+              <div key={stage.key} style={{ display: "flex", gap: 12, alignItems: "flex-start", opacity: (isPassed || isCurrent) ? 1 : 0.55 }}>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                  <div style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    background: isPassed ? "#10b981" : (isCurrent ? "#6366f1" : "#e2e8f0"),
+                    color: (isPassed || isCurrent) ? "#fff" : "#94a3b8",
+                    boxShadow: isCurrent ? "0 0 0 4px rgba(99, 102, 241, 0.2)" : "none",
+                  }}>
+                    {isPassed ? "✓" : (idx + 1)}
+                  </div>
+                  {idx < STAGES.length - 1 && (
+                    <div style={{ width: 2, height: 26, background: isPassed ? "#10b981" : "#e2e8f0", margin: "3px 0" }} />
+                  )}
+                </div>
+                <div style={{ flex: 1, paddingTop: 2 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ fontWeight: isCurrent ? 800 : 700, fontSize: 13, color: isCurrent ? "#4338ca" : "#1e293b" }}>
+                      {stage.label}
+                      {isCurrent && <span style={{ marginLeft: 8, fontSize: 10, background: "#e0e7ff", color: "#4338ca", padding: "1px 6px", borderRadius: 4 }}>CURRENT</span>}
+                    </div>
+                    {recordTime && (
+                      <span style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>{recordTime}</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{stage.desc}</div>
+                  {record?.note && record.note !== "Status updated" && (
+                    <div style={{ fontSize: 11, color: "#475569", background: "#f8fafc", padding: "3px 8px", borderRadius: 6, marginTop: 4, display: "inline-block", border: "1px solid #f1f5f9" }}>
+                      Note: {record.note}
+                    </div>
+                  )}
+                  {record?.lat && record?.lng && (
+                    <div style={{ fontSize: 11, color: "#0284c7", marginTop: 2 }}>
+                      📍 GPS: {Number(record.lat).toFixed(4)}, {Number(record.lng).toFixed(4)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  function WorksheetProofSection({ worksheet, expenses = [] }) {
+    if (!worksheet && (!expenses || !expenses.length)) return null;
+
+    return (
+      <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 14, padding: 18, marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, borderBottom: "1px solid #f1f5f9", paddingBottom: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: "#0d9488", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            Digital Service Worksheet & Photo Proof
+          </div>
+          {worksheet?.status && (
+            <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: worksheet.status === "approved" ? "#dcfce7" : "#fef3c7", color: worksheet.status === "approved" ? "#166534" : "#b45309", textTransform: "uppercase" }}>
+              {worksheet.status}
+            </span>
+          )}
+        </div>
+
+        {worksheet && (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 12, marginBottom: 14 }}>
+              <div><b>Worksheet #:</b> {worksheet.worksheetNumber || "WS-PENDING"}</div>
+              <div><b>Customer OTP Verified:</b> {worksheet.completionOtpVerified ? "✓ Yes" : "No"}</div>
+              {worksheet.arrivalTime && <div><b>Arrival:</b> {new Date(worksheet.arrivalTime).toLocaleTimeString()}</div>}
+              {worksheet.workEndTime && <div><b>Finish:</b> {new Date(worksheet.workEndTime).toLocaleTimeString()}</div>}
+            </div>
+
+            {worksheet.beforePhotos && worksheet.beforePhotos.length > 0 && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 6 }}>
+                  Before Service Photos ({worksheet.beforePhotos.length})
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {worksheet.beforePhotos.map((url, i) => (
+                    <a key={i} href={url} target="_blank" rel="noreferrer" style={{ display: "block" }}>
+                      <img src={url} alt={`Before ${i + 1}`} style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 8, border: "1px solid #cbd5e1" }} />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {worksheet.afterPhotos && worksheet.afterPhotos.length > 0 && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 6 }}>
+                  After Completion Photos ({worksheet.afterPhotos.length})
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {worksheet.afterPhotos.map((url, i) => (
+                    <a key={i} href={url} target="_blank" rel="noreferrer" style={{ display: "block" }}>
+                      <img src={url} alt={`After ${i + 1}`} style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 8, border: "1px solid #cbd5e1" }} />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {worksheet.customerSignatureUrl && (
+              <div style={{ marginTop: 10, marginBottom: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 6 }}>
+                  Customer Sign-off Signature
+                </div>
+                <img src={worksheet.customerSignatureUrl} alt="Customer Signature" style={{ maxHeight: 60, maxWidth: 200, objectFit: "contain", background: "#f8fafc", padding: 6, borderRadius: 6, border: "1px solid #e2e8f0" }} />
+              </div>
+            )}
+          </>
+        )}
+
+        {expenses && expenses.length > 0 && (
+          <div style={{ marginTop: 12, borderTop: "1px solid #f1f5f9", paddingTop: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 6 }}>
+              Technician Field Expenses ({expenses.length})
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {expenses.map((exp, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, background: "#f8fafc", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0" }}>
+                  <div>
+                    <span style={{ fontWeight: 600 }}>{exp.description}</span>
+                    {exp.receiptUrl && (
+                      <a href={exp.receiptUrl} target="_blank" rel="noreferrer" style={{ marginLeft: 8, color: "#4f46e5", textDecoration: "underline" }}>Receipt</a>
+                    )}
+                  </div>
+                  <span style={{ fontWeight: 700 }}>₹{exp.amount}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const statusOptions = ["all", "pending", "assigned", "accepted", "travelling", "arrived", "working", "work_uploaded", "completed"];
   const paymentOptions = ["all", "pending", "advance_paid", "requested", "verification_pending", "paid", "rejected"];
-  const bookingStatusOptions = ["pending", "assigned", "in_progress", "started", "completed", "closed"];
+  const bookingStatusOptions = ["pending", "assigned", "accepted", "travelling", "arrived", "working", "work_uploaded", "completion_requested", "completed", "closed", "cancelled"];
   const priorityOptions = ["low", "medium", "high"];
 
   return (
@@ -3040,6 +3310,24 @@ export function ServiceRequestsPage() {
           <div style={{ color: "#64748b", padding: 24, textAlign: "center" }}>Loading full details...</div>
         ) : viewModal && editForm ? (
           <div>
+            {(!viewModal.technicianId || viewModal.dispatchStatus === 'no_tech_found') && (
+              <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 12, padding: "12px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontWeight: 800, color: "#991b1b", fontSize: 13 }}>⚠️ Action Required: Technician Not Assigned</div>
+                  <div style={{ color: "#b91c1c", fontSize: 12, marginTop: 2 }}>This booking needs a technician assigned to begin execution.</div>
+                </div>
+                <button
+                  onClick={() => { closeRequestDetails(); openAssign(viewModal); }}
+                  style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: "#dc2626", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
+                >
+                  Assign Now
+                </button>
+              </div>
+            )}
+
+            <ExecutionTimeline booking={viewModal} statusHistory={viewModal.statusHistory} />
+            <WorksheetProofSection worksheet={viewModal.worksheet} expenses={viewModal.expenses} />
+
             <InfoSection title="Customer Information">
               <DetailField label="Name" value={editForm.customerName} isEditing onChange={(v) => updateEditField("customerName", v)} />
               <DetailField label="Email" value={editForm.customerEmail} isEditing onChange={(v) => updateEditField("customerEmail", v)} />
@@ -3174,34 +3462,148 @@ export function ServiceRequestsPage() {
       </Modal>
 
       {assignModal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
-          <div style={{ background: "#fff", borderRadius: 20, padding: 28, width: "100%", maxWidth: 420, boxShadow: "0 25px 50px rgba(0,0,0,0.25)" }}>
-            <div style={{ fontSize: 17, fontWeight: 800, color: "#0f172a", marginBottom: 4 }}>Assign Technician</div>
-            <div style={{ fontSize: 13, color: "#64748b", marginBottom: 12 }}>
-              <p style={{ margin: "0 0 6px 0" }}><strong style={{ color: "#334155" }}>Service:</strong> {assignModal.serviceName}</p>
-              <p style={{ margin: "0 0 6px 0" }}><strong style={{ color: "#334155" }}>Date:</strong> {assignModal.date || "Date TBD"} {assignModal.timeSlot || ""}</p>
-              <div style={{ background: "#f5f5f5", padding: 10, borderRadius: 8, color: "#475569" }}>
-                {assignModal.description || "No description provided"}
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 }}>
+          <div style={{ background: "#fff", borderRadius: 20, padding: 24, width: "100%", maxWidth: 540, maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 25px 50px rgba(0,0,0,0.25)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: "#0f172a" }}>Assign Technician</div>
+                <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
+                  Booking: <b>{assignModal.serviceName}</b> · {assignModal.customerName}
+                </div>
               </div>
+              <button onClick={() => setAssignModal(null)} style={{ border: "none", background: "#f1f5f9", width: 32, height: 32, borderRadius: "50%", cursor: "pointer", fontSize: 14, color: "#64748b", fontWeight: 700 }}>✕</button>
             </div>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: "#475569", display: "block", marginBottom: 6 }}>Select Technician</label>
+
+            {/* Booking Summary Card */}
+            <div style={{ background: "#f8fafc", borderRadius: 10, padding: 12, marginBottom: 14, fontSize: 12, border: "1px solid #e2e8f0" }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span><b>Date:</b> {assignModal.date || "TBD"} {assignModal.timeSlot || ""}</span>
+                <span><b>Location:</b> {assignModal.city || assignModal.pincode || "Bengaluru"}</span>
+              </div>
+              {assignModal.address && <div style={{ color: "#64748b", marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{assignModal.address}</div>}
+            </div>
+
+            {/* Search and Filters */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              <input
+                type="text"
+                placeholder="Search technician by name or skill..."
+                value={techSearch}
+                onChange={(e) => setTechSearch(e.target.value)}
+                style={{ flex: 1, padding: "8px 12px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 12, outline: "none" }}
+              />
               <select
-                value={selectedTech}
-                onChange={e => setSelectedTech(e.target.value)}
-                style={{ width: "100%", padding: "10px 12px", borderRadius: 12, border: "1px solid #cbd5e1", fontSize: 13, outline: "none" }}
+                value={techFilter}
+                onChange={(e) => setTechFilter(e.target.value)}
+                style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 12, outline: "none", background: "#fff" }}
               >
-                <option value="">-- Choose Technician --</option>
-                {technicians.map(t => (
-                  <option key={t._id || t.id} value={t._id || t.id}>{t.name} {t.specialty ? `· ${t.specialty}` : ""}</option>
-                ))}
+                <option value="all">All Technicians</option>
+                <option value="online">Online Only</option>
+                <option value="available">No Active Jobs</option>
               </select>
             </div>
-            {assignError && <div style={{ color: "#dc2626", fontSize: 12, marginBottom: 12 }}>{assignError}</div>}
+
+            {/* Technicians List */}
+            <div style={{ flex: 1, overflowY: "auto", minHeight: 180, maxHeight: 280, display: "flex", flexDirection: "column", gap: 8, paddingRight: 4, marginBottom: 14 }}>
+              {techLoading ? (
+                <div style={{ textAlign: "center", padding: 32, color: "#64748b", fontSize: 13 }}>Finding eligible technicians...</div>
+              ) : filteredTechs.length === 0 ? (
+                <div style={{ textAlign: "center", padding: 32, color: "#94a3b8", fontSize: 13 }}>No technicians match criteria</div>
+              ) : (
+                filteredTechs.map((tech) => {
+                  const isSelected = selectedTech === (tech._id || tech.id);
+                  const isOnline = tech.availabilityStatus === "ONLINE";
+                  const isBusy = tech.availabilityStatus === "BUSY" || tech.activeJobsCount > 0;
+                  return (
+                    <div
+                      key={tech._id || tech.id}
+                      onClick={() => setSelectedTech(tech._id || tech.id)}
+                      style={{
+                        padding: "10px 14px",
+                        borderRadius: 12,
+                        border: isSelected ? "2px solid #6366f1" : "1px solid #e2e8f0",
+                        background: isSelected ? "#f5f3ff" : "#ffffff",
+                        cursor: "pointer",
+                        transition: "all 0.15s ease",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 12,
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
+                        <div style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: "50%",
+                          background: isSelected ? "#6366f1" : "#f1f5f9",
+                          color: isSelected ? "#fff" : "#475569",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontWeight: 800,
+                          fontSize: 13,
+                        }}>
+                          {tech.name?.charAt(0)?.toUpperCase() || "T"}
+                        </div>
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <span style={{ fontWeight: 700, fontSize: 13, color: "#0f172a" }}>{tech.name}</span>
+                            <span style={{
+                              padding: "2px 7px",
+                              borderRadius: 99,
+                              fontSize: 10,
+                              fontWeight: 700,
+                              background: isOnline ? "#dcfce7" : (isBusy ? "#fef3c7" : "#f1f5f9"),
+                              color: isOnline ? "#15803d" : (isBusy ? "#b45309" : "#64748b"),
+                            }}>
+                              {tech.availabilityStatus || "OFFLINE"}
+                            </span>
+                            {tech.pincodeMatch && (
+                              <span style={{ padding: "2px 6px", borderRadius: 4, fontSize: 9, fontWeight: 800, background: "#e0f2fe", color: "#0369a1" }}>PINCODE MATCH</span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+                            {tech.specialty || "CCTV Specialist"} · ★ {tech.rating || 5} ({tech.completedJobs || 0} jobs)
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ textAlign: "right", fontSize: 11 }}>
+                        <div style={{ fontWeight: 700, color: tech.distanceKm ? "#4338ca" : "#94a3b8" }}>
+                          {tech.distanceKm !== null ? `📍 ${tech.distanceKm} km` : "📍 Distance N/A"}
+                        </div>
+                        <div style={{ color: tech.activeJobsCount > 0 ? "#b45309" : "#166534", marginTop: 2 }}>
+                          {tech.activeJobsCount > 0 ? `⚡ ${tech.activeJobsCount} active` : "✓ 0 active"}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Dispatch Instructions */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "#475569", display: "block", marginBottom: 4 }}>
+                DISPATCH INSTRUCTIONS (SENT TO TECHNICIAN APP VIA NOTIFICATION)
+              </label>
+              <textarea
+                rows={2}
+                value={dispatchNote}
+                onChange={(e) => setDispatchNote(e.target.value)}
+                placeholder="e.g., Customer requested arrival by 2 PM. Please bring 4MP dome cameras and test drill."
+                style={{ width: "100%", padding: "8px 10px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 12, outline: "none", resize: "none" }}
+              />
+            </div>
+
+            {assignError && <div style={{ color: "#dc2626", fontSize: 12, marginBottom: 10 }}>{assignError}</div>}
+
+            {/* Footer Buttons */}
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <button onClick={() => setAssignModal(null)} style={{ padding: "9px 18px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#64748b", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
-              <button disabled={assigning} onClick={handleAssign} style={{ padding: "9px 18px", borderRadius: 10, border: "none", background: "#4f46e5", color: "#fff", fontWeight: 700, cursor: "pointer" }}>
-                {assigning ? "Assigning..." : "Assign Technician"}
+              <button onClick={() => setAssignModal(null)} style={{ padding: "8px 16px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#64748b", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Cancel</button>
+              <button disabled={assigning || !selectedTech} onClick={handleAssign} style={{ padding: "8px 18px", borderRadius: 10, border: "none", background: "#4f46e5", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 12, opacity: (assigning || !selectedTech) ? 0.6 : 1 }}>
+                {assigning ? "Assigning..." : "Confirm & Dispatch"}
               </button>
             </div>
           </div>
@@ -3287,16 +3689,39 @@ export function ServiceRequestsPage() {
                   ) : <span style={{ color: "#94a3b8" }}>—</span>}
                 </td>
                 <td style={TD_STYLE}>
-                  {booking.technicianName
-                    ? <span style={{ color: "#15803d", fontWeight: 600, fontSize: 12 }}>✓ {booking.technicianName}</span>
-                    : <span style={{ color: "#94a3b8", fontSize: 12 }}>Unassigned</span>}
+                  {booking.technicianName ? (
+                    <div>
+                      <span style={{ color: "#15803d", fontWeight: 700, fontSize: 12 }}>✓ {booking.technicianName}</span>
+                      {booking.dispatchNote && (
+                        <div style={{ fontSize: 10, color: "#92400e", background: "#fef3c7", padding: "1px 6px", borderRadius: 4, marginTop: 2, display: "inline-block" }}>
+                          💬 Has Note
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div>
+                      <span style={{ color: booking.dispatchStatus === 'no_tech_found' ? "#dc2626" : "#94a3b8", fontWeight: booking.dispatchStatus === 'no_tech_found' ? 700 : 500, fontSize: 12 }}>
+                        {booking.dispatchStatus === 'no_tech_found' ? "⚠️ Declined / None" : "Unassigned"}
+                      </span>
+                    </div>
+                  )}
                 </td>
                 <td style={TD_STYLE}>
                   <button
                     onClick={(e) => { e.stopPropagation(); openAssign(booking); }}
-                    style={{ padding: "6px 14px", borderRadius: 10, border: "none", background: booking.technicianName ? "#f1f5f9" : "#4f46e5", color: booking.technicianName ? "#64748b" : "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
+                    style={{
+                      padding: "6px 14px",
+                      borderRadius: 10,
+                      border: "none",
+                      background: !booking.technicianName ? "#4f46e5" : (booking.dispatchStatus === 'no_tech_found' ? "#dc2626" : "#f1f5f9"),
+                      color: !booking.technicianName || booking.dispatchStatus === 'no_tech_found' ? "#fff" : "#64748b",
+                      fontWeight: 700,
+                      fontSize: 12,
+                      cursor: "pointer",
+                      boxShadow: !booking.technicianName ? "0 2px 4px rgba(79, 70, 229, 0.2)" : "none",
+                    }}
                   >
-                    {booking.technicianName ? "Override" : "Assign"}
+                    {!booking.technicianName ? "Assign" : (booking.dispatchStatus === 'no_tech_found' ? "Reassign" : "Override")}
                   </button>
                 </td>
                 <td style={TD_STYLE}>
