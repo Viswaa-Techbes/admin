@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback, Component } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef, Component } from "react";
 import { PageHeader, ActionBtn, useToast } from "./UI";
 import { PlusIcon } from "./Icons";
 import { apiFetch } from "../lib/apiClient";
@@ -67,15 +67,16 @@ class InventoryErrorBoundary extends Component {
 
 function InventoryManagementInner() {
   const toast = useToast();
+  const toastRef = useRef(toast);
+  useEffect(() => {
+    toastRef.current = toast;
+  }, [toast]);
 
-  const notify = useCallback(
-    (msg, type = "info") => {
-      if (typeof toast?.show === "function") {
-        toast.show(msg, type);
-      }
-    },
-    [toast]
-  );
+  const notify = useCallback((msg, type = "info") => {
+    if (typeof toastRef.current?.show === "function") {
+      toastRef.current.show(msg, type);
+    }
+  }, []);
 
   const [activeTab, setActiveTab] = useState("dashboard");
 
@@ -154,19 +155,23 @@ function InventoryManagementInner() {
     }
   }, [search, categoryFilter, itemTypeFilter, stockHealthFilter, statusFilter]);
 
-  const fetchPricingRules = useCallback(async () => {
+  const fetchPricingRules = useCallback(async (isUserAction = false) => {
     setLoadingRules(true);
     try {
       const { payload } = await apiFetch("/api/v2/admin/inventory/pricing-rules");
       setPricingRules(Array.isArray(payload.data) ? payload.data : []);
     } catch (err) {
-      notify(err.message || "Could not load pricing rules", "error");
+      if (isUserAction) {
+        notify(err.message || "Could not load pricing rules", "error");
+      } else {
+        setErrorBanner((prev) => prev || err.message || "Could not load pricing rules");
+      }
     } finally {
       setLoadingRules(false);
     }
   }, [notify]);
 
-  const fetchStockAlertsAndHistory = useCallback(async () => {
+  const fetchStockAlertsAndHistory = useCallback(async (isUserAction = false) => {
     setLoadingHistory(true);
     try {
       const params = new URLSearchParams();
@@ -182,7 +187,11 @@ function InventoryManagementInner() {
       setLowStockAlerts(Array.isArray(alertRes.payload?.data) ? alertRes.payload.data : []);
       setTransactions(Array.isArray(histRes.payload?.data) ? histRes.payload.data : []);
     } catch (err) {
-      notify(err.message || "Failed to fetch stock logs", "error");
+      if (isUserAction) {
+        notify(err.message || "Failed to fetch stock logs", "error");
+      } else {
+        setErrorBanner((prev) => prev || err.message || "Failed to fetch stock logs");
+      }
     } finally {
       setLoadingHistory(false);
     }
@@ -191,13 +200,13 @@ function InventoryManagementInner() {
   const refreshAll = useCallback(() => {
     fetchDashboard();
     fetchItems();
-    fetchPricingRules();
-    fetchStockAlertsAndHistory();
+    fetchPricingRules(true);
+    fetchStockAlertsAndHistory(true);
   }, [fetchDashboard, fetchItems, fetchPricingRules, fetchStockAlertsAndHistory]);
 
   useEffect(() => {
     fetchDashboard();
-    fetchPricingRules();
+    fetchPricingRules(false);
   }, [fetchDashboard, fetchPricingRules]);
 
   useEffect(() => {
@@ -210,7 +219,7 @@ function InventoryManagementInner() {
   useEffect(() => {
     if (activeTab === "stock") {
       const timer = setTimeout(() => {
-        fetchStockAlertsAndHistory();
+        fetchStockAlertsAndHistory(false);
       }, 150);
       return () => clearTimeout(timer);
     }

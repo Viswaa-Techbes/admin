@@ -183,7 +183,7 @@ export const BTN_GHOST = {
 };
 
 // ─── Modal + Toast System ───────────────────────────────────────────────────
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 export function Modal({ open, isOpen, onClose, title, children, width, maxWidth }) {
   const isVisible = open !== undefined ? open : (isOpen !== undefined ? isOpen : true);
   if (!isVisible) return null;
@@ -238,7 +238,9 @@ export function Modal({ open, isOpen, onClose, title, children, width, maxWidth 
 const ToastContext = createContext(null);
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
-  function show(message, opts = {}) {
+  const recentMessagesRef = useRef(new Map());
+
+  const show = useCallback((message, opts = {}) => {
     let msgText = message;
     let toastType = opts.type || 'info';
     if (typeof message === 'object' && message !== null) {
@@ -247,12 +249,41 @@ export function ToastProvider({ children }) {
         ? `${message.title}: ${message.description}`
         : message.message || message.title || message.description || JSON.stringify(message);
     }
+    const cleanText = String(msgText).trim();
+    if (!cleanText) return;
+
+    // Deduplication: prevent identical message spam within 3500ms
+    const now = Date.now();
+    const dedupKey = `${toastType}:${cleanText}`;
+    const lastSeen = recentMessagesRef.current.get(dedupKey) || 0;
+    if (now - lastSeen < 3500) {
+      return;
+    }
+    recentMessagesRef.current.set(dedupKey, now);
+
+    // Housekeeping: clean up old dedup keys
+    if (recentMessagesRef.current.size > 50) {
+      for (const [k, time] of recentMessagesRef.current.entries()) {
+        if (now - time > 10000) recentMessagesRef.current.delete(k);
+      }
+    }
+
     const id = Math.random().toString(36).slice(2, 9);
-    setToasts((t) => [...t, { id, message: String(msgText), type: toastType, ...opts }]);
-    if (!opts.sticky) setTimeout(() => setToasts((t) => t.filter(x => x.id !== id)), opts.duration || 4000);
-  }
+    setToasts((t) => {
+      // Cap max simultaneous visible toasts to 3 (most recent win)
+      const next = [...t, { id, message: cleanText, type: toastType, ...opts }];
+      return next.slice(-3);
+    });
+
+    if (!opts.sticky) {
+      setTimeout(() => setToasts((t) => t.filter(x => x.id !== id)), opts.duration || 4000);
+    }
+  }, []);
+
+  const value = useMemo(() => ({ show }), [show]);
+
   return (
-    <ToastContext.Provider value={{ show }}>
+    <ToastContext.Provider value={value}>
       {children}
       <div style={{ position: 'fixed', right: 20, bottom: 20, zIndex: 3000, display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 420 }}>
         {toasts.map(t => {
@@ -284,24 +315,26 @@ export function ToastProvider({ children }) {
 
 export function useToast() {
   const ctx = useContext(ToastContext);
-  if (!ctx) {
-    const fallbackFn = (msg) => console.log('[Toast]', msg);
-    fallbackFn.show = fallbackFn;
-    return fallbackFn;
-  }
-  const toastFn = (msg, opts) => ctx.show(msg, opts);
-  toastFn.show = (titleOrMsg, descOrType) => {
-    if (typeof descOrType === 'string' && ['error', 'success', 'info', 'warning'].includes(descOrType.toLowerCase())) {
-      ctx.show(titleOrMsg, { type: descOrType.toLowerCase() });
-      return;
+  return useMemo(() => {
+    if (!ctx) {
+      const fallbackFn = (msg) => console.log('[Toast]', msg);
+      fallbackFn.show = fallbackFn;
+      return fallbackFn;
     }
-    if (typeof descOrType === 'object' && descOrType !== null) {
-      ctx.show(titleOrMsg, descOrType);
-      return;
-    }
-    const text = descOrType ? `${titleOrMsg}: ${descOrType}` : titleOrMsg;
-    ctx.show(text);
-  };
-  return toastFn;
+    const toastFn = (msg, opts) => ctx.show(msg, opts);
+    toastFn.show = (titleOrMsg, descOrType) => {
+      if (typeof descOrType === 'string' && ['error', 'success', 'info', 'warning'].includes(descOrType.toLowerCase())) {
+        ctx.show(titleOrMsg, { type: descOrType.toLowerCase() });
+        return;
+      }
+      if (typeof descOrType === 'object' && descOrType !== null) {
+        ctx.show(titleOrMsg, descOrType);
+        return;
+      }
+      const text = descOrType ? `${titleOrMsg}: ${descOrType}` : titleOrMsg;
+      ctx.show(text);
+    };
+    return toastFn;
+  }, [ctx]);
 }
 

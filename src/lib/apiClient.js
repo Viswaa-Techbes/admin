@@ -34,25 +34,36 @@ export async function apiFetch(path, options = {}) {
     document.cookie = `auth-token=${encodeURIComponent(clientToken)}; path=/; max-age=604800; SameSite=Strict${secureFlag}`;
   }
 
-  const res = await fetch(path, {
-    method,
-    credentials: 'include',
-    cache: 'no-store',
-    headers: {
-      'X-Requested-With': 'XMLHttpRequest',
-      'X-CSRF-Protection': '1',
-      ...authHeader,
-      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-      ...headers,
-    },
-    body:
-      body !== undefined
-        ? typeof body === 'string'
-          ? body
-          : JSON.stringify(body)
-        : undefined,
-    ...rest,
-  });
+  let res;
+  try {
+    res = await fetch(path, {
+      method,
+      credentials: 'include',
+      cache: 'no-store',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-Protection': '1',
+        ...authHeader,
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...headers,
+      },
+      body:
+        body !== undefined
+          ? typeof body === 'string'
+            ? body
+            : JSON.stringify(body)
+          : undefined,
+      ...rest,
+    });
+  } catch (netErr) {
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    const msg = isOffline
+      ? 'Network offline. Please check your internet connection.'
+      : (netErr.message === 'Failed to fetch'
+          ? 'Unable to connect to the TechBes admin service. Please check your connection or sign in again.'
+          : netErr.message || 'Network request failed');
+    throw new Error(msg);
+  }
 
   let payload = {};
   try {
