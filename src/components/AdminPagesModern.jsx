@@ -233,6 +233,7 @@ function leadRow(lead, index, onDelete, onEdit) {
 
 export function EmployeeManagementPage() {
   const { data: users, loading, error, refresh: refreshUsers } = useApiData("/api/v2/admin/users");
+  const toast = useToast();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -246,6 +247,68 @@ export function EmployeeManagementPage() {
   const [employeeDetails, setEmployeeDetails] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [modalTab, setModalTab] = useState("overview"); // overview | jobs | performance
+
+  // Reset Password Modal State
+  const [resetModalEmployee, setResetModalEmployee] = useState(null);
+  const [resetPasswordValue, setResetPasswordValue] = useState("");
+  const [resetShowPassword, setResetShowPassword] = useState(true);
+  const [resetSubmitting, setResetSubmitting] = useState(false);
+  const [resetError, setResetError] = useState("");
+
+  function generateStrongPassword() {
+    const uppers = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    const lowers = "abcdefghjkmnpqrstuvwxyz";
+    const digits = "23456789";
+    const specials = "!@#$%&*";
+    const all = uppers + lowers + digits + specials;
+    let pwd = "";
+    pwd += uppers[Math.floor(Math.random() * uppers.length)];
+    pwd += lowers[Math.floor(Math.random() * lowers.length)];
+    pwd += digits[Math.floor(Math.random() * digits.length)];
+    pwd += specials[Math.floor(Math.random() * specials.length)];
+    for (let i = 0; i < 6; i++) {
+      pwd += all[Math.floor(Math.random() * all.length)];
+    }
+    return pwd.split('').sort(() => 0.5 - Math.random()).join('');
+  }
+
+  function openResetPasswordModal(emp) {
+    setResetModalEmployee(emp);
+    setResetPasswordValue(generateStrongPassword());
+    setResetShowPassword(true);
+    setResetError("");
+  }
+
+  async function handleResetPasswordSubmit(e) {
+    if (e) e.preventDefault();
+    if (!resetModalEmployee) return;
+    if (!resetPasswordValue || resetPasswordValue.length < 6) {
+      setResetError("Password must be at least 6 characters long");
+      return;
+    }
+    try {
+      setResetSubmitting(true);
+      setResetError("");
+      const empId = resetModalEmployee._id || resetModalEmployee.id;
+      const res = await fetch(`/api/v2/admin/employees/${empId}/reset-password`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: resetPasswordValue }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to reset password");
+      }
+      toast(data.message || `Password reset successfully for ${resetModalEmployee.name}`, { type: "success" });
+      setResetModalEmployee(null);
+    } catch (err) {
+      setResetError(err.message);
+      toast(err.message || "Failed to reset password", { type: "error" });
+    } finally {
+      setResetSubmitting(false);
+    }
+  }
 
   // Filter for staff members (technician, manager, admin)
   const employees = useMemo(() => {
@@ -307,6 +370,10 @@ export function EmployeeManagementPage() {
         userType: 'member'
       };
 
+      if (editingId && (!form.password || !form.password.trim())) {
+        delete payload.password;
+      }
+
       const res = await fetch(url, {
         method,
         credentials: "include",
@@ -317,7 +384,9 @@ export function EmployeeManagementPage() {
       if (!res.ok) throw new Error(data.message || "Failed to save user");
       
       if (!editingId) {
-        alert(`Employee created!\nMobile: ${data.data.mobileNumber}\nPassword: ${form.password}`);
+        toast(`Employee registered! Mobile: ${data.data?.mobileNumber || form.mobileNumber}`, { type: "success" });
+      } else {
+        toast("Employee account updated successfully", { type: "success" });
       }
       
       await refreshUsers();
@@ -330,6 +399,7 @@ export function EmployeeManagementPage() {
       });
     } catch (err) {
       setFormError(err.message);
+      toast(err.message || "Failed to save employee", { type: "error" });
     } finally {
       setSaving(false);
     }
@@ -377,7 +447,13 @@ export function EmployeeManagementPage() {
           <form onSubmit={handleSubmit} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <Field label="Full Name" value={form.name} onChange={(v) => setForm({...form, name: v})} />
             <Field label="Mobile Number" value={form.mobileNumber} onChange={(v) => setForm({...form, mobileNumber: v})} />
-            {!editingId && <Field label="Password" value={form.password} onChange={(v) => setForm({...form, password: v})} />}
+            <Field
+              label={editingId ? "New Password (leave blank to keep current)" : "Password"}
+              value={form.password}
+              type="text"
+              placeholder={editingId ? "Leave blank to keep current" : "Enter password"}
+              onChange={(v) => setForm({...form, password: v})}
+            />
             <Field label="Specialty / Category" value={form.specialty} onChange={(v) => setForm({...form, specialty: v})} />
             <Field label="Address" value={form.address} onChange={(v) => setForm({...form, address: v})} />
             <Field label="Pincode" value={form.pincode} onChange={(v) => setForm({...form, pincode: v})} />
@@ -451,6 +527,7 @@ export function EmployeeManagementPage() {
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <button title="View Profile" onClick={() => viewEmployeeProfile(u)} style={{ border: "none", background: "none", cursor: "pointer", color: "#6366f1", fontSize: 12, fontWeight: 700 }}>Profile</button>
                   <button title="Edit" onClick={() => startEdit(u)} style={{ border: "none", background: "none", cursor: "pointer", color: "#64748b" }}><EditIcon /></button>
+                  <button title="Reset Password" onClick={() => openResetPasswordModal(u)} style={{ border: "none", background: "none", cursor: "pointer", color: "#d97706", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><KeyIcon /></button>
                   <button title="Delete" onClick={() => handleDelete(u._id || u.id)} style={{ border: "none", background: "none", cursor: "pointer", color: "#f43f5e" }}><TrashIcon /></button>
                 </div>
               </td>
@@ -741,6 +818,96 @@ export function EmployeeManagementPage() {
           ) : (
             <div style={{ padding: 40, textAlign: "center", color: "#ef4444" }}>Failed to load profile.</div>
           )}
+        </Modal>
+      )}
+
+      {/* Reset Password Modal */}
+      {resetModalEmployee && (
+        <Modal open={!!resetModalEmployee} onClose={() => setResetModalEmployee(null)} title="Reset Employee Password">
+          <form onSubmit={handleResetPasswordSubmit} style={{ display: "flex", flexDirection: "column", gap: 16, padding: "8px 4px" }}>
+            {/* Employee Summary Card */}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+              <Avatar initials={(resetModalEmployee.name || "?").charAt(0)} size={42} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 15, color: "#0f172a" }}>{resetModalEmployee.name}</div>
+                <div style={{ fontSize: 12, color: "#64748b" }}>Mobile: <strong style={{ color: "#334155" }}>{resetModalEmployee.mobileNumber}</strong></div>
+              </div>
+              <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", padding: "3px 8px", borderRadius: 4, background: resetModalEmployee.role === "manager" ? "#e0e7ff" : (resetModalEmployee.role === "admin" ? "#fee2e2" : "#dcfce7"), color: resetModalEmployee.role === "manager" ? "#4338ca" : (resetModalEmployee.role === "admin" ? "#b91c1c" : "#15803d") }}>
+                {resetModalEmployee.role}
+              </span>
+            </div>
+
+            {/* Password input & controls */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <label style={LABEL_STYLE}>New Password</label>
+                <button
+                  type="button"
+                  onClick={() => setResetPasswordValue(generateStrongPassword())}
+                  style={{ background: "none", border: "none", color: "#6366f1", fontSize: 12, fontWeight: 600, cursor: "pointer", textDecoration: "underline" }}
+                >
+                  ⚡ Generate Strong Password
+                </button>
+              </div>
+              <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                <input
+                  type={resetShowPassword ? "text" : "password"}
+                  value={resetPasswordValue}
+                  onChange={(e) => setResetPasswordValue(e.target.value)}
+                  placeholder="Enter at least 6 characters"
+                  style={{ ...INPUT_STYLE, paddingRight: 80 }}
+                />
+                <div style={{ position: "absolute", right: 8, display: "flex", gap: 6 }}>
+                  <button
+                    type="button"
+                    title={resetShowPassword ? "Hide password" : "Show password"}
+                    onClick={() => setResetShowPassword(!resetShowPassword)}
+                    style={{ border: "none", background: "none", cursor: "pointer", color: "#64748b", fontSize: 12, padding: "2px 4px" }}
+                  >
+                    {resetShowPassword ? "Hide" : "Show"}
+                  </button>
+                  <button
+                    type="button"
+                    title="Copy to clipboard"
+                    onClick={() => {
+                      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+                        navigator.clipboard.writeText(resetPasswordValue);
+                        toast("Password copied to clipboard!", { type: "info" });
+                      }
+                    }}
+                    style={{ border: "none", background: "none", cursor: "pointer", color: "#6366f1", fontSize: 12, padding: "2px 4px" }}
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+              <span style={{ fontSize: 11, color: "#64748b" }}>Minimum 6 characters. The employee can immediately log into the app with this password.</span>
+            </div>
+
+            {resetError && (
+              <div style={{ padding: "8px 12px", background: "#fee2e2", border: "1px solid #fecaca", borderRadius: 6, color: "#b91c1c", fontSize: 12 }}>
+                {resetError}
+              </div>
+            )}
+
+            {/* Modal Footer Actions */}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 10 }}>
+              <button
+                type="button"
+                onClick={() => setResetModalEmployee(null)}
+                style={{ padding: "8px 16px", borderRadius: 6, border: "1px solid #cbd5e1", background: "#fff", color: "#475569", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={resetSubmitting}
+                style={{ padding: "8px 16px", borderRadius: 6, border: "none", background: "#d97706", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+              >
+                {resetSubmitting ? "Resetting..." : "Confirm Reset Password"}
+              </button>
+            </div>
+          </form>
         </Modal>
       )}
     </div>
