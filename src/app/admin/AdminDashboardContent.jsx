@@ -55,6 +55,7 @@ export default function AdminDashboardContent() {
   const [selectedId, setSelectedId] = useState(null);
   const [user, setUser] = useState({ name: "Admin", role: "admin" });
   const [notifCount, setNotifCount] = useState(0);
+  const [pendingExpensesCount, setPendingExpensesCount] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -150,11 +151,11 @@ export default function AdminDashboardContent() {
       else if (path.includes('/admin/expenses')) setActivePage('expenses');
       else if (path.includes('/admin/tracking')) setActivePage('tracking');
       else if (path.includes('/admin/attendance')) setActivePage('attendance');
-      else if (path.includes('/admin/tech-performance')) setActivePage('tech-performance');
-      else if (path.includes('/admin/requests')) setActivePage('requests');
+      else if (path.includes('/admin/tech-performance') || path.includes('/admin/performance')) setActivePage('tech-performance');
+      else if (path.includes('/admin/requests') || path.includes('/admin/completion-requests')) setActivePage('requests');
       else if (path.includes('/admin/worksheets')) setActivePage('worksheets');
       else if (path.includes('/admin/employees') || path.includes('/admin/members')) setActivePage('members');
-      else if (path.includes('/admin/kyc-approvals')) setActivePage('kyc-approvals');
+      else if (path.includes('/admin/kyc-approvals') || path.includes('/admin/kyc')) setActivePage('kyc-approvals');
       else if (path.includes('/admin/reviews')) setActivePage('reviews');
       else if (path.includes('/admin/penalties')) setActivePage('penalties');
       else if (path.includes('/admin/applications') || path.includes('/admin/admissions')) setActivePage('admissions');
@@ -166,7 +167,7 @@ export default function AdminDashboardContent() {
       else if (path.includes('/admin/analytics-members')) setActivePage('analytics-members');
       else if (path.includes('/admin/analytics-skills')) setActivePage('analytics-skills');
       else if (path.includes('/admin/analytics') || path.includes('/admin/reports')) setActivePage('reports');
-      else if (path.includes('/admin/payments')) setActivePage('payments');
+      else if (path.includes('/admin/payments') || path.includes('/admin/finance')) setActivePage('payments');
       else if (path.includes('/admin/addresses')) setActivePage('addresses');
       else if (path.includes('/admin/notifications')) setActivePage('notifications');
       else if (path.includes('/admin/settings')) setActivePage('settings');
@@ -181,12 +182,21 @@ export default function AdminDashboardContent() {
 
     const fetchNotificationsCount = async () => {
       try {
-        const { payload } = await apiFetch("/api/v2/notifications");
-        const list = payload.data ?? payload ?? [];
-        const unread = list.filter(n => !n.isRead).length;
-        setNotifCount(unread);
+        const [notifRes, expRes] = await Promise.allSettled([
+          apiFetch("/api/v2/notifications"),
+          apiFetch("/api/v2/admin/expenses?status=pending"),
+        ]);
+        if (notifRes?.status === "fulfilled" && notifRes.value) {
+          const p = notifRes.value.payload || notifRes.value;
+          const list = p.data ?? p ?? [];
+          setNotifCount(Array.isArray(list) ? list.filter(n => !n.isRead).length : 0);
+        }
+        if (expRes?.status === "fulfilled" && expRes.value) {
+          const eList = expRes.value.data ?? expRes.value.payload?.data ?? [];
+          setPendingExpensesCount(Array.isArray(eList) ? eList.length : 0);
+        }
       } catch (err) {
-        console.error("Failed to fetch notification count:", err.message);
+        console.error("Failed to fetch notification/expense count:", err.message);
       }
     };
 
@@ -356,6 +366,7 @@ class PageErrorBoundary extends React.Component {
         onLogout={logout} 
         mobileOpen={mobileOpen}
         setMobileOpen={setMobileOpen}
+        pendingExpensesCount={pendingExpensesCount}
       />
       
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>

@@ -53,6 +53,28 @@ export function DashboardPage({ onNavigate }) {
 
   return (
     <div>
+      {/* Command Dashboard Quick Actions Header */}
+      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 18, background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 16, padding: "14px 20px" }}>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "#0f172a" }}>Command Dashboard</div>
+          <div style={{ fontSize: 12, color: "#64748b" }}>Unified operations overview across bookings, field technicians, inventory & finance</div>
+        </div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button type="button" onClick={() => onNavigate?.("service-requests")} style={{ border: "none", borderRadius: 10, background: "#4f46e5", color: "#fff", fontWeight: 700, fontSize: 12.5, padding: "9px 14px", cursor: "pointer" }}>
+            + Create Work Order
+          </button>
+          <button type="button" onClick={() => onNavigate?.("members")} style={{ border: "1px solid #cbd5e1", borderRadius: 10, background: "#fff", color: "#0f172a", fontWeight: 700, fontSize: 12.5, padding: "9px 14px", cursor: "pointer" }}>
+            + Register Employee
+          </button>
+          <button type="button" onClick={() => onNavigate?.("inventory")} style={{ border: "1px solid #cbd5e1", borderRadius: 10, background: "#fff", color: "#0f172a", fontWeight: 700, fontSize: 12.5, padding: "9px 14px", cursor: "pointer" }}>
+            + Add Inventory
+          </button>
+          <button type="button" onClick={() => onNavigate?.("expenses")} style={{ border: "1px solid #fde68a", borderRadius: 10, background: "#fffbeb", color: "#b45309", fontWeight: 700, fontSize: 12.5, padding: "9px 14px", cursor: "pointer" }}>
+            Review Expenses
+          </button>
+        </div>
+      </div>
+
       {/* High-Level Business & Conversion Metrics */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 16 }}>
         <Card style={{ padding: 18, border: "1px solid #e2e8f0", background: "linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)", color: "#fff" }}>

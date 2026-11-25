@@ -46,116 +46,85 @@ export const NAV_ITEMS = [
   { id: "settings", label: "Settings", icon: <SettingsIcon /> },
 ];
 
-export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLogout, mobileOpen, setMobileOpen }) {
+export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLogout, mobileOpen, setMobileOpen, pendingExpensesCount = 0 }) {
   const groups = [
     {
-      id: "grp-dashboard",
-      title: "Dashboard",
+      id: "grp-overview",
+      title: "Overview",
       items: [
-        { id: "dashboard", label: "Dashboard", icon: <GridIcon /> }
+        { id: "dashboard", label: "Command Dashboard", icon: <GridIcon /> }
       ]
     },
     {
-      id: "grp-customers",
-      title: "Customer Management",
+      id: "grp-sales",
+      title: "Sales & Customers",
       items: [
         { id: "technicians", label: "Customers", icon: <UsersIcon /> },
-        { id: "leads", label: "Leads", icon: <BriefcaseIcon /> },
+        { id: "leads", label: "Leads & Inquiries", icon: <BriefcaseIcon /> },
         { id: "quotes", label: "Quote Requests", icon: <BriefcaseIcon /> },
         { id: "apartments", label: "Apartments & Tickets", icon: <BuildingIcon /> },
-        { id: "service-requests", label: "Bookings", icon: <BellIcon /> },
-        { id: "amc", label: "AMC Management", icon: <BriefcaseIcon /> },
+        { id: "amc", label: "AMC Contracts", icon: <BriefcaseIcon /> }
+      ]
+    },
+    {
+      id: "grp-ops",
+      title: "Work Orders & Field Ops",
+      items: [
+        { id: "service-requests", label: "Service Requests", icon: <BellIcon /> },
+        { id: "dispatch-monitor", label: "Live Dispatch", icon: <MapPinIcon /> },
+        { id: "tracking", label: "Fleet Live Map", icon: <MapPinIcon /> },
+        { id: "worksheets", label: "Worksheets & Proofs", icon: <BriefcaseIcon /> },
+        { id: "requests", label: "Completion Requests", icon: <BellIcon /> },
         { id: "cancellations", label: "Cancellations", icon: <BellIcon /> }
       ]
     },
     {
-      id: "grp-services",
-      title: "Services",
+      id: "grp-hr",
+      title: "Team & HR Management",
       items: [
-        { id: "services", label: "Services", icon: <WrenchIcon /> },
-        { id: "catalog", label: "Catalog", icon: <WrenchIcon /> },
-        { id: "inventory", label: "Inventory Management", icon: <BriefcaseIcon /> },
-        { id: "cctv-pricing", label: "CCTV Pricing", icon: <CreditCardIcon /> }
-      ]
-    },
-    {
-      id: "grp-dispatch",
-      title: "Field Operations",
-      items: [
-        { id: "dispatch-monitor", label: "Work Orders & Dispatch", icon: <MapPinIcon /> },
-        { id: "expenses", label: "Technician Expenses", icon: <CreditCardIcon /> },
-        { id: "tracking", label: "Live Tracking", icon: <MapPinIcon /> },
-        { id: "attendance", label: "Attendance", icon: <MapPinIcon /> },
-        { id: "tech-performance", label: "Technician Performance", icon: <ChartIcon /> },
-        { id: "requests", label: "Completion Requests", icon: <BellIcon /> },
-        { id: "worksheets", label: "Service Worksheets", icon: <BriefcaseIcon /> }
-      ]
-    },
-    {
-      id: "grp-technicians",
-      title: "Technician Management",
-      items: [
-        { id: "members", label: "Employees", icon: <HardHatIcon /> },
-        { id: "kyc-approvals", label: "KYC", icon: <UsersIcon /> },
-        { id: "reviews", label: "Reviews", icon: <ChartIcon /> },
+        { id: "members", label: "Employees & Roles", icon: <HardHatIcon /> },
+        { id: "attendance", label: "Attendance & Shifts", icon: <MapPinIcon /> },
+        { id: "kyc-approvals", label: "KYC & Onboarding", icon: <UsersIcon /> },
+        { id: "tech-performance", label: "Performance", icon: <ChartIcon /> },
+        { id: "reviews", label: "Technician Reviews", icon: <ChartIcon /> },
         { id: "penalties", label: "Penalties", icon: <CreditCardIcon /> }
       ]
     },
     {
-      id: "grp-academic",
-      title: "Academic Admissions",
+      id: "grp-catalog",
+      title: "Catalog & Inventory",
       items: [
-        { id: "admissions", label: "Applications", icon: <UsersIcon /> },
-        { id: "student-profiles", label: "Students", icon: <UsersIcon /> },
-        { id: "admission-payments", label: "Payments", icon: <CreditCardIcon /> },
-        { id: "course-assignment", label: "Assignments", icon: <BriefcaseIcon /> },
-        { id: "admission-analytics", label: "Analytics", icon: <ChartIcon /> }
-      ]
-    },
-    {
-      id: "grp-masterclasses",
-      title: "Masterclasses",
-      items: [
-        { id: "cctv-masterclass", label: "CCTV Masterclass", icon: <BriefcaseIcon /> }
-      ]
-    },
-    {
-      id: "grp-visitor-analytics",
-      title: "Visitor Analytics",
-      items: [
-        { id: "analytics-main", label: "Main Website", icon: <ChartIcon /> },
-        { id: "analytics-members", label: "Members Portal", icon: <ChartIcon /> },
-        { id: "analytics-skills", label: "Skills Portal", icon: <ChartIcon /> }
+        { id: "services", label: "Services", icon: <WrenchIcon /> },
+        { id: "catalog", label: "Catalog Management", icon: <WrenchIcon /> },
+        { id: "inventory", label: "Inventory & Stock", icon: <BriefcaseIcon /> },
+        { id: "cctv-pricing", label: "CCTV & Dynamic Pricing", icon: <CreditCardIcon /> }
       ]
     },
     {
       id: "grp-finance",
-      title: "Finance",
+      title: "Finance & System",
       items: [
-        { id: "payments", label: "Payments", icon: <CreditCardIcon /> },
-        { id: "reports", label: "Reports", icon: <ChartIcon /> }
-      ]
-    },
-    {
-      id: "grp-settings",
-      title: "Settings",
-      items: [
-        { id: "addresses", label: "Address Management", icon: <MapPinIcon /> },
+        { id: "payments", label: "Finance & Invoices", icon: <CreditCardIcon /> },
+        { id: "expenses", label: "Technician Expenses", icon: <CreditCardIcon />, badge: pendingExpensesCount > 0 ? pendingExpensesCount : null },
+        { id: "reports", label: "Reports & Analytics", icon: <ChartIcon /> },
+        { id: "admissions", label: "Academy Admissions", icon: <UsersIcon /> },
+        { id: "cctv-masterclass", label: "CCTV Masterclass", icon: <BriefcaseIcon /> },
+        { id: "analytics-main", label: "Visitor Analytics", icon: <ChartIcon /> },
+        { id: "addresses", label: "Service Areas", icon: <MapPinIcon /> },
         { id: "notifications", label: "Notifications", icon: <BellIcon /> },
-        { id: "settings", label: "Settings", icon: <SettingsIcon /> }
+        { id: "settings", label: "System Settings", icon: <SettingsIcon /> }
       ]
     }
   ];
 
-  const [expandedGroups, setExpandedGroups] = React.useState({});
+  const [expandedGroups, setExpandedGroups] = React.useState({ "grp-overview": true });
 
-  // Auto-expand group containing the active page
+  // Auto-expand only the active group by default so the sidebar stays compact
   React.useEffect(() => {
-    groups.forEach((g) => {
-      if (g.items.some((i) => i.id === active)) {
-        setExpandedGroups((prev) => ({ ...prev, [g.id]: true }));
-      }
-    });
+    const activeGroup = groups.find((g) => g.items.some((i) => i.id === active));
+    if (activeGroup) {
+      setExpandedGroups({ [activeGroup.id]: true });
+    }
   }, [active]);
 
   const toggleGroup = (groupId) => {
@@ -334,6 +303,11 @@ export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLo
                               {item.icon}
                             </span>
                             <span style={{ flex: 1 }}>{item.label}</span>
+                            {item.badge != null && (
+                              <span style={{ background: "#f59e0b", color: "#fff", fontSize: 10, fontWeight: 800, padding: "1px 6px", borderRadius: 99, minWidth: 18, textAlign: "center" }}>
+                                {item.badge}
+                              </span>
+                            )}
                           </button>
                         );
                       })}
@@ -380,42 +354,44 @@ export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLo
 
 export function TopNavbar({ page, notifCount, user, onLogout, onNotifClick, onMenuClick }) {
   const titles = {
-    dashboard: "Dashboard",
-    members: "Employee Management",
-    technicians: "Customer Management",
-    leads: "Lead Management",
+    dashboard: "Command Dashboard",
+    members: "Employees & Roles",
+    technicians: "Customers",
+    leads: "Leads & Inquiries",
     jobs: "Projects",
-    "service-requests": "Service Requests",
-    "dispatch-monitor": "Work Orders & Dispatch",
+    "service-requests": "Service Requests / Bookings",
+    "dispatch-monitor": "Live Dispatch & Work Orders",
     expenses: "Technician Expenses",
     cancellations: "Cancellations",
     "tech-performance": "Technician Performance",
     penalties: "Penalties",
     requests: "Completion Requests",
+    worksheets: "Worksheets & Proofs",
     reviews: "Technician Reviews",
     services: "Services",
-    catalog: "Service Catalog",
-    inventory: "Inventory Management",
-    "cctv-pricing": "CCTV Pricing",
+    catalog: "Catalog Management",
+    inventory: "Inventory & Stock",
+    "cctv-pricing": "CCTV & Dynamic Pricing",
     quotes: "Quote Requests",
-    apartments: "Apartments",
+    apartments: "Apartments & Tickets",
     amc: "AMC Contracts",
-    addresses: "Address Management",
-    payments: "Payments",
-    tracking: "Live Tracking",
-    attendance: "Daily Attendance",
+    "kyc-approvals": "KYC & Onboarding",
+    addresses: "Service Areas",
+    payments: "Finance & Invoices",
+    tracking: "Fleet Live Map",
+    attendance: "Attendance & Shifts",
     notifications: "Notifications",
     reports: "Reports & Analytics",
-    admissions: "Admission Applications",
+    admissions: "Academy Admissions",
     "student-profiles": "Student Profiles",
     "admission-payments": "Admission Payments",
     "course-assignment": "Course Assignments",
     "admission-analytics": "Admission Analytics",
-    "analytics-main": "Main Website Analytics",
+    "analytics-main": "Visitor Analytics",
     "analytics-members": "Members Portal Analytics",
     "analytics-skills": "Skills Portal Analytics",
-    "cctv-masterclass": "CCTV Masterclass Registrations",
-    settings: "Settings",
+    "cctv-masterclass": "CCTV Masterclass",
+    settings: "System Settings",
   };
 
   return (
