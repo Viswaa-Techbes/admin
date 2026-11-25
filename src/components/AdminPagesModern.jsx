@@ -528,7 +528,9 @@ export function EmployeeManagementPage() {
                   <button title="View Profile" onClick={() => viewEmployeeProfile(u)} style={{ border: "none", background: "none", cursor: "pointer", color: "#6366f1", fontSize: 12, fontWeight: 700 }}>Profile</button>
                   <button title="Edit" onClick={() => startEdit(u)} style={{ border: "none", background: "none", cursor: "pointer", color: "#64748b" }}><EditIcon /></button>
                   <button title="Reset Password" onClick={() => openResetPasswordModal(u)} style={{ border: "none", background: "none", cursor: "pointer", color: "#d97706", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><KeyIcon /></button>
-                  <button title="Delete" onClick={() => handleDelete(u._id || u.id)} style={{ border: "none", background: "none", cursor: "pointer", color: "#f43f5e" }}><TrashIcon /></button>
+                  {u.role !== 'admin' && (
+                    <button title="Delete" onClick={() => handleDelete(u._id || u.id)} style={{ border: "none", background: "none", cursor: "pointer", color: "#f43f5e" }}><TrashIcon /></button>
+                  )}
                 </div>
               </td>
             </tr>
