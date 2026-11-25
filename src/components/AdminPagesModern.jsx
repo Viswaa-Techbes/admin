@@ -2918,6 +2918,14 @@ export function ServiceRequestsPage() {
   const [techSearch, setTechSearch] = useState("");
   const [techFilter, setTechFilter] = useState("all");
 
+  // Admin Verification & Instruction States
+  const [verificationActionLoading, setVerificationActionLoading] = useState(false);
+  const [reworkModalOpen, setReworkModalOpen] = useState(false);
+  const [reworkNote, setReworkNote] = useState("");
+  const [instructionText, setInstructionText] = useState("");
+  const [instructionSending, setInstructionSending] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
+
   useEffect(() => {
     if (!selectedRequestId) return;
 
@@ -3053,6 +3061,45 @@ export function ServiceRequestsPage() {
       toast("Service request deleted");
     } catch (e) {
       toast(e.message, { duration: 4000 });
+    }
+  }
+
+  async function handleVerifyJob(status, note = "") {
+    if (!viewModal) return;
+    try {
+      setVerificationActionLoading(true);
+      const { data } = await apiFetch(`/api/v2/admin/service-requests/${viewModal.id}/verify`, {
+        method: "POST",
+        body: { status, note },
+      });
+      setViewModal(data);
+      setBookings((prev) => prev.map((b) => (b.id === data.id ? data : b)));
+      toast(status === "verified" ? "Job approved & verified successfully!" : "Rework requested from technician.");
+      setReworkModalOpen(false);
+      setReworkNote("");
+    } catch (err) {
+      toast(err.message, { duration: 4000 });
+    } finally {
+      setVerificationActionLoading(false);
+    }
+  }
+
+  async function handleSendInstruction() {
+    if (!viewModal || !instructionText.trim()) return;
+    try {
+      setInstructionSending(true);
+      const { data } = await apiFetch(`/api/v2/admin/service-requests/${viewModal.id}/instruction`, {
+        method: "PATCH",
+        body: { instruction: instructionText.trim() },
+      });
+      setViewModal(data);
+      setBookings((prev) => prev.map((b) => (b.id === data.id ? data : b)));
+      toast("Instruction sent to technician in real-time!");
+      setInstructionText("");
+    } catch (err) {
+      toast(err.message, { duration: 4000 });
+    } finally {
+      setInstructionSending(false);
     }
   }
 
@@ -3333,8 +3380,18 @@ export function ServiceRequestsPage() {
     );
   }
 
-  function WorksheetProofSection({ worksheet, expenses = [] }) {
-    if (!worksheet && (!expenses || !expenses.length)) return null;
+  function WorksheetProofSection({ worksheet, expenses = [], booking, onPreviewImage }) {
+    const beforePhotos = (worksheet?.beforePhotos && worksheet.beforePhotos.length > 0)
+      ? worksheet.beforePhotos
+      : (booking?.beforePhotos || []);
+    const afterPhotos = (worksheet?.afterPhotos && worksheet.afterPhotos.length > 0)
+      ? worksheet.afterPhotos
+      : (booking?.afterPhotos || []);
+    const observations = worksheet?.technicianObservations || booking?.technicianObservations;
+    const customerSignature = worksheet?.customerSignatureUrl || booking?.customerSignature;
+    const technicianSignature = worksheet?.technicianSignatureUrl || booking?.technicianSignature;
+
+    if (!worksheet && (!expenses || !expenses.length) && !beforePhotos.length && !afterPhotos.length) return null;
 
     return (
       <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 14, padding: 18, marginBottom: 16 }}>
@@ -3350,54 +3407,71 @@ export function ServiceRequestsPage() {
         </div>
 
         {worksheet && (
-          <>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 12, marginBottom: 14 }}>
-              <div><b>Worksheet #:</b> {worksheet.worksheetNumber || "WS-PENDING"}</div>
-              <div><b>Customer OTP Verified:</b> {worksheet.completionOtpVerified ? "✓ Yes" : "No"}</div>
-              {worksheet.arrivalTime && <div><b>Arrival:</b> {new Date(worksheet.arrivalTime).toLocaleTimeString()}</div>}
-              {worksheet.workEndTime && <div><b>Finish:</b> {new Date(worksheet.workEndTime).toLocaleTimeString()}</div>}
-            </div>
-
-            {worksheet.beforePhotos && worksheet.beforePhotos.length > 0 && (
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 6 }}>
-                  Before Service Photos ({worksheet.beforePhotos.length})
-                </div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {worksheet.beforePhotos.map((url, i) => (
-                    <a key={i} href={url} target="_blank" rel="noreferrer" style={{ display: "block" }}>
-                      <img src={url} alt={`Before ${i + 1}`} style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 8, border: "1px solid #cbd5e1" }} />
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {worksheet.afterPhotos && worksheet.afterPhotos.length > 0 && (
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 6 }}>
-                  After Completion Photos ({worksheet.afterPhotos.length})
-                </div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {worksheet.afterPhotos.map((url, i) => (
-                    <a key={i} href={url} target="_blank" rel="noreferrer" style={{ display: "block" }}>
-                      <img src={url} alt={`After ${i + 1}`} style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 8, border: "1px solid #cbd5e1" }} />
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {worksheet.customerSignatureUrl && (
-              <div style={{ marginTop: 10, marginBottom: 14 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 6 }}>
-                  Customer Sign-off Signature
-                </div>
-                <img src={worksheet.customerSignatureUrl} alt="Customer Signature" style={{ maxHeight: 60, maxWidth: 200, objectFit: "contain", background: "#f8fafc", padding: 6, borderRadius: 6, border: "1px solid #e2e8f0" }} />
-              </div>
-            )}
-          </>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 12, marginBottom: 14 }}>
+            <div><b>Worksheet #:</b> {worksheet.worksheetNumber || "WS-PENDING"}</div>
+            <div><b>Customer OTP Verified:</b> {worksheet.completionOtpVerified ? "✓ Yes" : "No"}</div>
+            {worksheet.arrivalTime && <div><b>Arrival:</b> {new Date(worksheet.arrivalTime).toLocaleTimeString()}</div>}
+            {worksheet.workEndTime && <div><b>Finish:</b> {new Date(worksheet.workEndTime).toLocaleTimeString()}</div>}
+          </div>
         )}
+
+        {beforePhotos.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 6 }}>
+              Before Service Photos ({beforePhotos.length})
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {beforePhotos.map((url, i) => (
+                <div key={i} onClick={() => onPreviewImage && onPreviewImage(url)} style={{ cursor: "pointer", position: "relative" }} title="Click to view full photo">
+                  <img src={url} alt={`Before ${i + 1}`} style={{ width: 84, height: 84, objectFit: "cover", borderRadius: 8, border: "1px solid #cbd5e1", transition: "transform 0.15s" }} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {afterPhotos.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 6 }}>
+              After Completion Photos ({afterPhotos.length})
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {afterPhotos.map((url, i) => (
+                <div key={i} onClick={() => onPreviewImage && onPreviewImage(url)} style={{ cursor: "pointer", position: "relative" }} title="Click to view full photo">
+                  <img src={url} alt={`After ${i + 1}`} style={{ width: 84, height: 84, objectFit: "cover", borderRadius: 8, border: "1px solid #cbd5e1", transition: "transform 0.15s" }} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {observations && (
+          <div style={{ marginBottom: 14, background: "#f8fafc", padding: "10px 14px", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", textTransform: "uppercase", marginBottom: 4 }}>
+              Technician Field Observations / Notes
+            </div>
+            <div style={{ fontSize: 13, color: "#1e293b", whiteSpace: "pre-wrap" }}>{observations}</div>
+          </div>
+        )}
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 10 }}>
+          {customerSignature && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 6 }}>
+                Customer Sign-off Signature
+              </div>
+              <img src={customerSignature} alt="Customer Signature" style={{ maxHeight: 60, maxWidth: "100%", objectFit: "contain", background: "#f8fafc", padding: 6, borderRadius: 6, border: "1px solid #e2e8f0", cursor: "pointer" }} onClick={() => onPreviewImage && onPreviewImage(customerSignature)} />
+            </div>
+          )}
+          {technicianSignature && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 6 }}>
+                Technician Sign-off Signature
+              </div>
+              <img src={technicianSignature} alt="Technician Signature" style={{ maxHeight: 60, maxWidth: "100%", objectFit: "contain", background: "#f8fafc", padding: 6, borderRadius: 6, border: "1px solid #e2e8f0", cursor: "pointer" }} onClick={() => onPreviewImage && onPreviewImage(technicianSignature)} />
+            </div>
+          )}
+        </div>
 
         {expenses && expenses.length > 0 && (
           <div style={{ marginTop: 12, borderTop: "1px solid #f1f5f9", paddingTop: 10 }}>
@@ -3410,7 +3484,7 @@ export function ServiceRequestsPage() {
                   <div>
                     <span style={{ fontWeight: 600 }}>{exp.description}</span>
                     {exp.receiptUrl && (
-                      <a href={exp.receiptUrl} target="_blank" rel="noreferrer" style={{ marginLeft: 8, color: "#4f46e5", textDecoration: "underline" }}>Receipt</a>
+                      <span onClick={() => onPreviewImage && onPreviewImage(exp.receiptUrl)} style={{ marginLeft: 8, color: "#4f46e5", textDecoration: "underline", cursor: "pointer" }}>Receipt</span>
                     )}
                   </div>
                   <span style={{ fontWeight: 700 }}>₹{exp.amount}</span>
@@ -3495,7 +3569,130 @@ export function ServiceRequestsPage() {
             )}
 
             <ExecutionTimeline booking={viewModal} statusHistory={viewModal.statusHistory} />
-            <WorksheetProofSection worksheet={viewModal.worksheet} expenses={viewModal.expenses} />
+
+            {/* Admin Verification Card */}
+            <div style={{ 
+              background: viewModal.verificationStatus === 'verified' 
+                ? '#f0fdf4' 
+                : (viewModal.verificationStatus === 'rework_requested' ? '#fef2f2' : '#f8fafc'), 
+              border: `1px solid ${viewModal.verificationStatus === 'verified' ? '#86efac' : (viewModal.verificationStatus === 'rework_requested' ? '#fecaca' : '#e2e8f0')}`, 
+              borderRadius: 14, 
+              padding: 18, 
+              marginBottom: 16 
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: viewModal.verificationStatus === 'verified' ? '#166534' : (viewModal.verificationStatus === 'rework_requested' ? '#991b1b' : '#334155'), textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  Admin Quality & Work Verification
+                </div>
+                <span style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  padding: "4px 10px",
+                  borderRadius: 99,
+                  background: viewModal.verificationStatus === 'verified' ? '#dcfce7' : (viewModal.verificationStatus === 'rework_requested' ? '#fee2e2' : '#e2e8f0'),
+                  color: viewModal.verificationStatus === 'verified' ? '#15803d' : (viewModal.verificationStatus === 'rework_requested' ? '#b91c1c' : '#475569'),
+                  textTransform: "uppercase"
+                }}>
+                  {viewModal.verificationStatus === 'verified' ? '✓ Verified by Admin' : (viewModal.verificationStatus === 'rework_requested' ? '⚠️ Rework Requested' : '⏳ Pending Verification')}
+                </span>
+              </div>
+
+              {viewModal.verificationNote && (
+                <div style={{ fontSize: 13, color: viewModal.verificationStatus === 'rework_requested' ? '#991b1b' : '#1e293b', background: '#ffffff', padding: '10px 14px', borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 12 }}>
+                  <b>Note:</b> {viewModal.verificationNote}
+                  {viewModal.verifiedAt && <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>Updated: {new Date(viewModal.verifiedAt).toLocaleString()}</div>}
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                <button
+                  type="button"
+                  disabled={verificationActionLoading || viewModal.verificationStatus === 'verified'}
+                  onClick={() => handleVerifyJob('verified')}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 8,
+                    border: "none",
+                    background: viewModal.verificationStatus === 'verified' ? "#94a3b8" : "#16a34a",
+                    color: "#ffffff",
+                    fontWeight: 700,
+                    fontSize: 12,
+                    cursor: viewModal.verificationStatus === 'verified' ? "not-allowed" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6
+                  }}
+                >
+                  {verificationActionLoading ? "Saving..." : "✓ Approve & Verify Work"}
+                </button>
+                <button
+                  type="button"
+                  disabled={verificationActionLoading}
+                  onClick={() => setReworkModalOpen(true)}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 8,
+                    border: "1px solid #dc2626",
+                    background: "#ffffff",
+                    color: "#dc2626",
+                    fontWeight: 700,
+                    fontSize: 12,
+                    cursor: "pointer"
+                  }}
+                >
+                  ⚠️ Request Rework / Query
+                </button>
+              </div>
+            </div>
+
+            {/* Instruction / Query Dispatch to Technician */}
+            <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 14, padding: 18, marginBottom: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: "#334155", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8 }}>
+                Technician Instructions & Dispatch Notes
+              </div>
+              {viewModal.dispatchNote ? (
+                <div style={{ background: "#ffffff", padding: "10px 14px", borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 13, color: "#1e293b", marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: 4 }}>Current Instruction:</div>
+                  {viewModal.dispatchNote}
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 10 }}>No instructions currently set for this technician.</div>
+              )}
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  type="text"
+                  placeholder="Send live instruction or update dispatch note to technician..."
+                  value={instructionText}
+                  onChange={(e) => setInstructionText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSendInstruction(); }}
+                  style={{ ...INPUT_STYLE, flex: 1 }}
+                />
+                <button
+                  type="button"
+                  disabled={instructionSending || !instructionText.trim()}
+                  onClick={handleSendInstruction}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 8,
+                    border: "none",
+                    background: "#4f46e5",
+                    color: "#ffffff",
+                    fontWeight: 700,
+                    fontSize: 12,
+                    cursor: instructionSending || !instructionText.trim() ? "not-allowed" : "pointer"
+                  }}
+                >
+                  {instructionSending ? "Sending..." : "Send Note"}
+                </button>
+              </div>
+            </div>
+
+            <WorksheetProofSection 
+              worksheet={viewModal.worksheet} 
+              expenses={viewModal.expenses} 
+              booking={viewModal}
+              onPreviewImage={(url) => setPreviewImage(url)}
+            />
 
             <InfoSection title="Customer Information">
               <DetailField label="Name" value={editForm.customerName} isEditing onChange={(v) => updateEditField("customerName", v)} />
@@ -3628,6 +3825,71 @@ export function ServiceRequestsPage() {
             </div>
           </div>
         ) : null}
+      </Modal>
+
+      {/* Lightbox Modal for Photo Proof */}
+      <Modal open={!!previewImage} onClose={() => setPreviewImage(null)} title="Photo Proof Preview">
+        {previewImage && (
+          <div style={{ textAlign: "center", padding: 12 }}>
+            <img 
+              src={previewImage} 
+              alt="Proof Full Resolution" 
+              style={{ maxWidth: "100%", maxHeight: "70vh", borderRadius: 10, objectFit: "contain", boxShadow: "0 10px 25px rgba(0,0,0,0.15)" }} 
+            />
+            <div style={{ marginTop: 14 }}>
+              <a 
+                href={previewImage} 
+                target="_blank" 
+                rel="noreferrer" 
+                style={{ padding: "8px 16px", borderRadius: 8, background: "#4f46e5", color: "#fff", textDecoration: "none", fontSize: 12, fontWeight: 700 }}
+              >
+                Open Original in New Tab ↗
+              </a>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Rework / Query Modal */}
+      <Modal open={reworkModalOpen} onClose={() => setReworkModalOpen(false)} title="Request Rework / Admin Query">
+        <div style={{ padding: 12 }}>
+          <p style={{ fontSize: 13, color: "#64748b", marginBottom: 12 }}>
+            Specify the reason for requesting rework or what needs correction. The technician will be notified immediately via push notification and real-time socket.
+          </p>
+          <textarea
+            rows={4}
+            value={reworkNote}
+            onChange={(e) => setReworkNote(e.target.value)}
+            placeholder="e.g. Please re-take clear before/after photos of the DVR box connections and verify cable routing..."
+            style={{ ...INPUT_STYLE, width: "100%", marginBottom: 16 }}
+          />
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+            <button
+              type="button"
+              onClick={() => setReworkModalOpen(false)}
+              style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={verificationActionLoading || !reworkNote.trim()}
+              onClick={() => handleVerifyJob('rework_requested', reworkNote.trim())}
+              style={{
+                padding: "8px 16px",
+                borderRadius: 8,
+                border: "none",
+                background: "#dc2626",
+                color: "#fff",
+                cursor: verificationActionLoading || !reworkNote.trim() ? "not-allowed" : "pointer",
+                fontSize: 13,
+                fontWeight: 700
+              }}
+            >
+              {verificationActionLoading ? "Submitting..." : "Send Rework Request"}
+            </button>
+          </div>
+        </div>
       </Modal>
 
       {assignModal && (
