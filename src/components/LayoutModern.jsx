@@ -12,8 +12,9 @@ export const NAV_ITEMS = [
   { id: "jobs", label: "Projects", icon: <BriefcaseIcon /> },
   { id: "service-requests", label: "Service Requests", icon: <BellIcon />, badge: null },
   { id: "amc", label: "AMC Management", icon: <BriefcaseIcon /> },
-  // ─── Phase 2: Dispatch ────────────────────────────────────────────────────
-  { id: "dispatch-monitor", label: "Dispatch Monitor", icon: <MapPinIcon /> },
+  // ─── Field Operations ─────────────────────────────────────────────────────
+  { id: "dispatch-monitor", label: "Work Orders & Dispatch", icon: <MapPinIcon /> },
+  { id: "expenses", label: "Technician Expenses", icon: <CreditCardIcon /> },
   { id: "kyc-approvals", label: "Technician KYC Approvals", icon: <UsersIcon /> },
   { id: "cancellations", label: "Cancellations", icon: <BellIcon /> },
   { id: "tech-performance", label: "Technician Performance", icon: <ChartIcon /> },
@@ -79,9 +80,10 @@ export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLo
     },
     {
       id: "grp-dispatch",
-      title: "Dispatch",
+      title: "Field Operations",
       items: [
-        { id: "dispatch-monitor", label: "Dispatch Monitor", icon: <MapPinIcon /> },
+        { id: "dispatch-monitor", label: "Work Orders & Dispatch", icon: <MapPinIcon /> },
+        { id: "expenses", label: "Technician Expenses", icon: <CreditCardIcon /> },
         { id: "tracking", label: "Live Tracking", icon: <MapPinIcon /> },
         { id: "attendance", label: "Attendance", icon: <MapPinIcon /> },
         { id: "tech-performance", label: "Technician Performance", icon: <ChartIcon /> },
@@ -384,7 +386,8 @@ export function TopNavbar({ page, notifCount, user, onLogout, onNotifClick, onMe
     leads: "Lead Management",
     jobs: "Projects",
     "service-requests": "Service Requests",
-    "dispatch-monitor": "Dispatch Monitor",
+    "dispatch-monitor": "Work Orders & Dispatch",
+    expenses: "Technician Expenses",
     cancellations: "Cancellations",
     "tech-performance": "Technician Performance",
     penalties: "Penalties",

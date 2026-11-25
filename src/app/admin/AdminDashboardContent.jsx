@@ -25,7 +25,8 @@ import {
   AdmissionPaymentsPage,
   CourseAssignmentPage,
   AdmissionAnalyticsPage,
-  CategoryManagementPage
+  CategoryManagementPage,
+  TechnicianExpensesPage
 } from "../../components/AdminPagesModern";
 import { CctvPricingManagementPage } from "../../components/CctvPricingManagementPage";
 import { io } from "socket.io-client";
@@ -146,6 +147,7 @@ export default function AdminDashboardContent() {
       else if (path.includes('/admin/inventory')) setActivePage('inventory');
       else if (path.includes('/admin/cctv-pricing')) setActivePage('cctv-pricing');
       else if (path.includes('/admin/dispatch-monitor')) setActivePage('dispatch-monitor');
+      else if (path.includes('/admin/expenses')) setActivePage('expenses');
       else if (path.includes('/admin/tracking')) setActivePage('tracking');
       else if (path.includes('/admin/attendance')) setActivePage('attendance');
       else if (path.includes('/admin/tech-performance')) setActivePage('tech-performance');
@@ -225,6 +227,7 @@ export default function AdminDashboardContent() {
     inventory: '/admin/inventory',
     'cctv-pricing': '/admin/cctv-pricing',
     'dispatch-monitor': '/admin/dispatch-monitor',
+    expenses: '/admin/expenses',
     tracking: '/admin/tracking',
     attendance: '/admin/attendance',
     'tech-performance': '/admin/tech-performance',
@@ -264,6 +267,7 @@ export default function AdminDashboardContent() {
     jobs: <ProjectsPage />,
     "service-requests": <ServiceRequestsPage />,
     "dispatch-monitor": <DispatchMonitorPage />,
+    expenses: <TechnicianExpensesPage />,
     cancellations: <CancellationsPage />,
     "tech-performance": <TechPerformancePage />,
     penalties: <PenaltiesPage />,

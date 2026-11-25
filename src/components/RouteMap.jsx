@@ -133,8 +133,8 @@ export default function RouteMap({ customerCoords, techCoords, bookingId }) {
       <div style={{ flex: 1, height: '220px', borderRadius: '12px', overflow: 'hidden', border: '1px solid #e2e8f0', zIndex: 10 }}>
         <MapContainer center={centerPoint} zoom={13} style={{ height: '100%', width: '100%' }}>
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
 
           {hasCust && (

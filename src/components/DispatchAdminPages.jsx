@@ -11,6 +11,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { PageHeader, Card, TableWrapper, Avatar, ActionBtn, SectionHeader, useToast, Modal } from "./UI";
 import { apiFetch } from "../lib/apiClient";
+import { CreateWorkOrderModal } from "./AdminPagesModern";
 
 const LABEL_STYLE = { fontSize: 12, fontWeight: 700, color: "#475569" };
 const INPUT_STYLE = { padding: "10px 12px", borderRadius: 12, border: "1px solid #cbd5e1", fontSize: 13 };
@@ -58,6 +59,7 @@ export function DispatchMonitorPage() {
   const [selectedTech, setSelectedTech] = useState("");
   const [overriding, setOverriding] = useState(false);
   const [overrideError, setOverrideError] = useState("");
+  const [createJobModalOpen, setCreateJobModalOpen] = useState(false);
   const showToast = useToast();
 
   const DS_COLORS = {
@@ -137,7 +139,12 @@ export function DispatchMonitorPage() {
       <PageHeader
         title="🚀 Dispatch Monitor"
         subtitle={`${jobs.length} total requests · live auto-refresh every 8s`}
-        actions={<button onClick={loadJobs} style={primaryButton}>↺ Refresh Now</button>}
+        actions={
+          <div style={{ display: "flex", gap: 10 }}>
+            <button onClick={() => setCreateJobModalOpen(true)} style={{ ...primaryButton, background: "#10b981" }}>+ Create Work Order</button>
+            <button onClick={loadJobs} style={primaryButton}>↺ Refresh Now</button>
+          </div>
+        }
       />
 
       {/* KPI row */}
@@ -262,6 +269,15 @@ export function DispatchMonitorPage() {
             </div>
           </div>
         </Modal>
+      )}
+      {createJobModalOpen && (
+        <CreateWorkOrderModal
+          onClose={() => setCreateJobModalOpen(false)}
+          onCreated={() => {
+            setCreateJobModalOpen(false);
+            loadJobs();
+          }}
+        />
       )}
     </div>
   );

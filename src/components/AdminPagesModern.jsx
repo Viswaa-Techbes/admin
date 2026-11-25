@@ -2925,6 +2925,7 @@ export function ServiceRequestsPage() {
   const [instructionText, setInstructionText] = useState("");
   const [instructionSending, setInstructionSending] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
+  const [createJobModalOpen, setCreateJobModalOpen] = useState(false);
 
   useEffect(() => {
     if (!selectedRequestId) return;
@@ -3479,17 +3480,65 @@ export function ServiceRequestsPage() {
               Technician Field Expenses ({expenses.length})
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {expenses.map((exp, i) => (
-                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, background: "#f8fafc", padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0" }}>
-                  <div>
-                    <span style={{ fontWeight: 600 }}>{exp.description}</span>
-                    {exp.receiptUrl && (
-                      <span onClick={() => onPreviewImage && onPreviewImage(exp.receiptUrl)} style={{ marginLeft: 8, color: "#4f46e5", textDecoration: "underline", cursor: "pointer" }}>Receipt</span>
-                    )}
+              {expenses.map((exp, i) => {
+                const expId = exp._id || exp.id;
+                const expStatus = exp.status || "pending";
+                const statusColors = {
+                  approved: { bg: "#dcfce7", color: "#15803d" },
+                  rejected: { bg: "#fee2e2", color: "#b91c1c" },
+                  pending: { bg: "#fef3c7", color: "#b45309" },
+                };
+                const sc = statusColors[expStatus] || statusColors.pending;
+                return (
+                  <div key={expId || i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, background: "#f8fafc", padding: "8px 10px", borderRadius: 8, border: "1px solid #e2e8f0", gap: 8 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontWeight: 600, color: "#0f172a" }}>{exp.description}</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 99, background: sc.bg, color: sc.color, textTransform: "uppercase" }}>
+                          {expStatus}
+                        </span>
+                      </div>
+                      {exp.receiptUrl && (
+                        <span onClick={() => onPreviewImage && onPreviewImage(exp.receiptUrl)} style={{ fontSize: 11, color: "#4f46e5", textDecoration: "underline", cursor: "pointer" }}>View Receipt</span>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontWeight: 800, color: "#0f172a" }}>₹{exp.amount}</span>
+                      {expStatus === "pending" && expId && (
+                        <>
+                          <button
+                            onClick={async () => {
+                              try {
+                                await apiFetch(`/api/v2/admin/expenses/${expId}/approve`, { method: "PATCH" });
+                                toast("Expense approved!");
+                                const { data } = await apiFetch(`/api/v2/admin/service-requests/${viewModal.id}`);
+                                setViewModal(data);
+                              } catch (err) { toast(err.message, { duration: 4000 }); }
+                            }}
+                            style={{ border: "none", background: "#16a34a", color: "#fff", borderRadius: 6, padding: "4px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={async () => {
+                              const reason = window.prompt("Rejection reason (optional):") || "";
+                              try {
+                                await apiFetch(`/api/v2/admin/expenses/${expId}/reject`, { method: "PATCH", body: { reason } });
+                                toast("Expense rejected.");
+                                const { data } = await apiFetch(`/api/v2/admin/service-requests/${viewModal.id}`);
+                                setViewModal(data);
+                              } catch (err) { toast(err.message, { duration: 4000 }); }
+                            }}
+                            style={{ border: "none", background: "#dc2626", color: "#fff", borderRadius: 6, padding: "4px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+                          >
+                            Reject
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <span style={{ fontWeight: 700 }}>₹{exp.amount}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -3508,7 +3557,13 @@ export function ServiceRequestsPage() {
         title="Service Requests"
         subtitle={`${bookings.length} booking${bookings.length !== 1 ? "s" : ""} · auto-refreshes every 5s`}
         actions={
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <button
+              onClick={() => setCreateJobModalOpen(true)}
+              style={{ ...primaryButton, background: "#4f46e5", padding: "8px 16px", fontSize: 13 }}
+            >
+              + Create Work Order
+            </button>
             {statusOptions.map(s => (
               <button
                 key={s}
@@ -4167,6 +4222,15 @@ export function ServiceRequestsPage() {
           })}
         />
       </DataCard>
+      {createJobModalOpen && (
+        <CreateWorkOrderModal
+          onClose={() => setCreateJobModalOpen(false)}
+          onCreated={() => {
+            setCreateJobModalOpen(false);
+            loadBookings();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -5266,6 +5330,377 @@ export function CategoryManagementPage() {
             </table>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CREATE WORK ORDER MODAL (Shared across Service Requests & Work Orders/Dispatch)
+// ═══════════════════════════════════════════════════════════════════════════════
+export function CreateWorkOrderModal({ onClose, onCreated }) {
+  const toast = useToast();
+  const [techs, setTechs] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [form, setForm] = useState({
+    customerName: "",
+    customerPhone: "",
+    customerEmail: "",
+    address: "",
+    pincode: "",
+    serviceCategory: "CCTV",
+    subcategory: "New Installation",
+    equipmentSummary: "",
+    totalAmount: "",
+    paymentStatus: "pending",
+    preferredDate: new Date().toISOString().split("T")[0],
+    timeSlot: "10:00 AM - 01:00 PM",
+    priority: "medium",
+    technicianId: "",
+    dispatchNote: "",
+  });
+
+  useEffect(() => {
+    apiFetch("/api/v2/admin/technicians/available")
+      .then((res) => {
+        const list = res?.data || res || [];
+        setTechs(Array.isArray(list) ? list : []);
+      })
+      .catch(() => {
+        apiFetch("/api/v2/admin/users")
+          .then((res) => {
+            const list = res?.data || [];
+            setTechs((Array.isArray(list) ? list : []).filter((u) => u.role === "technician" && !u.isDeleted));
+          })
+          .catch(() => {});
+      });
+  }, []);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!form.customerName.trim() || !form.customerPhone.trim() || !form.address.trim()) {
+      toast("Customer Name, Mobile Number, and Site Address are required.", { duration: 4000 });
+      return;
+    }
+    try {
+      setSubmitting(true);
+      await apiFetch("/api/v2/admin/service-requests", {
+        method: "POST",
+        body: {
+          ...form,
+          totalAmount: Number(form.totalAmount) || 0,
+        },
+      });
+      toast("Work Order created and dispatched!");
+      onCreated && onCreated();
+    } catch (err) {
+      toast(err.message || "Failed to create Work Order", { duration: 4000 });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal open={true} title="Create Work Order / Service Job" onClose={onClose}>
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14, maxHeight: "75vh", overflowY: "auto", paddingRight: 4 }}>
+        <div style={{ fontSize: 11, fontWeight: 800, color: "#4f46e5", textTransform: "uppercase", letterSpacing: 0.6 }}>1. Customer Details</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div>
+            <label style={LABEL_STYLE}>Customer Name *</label>
+            <input required value={form.customerName} onChange={(e) => setForm({ ...form, customerName: e.target.value })} style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }} placeholder="e.g. Rajesh Kumar" />
+          </div>
+          <div>
+            <label style={LABEL_STYLE}>Mobile Number (10 digits) *</label>
+            <input required value={form.customerPhone} onChange={(e) => setForm({ ...form, customerPhone: e.target.value })} style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }} placeholder="9876543210" />
+          </div>
+          <div>
+            <label style={LABEL_STYLE}>Email (optional)</label>
+            <input type="email" value={form.customerEmail} onChange={(e) => setForm({ ...form, customerEmail: e.target.value })} style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }} placeholder="customer@example.com" />
+          </div>
+          <div>
+            <label style={LABEL_STYLE}>Pincode</label>
+            <input value={form.pincode} onChange={(e) => setForm({ ...form, pincode: e.target.value })} style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }} placeholder="560001" />
+          </div>
+        </div>
+        <div>
+          <label style={LABEL_STYLE}>Site Address *</label>
+          <input required value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }} placeholder="Full site address, landmark, floor" />
+        </div>
+
+        <div style={{ fontSize: 11, fontWeight: 800, color: "#4f46e5", textTransform: "uppercase", letterSpacing: 0.6, marginTop: 4 }}>2. Service & Scope</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div>
+            <label style={LABEL_STYLE}>Service Category</label>
+            <select value={form.serviceCategory} onChange={(e) => setForm({ ...form, serviceCategory: e.target.value })} style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }}>
+              <option value="CCTV">CCTV</option>
+              <option value="Networking">Networking</option>
+              <option value="IT Hardware">IT Hardware</option>
+              <option value="Software/Web">Software/Web</option>
+              <option value="AMC">AMC</option>
+            </select>
+          </div>
+          <div>
+            <label style={LABEL_STYLE}>Work Type / Subcategory</label>
+            <select value={form.subcategory} onChange={(e) => setForm({ ...form, subcategory: e.target.value })} style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }}>
+              <option value="New Installation">New Installation</option>
+              <option value="Repair / Troubleshooting">Repair / Troubleshooting</option>
+              <option value="Upgrade">Upgrade</option>
+              <option value="AMC Visit">AMC Visit</option>
+            </select>
+          </div>
+          <div>
+            <label style={LABEL_STYLE}>Quoted / Total Amount (₹)</label>
+            <input type="number" min="0" value={form.totalAmount} onChange={(e) => setForm({ ...form, totalAmount: e.target.value })} style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }} placeholder="4500" />
+          </div>
+          <div>
+            <label style={LABEL_STYLE}>Payment Status</label>
+            <select value={form.paymentStatus} onChange={(e) => setForm({ ...form, paymentStatus: e.target.value })} style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }}>
+              <option value="pending">Pending</option>
+              <option value="paid">Paid</option>
+              <option value="advance_paid">Partial / Advance Paid</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label style={LABEL_STYLE}>Equipment / Scope Summary</label>
+          <textarea rows={2} value={form.equipmentSummary} onChange={(e) => setForm({ ...form, equipmentSummary: e.target.value })} style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }} placeholder="e.g. 4x 2MP Dome Cameras + 4ch DVR + 1TB HDD" />
+        </div>
+
+        <div style={{ fontSize: 11, fontWeight: 800, color: "#4f46e5", textTransform: "uppercase", letterSpacing: 0.6, marginTop: 4 }}>3. Schedule & Assignment</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+          <div>
+            <label style={LABEL_STYLE}>Preferred Date</label>
+            <input type="date" value={form.preferredDate} onChange={(e) => setForm({ ...form, preferredDate: e.target.value })} style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }} />
+          </div>
+          <div>
+            <label style={LABEL_STYLE}>Time Slot</label>
+            <input value={form.timeSlot} onChange={(e) => setForm({ ...form, timeSlot: e.target.value })} style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }} placeholder="10:00 AM - 01:00 PM" />
+          </div>
+          <div>
+            <label style={LABEL_STYLE}>Priority</label>
+            <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }}>
+              <option value="medium">Normal</option>
+              <option value="high">Urgent</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label style={LABEL_STYLE}>Assign Technician (Optional)</label>
+          <select value={form.technicianId} onChange={(e) => setForm({ ...form, technicianId: e.target.value })} style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }}>
+            <option value="">-- Unassigned (Auto-Dispatch / Assign Later) --</option>
+            {techs.map((t) => (
+              <option key={t._id || t.id} value={t._id || t.id}>
+                {t.name} ({t.mobileNumber || t.phone || "No phone"}) {t.isOnline ? "🟢 Online" : "⚪ Offline"}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label style={LABEL_STYLE}>Dispatch Instructions / Note</label>
+          <textarea rows={2} value={form.dispatchNote} onChange={(e) => setForm({ ...form, dispatchNote: e.target.value })} style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }} placeholder="Special instructions for the technician..." />
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8 }}>
+          <button type="button" onClick={onClose} style={{ padding: "10px 16px", borderRadius: 10, border: "1px solid #cbd5e1", background: "#fff", cursor: "pointer", fontWeight: 600 }}>Cancel</button>
+          <button type="submit" disabled={submitting} style={{ ...primaryButton, opacity: submitting ? 0.7 : 1 }}>
+            {submitting ? "Creating..." : "Create Work Order"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TECHNICIAN EXPENSES APPROVAL PAGE
+// ═══════════════════════════════════════════════════════════════════════════════
+export function TechnicianExpensesPage() {
+  const toast = useToast();
+  const [expenses, setExpenses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [rejectModal, setRejectModal] = useState(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const loadExpenses = useCallback(async () => {
+    try {
+      setLoading(true);
+      const q = statusFilter !== "all" ? `?status=${statusFilter}` : "";
+      const res = await apiFetch(`/api/v2/admin/expenses${q}`);
+      setExpenses(Array.isArray(res?.data) ? res.data : []);
+    } catch (err) {
+      toast(err.message || "Failed to load expenses", { duration: 4000 });
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter, toast]);
+
+  useEffect(() => { loadExpenses(); }, [loadExpenses]);
+
+  async function handleApprove(id) {
+    try {
+      setActionLoading(true);
+      await apiFetch(`/api/v2/admin/expenses/${id}/approve`, { method: "PATCH" });
+      toast("Expense approved!");
+      await loadExpenses();
+    } catch (err) {
+      toast(err.message, { duration: 4000 });
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleReject() {
+    if (!rejectModal) return;
+    try {
+      setActionLoading(true);
+      await apiFetch(`/api/v2/admin/expenses/${rejectModal.id || rejectModal._id}/reject`, {
+        method: "PATCH",
+        body: { reason: rejectReason },
+      });
+      toast("Expense rejected.");
+      setRejectModal(null);
+      setRejectReason("");
+      await loadExpenses();
+    } catch (err) {
+      toast(err.message, { duration: 4000 });
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  const pendingTotal = expenses.filter(e => e.status === "pending").reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const approvedTotal = expenses.filter(e => e.status === "approved").reduce((s, e) => s + (Number(e.amount) || 0), 0);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <PageHeader
+        title="Technician Expenses"
+        subtitle="Review, verify receipts, and approve/reject field reimbursement claims"
+        actions={
+          <div style={{ display: "flex", gap: 8 }}>
+            {["all", "pending", "approved", "rejected"].map((s) => (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: 99,
+                  border: "1px solid",
+                  borderColor: statusFilter === s ? "#4f46e5" : "#e2e8f0",
+                  background: statusFilter === s ? "#4f46e5" : "#fff",
+                  color: statusFilter === s ? "#fff" : "#64748b",
+                  fontWeight: 700,
+                  fontSize: 12,
+                  cursor: "pointer",
+                  textTransform: "capitalize",
+                }}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        }
+      />
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+        <Card style={{ padding: 16, borderLeft: "4px solid #6366f1" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Total Claims</div>
+          <div style={{ fontSize: 26, fontWeight: 900, color: "#0f172a", marginTop: 4 }}>{expenses.length}</div>
+        </Card>
+        <Card style={{ padding: 16, borderLeft: "4px solid #f59e0b" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Pending Approval</div>
+          <div style={{ fontSize: 26, fontWeight: 900, color: "#d97706", marginTop: 4 }}>₹{pendingTotal.toLocaleString("en-IN")}</div>
+        </Card>
+        <Card style={{ padding: 16, borderLeft: "4px solid #10b981" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Approved Total</div>
+          <div style={{ fontSize: 26, fontWeight: 900, color: "#059669", marginTop: 4 }}>₹{approvedTotal.toLocaleString("en-IN")}</div>
+        </Card>
+      </div>
+
+      <Card style={{ padding: 0 }}>
+        {loading ? (
+          <div style={{ padding: 40, textAlign: "center", color: "#64748b" }}>Loading technician expenses...</div>
+        ) : (
+          <TableWrapper
+            headers={["Technician", "Booking / Customer", "Description & Category", "Amount", "Receipt", "Submitted", "Status", "Actions"]}
+            rows={expenses.map((e) => {
+              const sc = e.status === "approved" ? { bg: "#dcfce7", color: "#15803d" } : e.status === "rejected" ? { bg: "#fee2e2", color: "#b91c1c" } : { bg: "#fef3c7", color: "#b45309" };
+              return (
+                <tr key={e.id || e._id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                  <td style={TD_STYLE}>
+                    <div style={{ fontWeight: 700, color: "#0f172a" }}>{e.technicianName}</div>
+                    <div style={{ fontSize: 11, color: "#64748b" }}>{e.technicianPhone}</div>
+                  </td>
+                  <td style={TD_STYLE}>
+                    <div style={{ fontWeight: 600, color: "#4f46e5" }}>{e.bookingNumber || "General Expense"}</div>
+                    <div style={{ fontSize: 11, color: "#64748b" }}>{e.customerName || e.jobTitle || "—"}</div>
+                  </td>
+                  <td style={TD_STYLE}>
+                    <div style={{ fontWeight: 600, color: "#0f172a" }}>{e.description}</div>
+                    <div style={{ fontSize: 11, color: "#64748b" }}>{e.category || "General"}</div>
+                  </td>
+                  <td style={{ ...TD_STYLE, fontWeight: 800, color: "#0f172a" }}>₹{e.amount}</td>
+                  <td style={TD_STYLE}>
+                    {e.receiptUrl ? (
+                      <button onClick={() => setPreviewUrl(e.receiptUrl)} style={{ border: "1px solid #cbd5e1", background: "#fff", borderRadius: 8, padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer", color: "#4f46e5" }}>
+                        View Receipt
+                      </button>
+                    ) : <span style={{ color: "#94a3b8", fontSize: 11 }}>No Receipt</span>}
+                  </td>
+                  <td style={TD_STYLE}>{new Date(e.date || e.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</td>
+                  <td style={TD_STYLE}>
+                    <span style={{ padding: "3px 10px", borderRadius: 99, background: sc.bg, color: sc.color, fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>
+                      {e.status}
+                    </span>
+                    {e.rejectionReason && <div style={{ fontSize: 10, color: "#b91c1c", marginTop: 2 }}>{e.rejectionReason}</div>}
+                  </td>
+                  <td style={TD_STYLE}>
+                    {e.status === "pending" ? (
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button disabled={actionLoading} onClick={() => handleApprove(e.id || e._id)} style={approveButton}>Approve</button>
+                        <button disabled={actionLoading} onClick={() => { setRejectModal(e); setRejectReason(""); }} style={rejectButton}>Reject</button>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: 11, color: "#94a3b8" }}>Reviewed</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          />
+        )}
+        {!loading && expenses.length === 0 && (
+          <div style={{ padding: 40, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>No expense claims found for this filter.</div>
+        )}
+      </Card>
+
+      {previewUrl && (
+        <Modal open={true} title="Receipt Preview" onClose={() => setPreviewUrl(null)}>
+          <div style={{ textAlign: "center" }}>
+            <img src={previewUrl} alt="Expense Receipt" style={{ maxWidth: "100%", maxHeight: "70vh", borderRadius: 12, border: "1px solid #e2e8f0" }} />
+          </div>
+        </Modal>
+      )}
+
+      {rejectModal && (
+        <Modal open={true} title="Reject Expense Claim" onClose={() => setRejectModal(null)}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ fontSize: 13, color: "#475569" }}>
+              Rejecting <b>₹{rejectModal.amount}</b> claim by <b>{rejectModal.technicianName}</b> ({rejectModal.description}).
+            </div>
+            <div>
+              <label style={LABEL_STYLE}>Reason for Rejection (Optional)</label>
+              <textarea rows={3} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} style={{ ...INPUT_STYLE, width: "100%", marginTop: 4 }} placeholder="e.g. Unclear receipt or duplicate claim" />
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button onClick={() => setRejectModal(null)} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff", cursor: "pointer" }}>Cancel</button>
+              <button disabled={actionLoading} onClick={handleReject} style={{ ...rejectButton, background: "#dc2626", color: "#fff" }}>Confirm Reject</button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );
