@@ -112,9 +112,17 @@ export function QuoteRequestsPage() {
     return ["All", ...new Set(areas)];
   }, [quotes]);
 
-  // Synchronize edit fields when selected quote changes
+  // Synchronize edit fields when selected quote changes (only when opening a different quote)
+  const currentQuoteIdRef = React.useRef(null);
   useEffect(() => {
     if (selectedQuote) {
+      const qId = selectedQuote._id || selectedQuote.requestId;
+      // If we are already editing this quote, do NOT overwrite user's in-progress typing
+      if (currentQuoteIdRef.current === qId) {
+        return;
+      }
+      currentQuoteIdRef.current = qId;
+
       setAdminNotes(selectedQuote.adminNotes || "");
       setAssignedTo(selectedQuote.assignedTo?._id || selectedQuote.assignedTo || "");
       setFollowUpDate(
@@ -150,6 +158,8 @@ export function QuoteRequestsPage() {
         lineTotal: item.lineTotal || 0,
       }));
       setPricingItems(initialItems);
+    } else {
+      currentQuoteIdRef.current = null;
     }
   }, [selectedQuote]);
 
@@ -418,6 +428,64 @@ export function QuoteRequestsPage() {
       alert(err.message || "Failed to download quotation PDF");
     } finally {
       setDownloadingPdf(false);
+    }
+  }
+
+  // Send Quotation directly to Customer Portal & update quote state
+  async function handleSendToCustomerPortal() {
+    if (!selectedQuote || sendingQuote) return;
+    if (calculatedPricing.finalAmount <= 0) {
+      alert("Please enter unit prices so that Final Amount is greater than 0 before sending to the customer portal.");
+      return;
+    }
+
+    const targetId = selectedQuote._id || selectedQuote.requestId;
+    setSendingQuote(true);
+    try {
+      const itemsPayload = calculatedPricing.items
+        .map(it => ({
+          productName: (it.productName || "Item").trim(),
+          quantity: parseFloat(it.quantity) || 1,
+          unitPrice: parseFloat(it.unitPrice) || 0,
+        }))
+        .filter(it => it.productName.length > 0);
+
+      // 1. Ensure latest prices & terms are saved first
+      await apiFetch(`/api/v2/admin/quotes/${encodeURIComponent(targetId)}/price`, {
+        method: "POST",
+        body: {
+          items: itemsPayload,
+          pricingBreakdown: {
+            labourCharge: parseFloat(labourCharge) || 0,
+            serviceCharge: parseFloat(serviceCharge) || 0,
+            accessoriesCharge: parseFloat(accessoriesCharge) || 0,
+            miscCharge: parseFloat(miscCharge) || 0,
+          },
+          advancePercentage: parseFloat(advancePercentage) || 50,
+          gstRate: parseFloat(gstRate) || 0,
+          validityDays: parseInt(validityDays, 10) || 15,
+          adminNotes,
+          terms: quoteTerms,
+          saveAsDraft: false,
+        },
+      });
+
+      // 2. Dispatch Send Quotation to portal (generates PDF and marks as quotation_sent)
+      const { payload } = await apiFetch(`/api/v2/admin/quotes/${encodeURIComponent(targetId)}/send`, {
+        method: "POST",
+        body: {},
+      });
+
+      await refreshQuotes();
+      const updatedQ = payload.data?.quote || payload.data || selectedQuote;
+      setSelectedQuote(updatedQ);
+      setWhatsappResult(payload.data);
+
+      toast.show("Sent to Portal", `Quotation #${selectedQuote.requestId} (₹${calculatedPricing.finalAmount.toLocaleString('en-IN')}) sent to Customer Portal successfully!`);
+    } catch (err) {
+      alert(err.message || "Failed to send quotation to Customer Portal");
+    } finally {
+      setSendingQuote(false);
     }
   }
 
@@ -1916,7 +1984,7 @@ export function QuoteRequestsPage() {
                     onClick={() => handleSavePricing(true)}
                     disabled={savingPrices}
                     style={{
-                      flex: 1, minWidth: 140, height: 40, background: "#f8fafc", color: "#1e293b",
+                      flex: 1, minWidth: 130, height: 42, background: "#f8fafc", color: "#1e293b",
                       border: "1.5px solid #cbd5e1", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer"
                     }}
                   >
@@ -1928,7 +1996,7 @@ export function QuoteRequestsPage() {
                     onClick={() => handleDownloadPdf(selectedQuote)}
                     disabled={downloadingPdf || calculatedPricing.finalAmount <= 0}
                     style={{
-                      flex: 1, minWidth: 140, height: 40, background: "#f0fdf4", color: "#166534",
+                      flex: 1, minWidth: 130, height: 42, background: "#f0fdf4", color: "#166534",
                       border: "1.5px solid #bbf7d0", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer",
                       display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5
                     }}
@@ -1938,22 +2006,35 @@ export function QuoteRequestsPage() {
 
                   <button
                     type="button"
-                    onClick={handleSendQuotation}
+                    onClick={handleSendToCustomerPortal}
                     disabled={sendingQuote || calculatedPricing.finalAmount <= 0}
                     style={{
-                      flex: 1.4, minWidth: 190, height: 40, background: "linear-gradient(135deg,#2563eb,#1d4ed8)", color: "#fff",
+                      flex: 1.4, minWidth: 190, height: 42, background: "linear-gradient(135deg,#059669,#047857)", color: "#fff",
                       border: "none", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer",
-                      boxShadow: "0 2px 6px rgba(37,99,235,0.3)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6
+                      boxShadow: "0 2px 6px rgba(5,150,105,0.3)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6
                     }}
                   >
                     {sendingQuote ? (
                       <>
                         <span className="spinner" style={{ display: "inline-block", width: 12, height: 12, border: "2px solid #fff", borderTopColor: "transparent", borderRadius: "50%" }} />
-                        Sending via WhatsApp...
+                        Sending to Portal...
                       </>
                     ) : (
-                      "🚀 Send via WhatsApp"
+                      "🚀 Send to Customer Portal"
                     )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSendQuotation}
+                    disabled={sendingQuote || calculatedPricing.finalAmount <= 0}
+                    style={{
+                      flex: 1.2, minWidth: 170, height: 42, background: "linear-gradient(135deg,#2563eb,#1d4ed8)", color: "#fff",
+                      border: "none", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer",
+                      boxShadow: "0 2px 6px rgba(37,99,235,0.3)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6
+                    }}
+                  >
+                    {sendingQuote ? "Sending..." : "💬 Send via WhatsApp"}
                   </button>
                 </div>
 
@@ -2135,17 +2216,36 @@ export function QuoteRequestsPage() {
                 </button>
               </div>
 
-              {/* CONVERT TO ORDER BUTTON */}
+              {/* CONVERT TO ORDER & DIRECT ASSIGN BUTTON */}
               <div style={{ background: "#f8fafc", padding: 16, borderRadius: 16, border: "1px solid #e2e8f0" }}>
                 <h4 style={{ margin: "0 0 8px 0", fontSize: 12, color: "#1e293b", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em" }}>
-                  ⚡ Order Conversion
+                  ⚡ Order &amp; Technician Assignment
                 </h4>
-                {selectedQuote.orderNumber ? (
-                  <div style={{ padding: 12, borderRadius: 10, background: "#ecfdf5", border: "1px solid #a7f3d0", fontSize: 12 }}>
-                    <span style={{ color: "#065f46", fontWeight: 700 }}>✓ Converted to Active Order:</span>
-                    <div style={{ fontFamily: "monospace", fontWeight: 800, color: "#047857", marginTop: 4, fontSize: 13 }}>
-                      {selectedQuote.orderNumber}
+                {(selectedQuote.orderNumber || selectedQuote.orderId || selectedQuote.jobId || ['converted_to_order', 'Converted to Booking', 'quotation_accepted', 'Accepted'].includes(selectedQuote.status)) ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <div style={{ padding: 12, borderRadius: 10, background: "#ecfdf5", border: "1px solid #a7f3d0", fontSize: 12 }}>
+                      <span style={{ color: "#065f46", fontWeight: 700 }}>✓ Converted to Active Order:</span>
+                      <div style={{ fontFamily: "monospace", fontWeight: 800, color: "#047857", marginTop: 4, fontSize: 13 }}>
+                        {selectedQuote.orderNumber || selectedQuote.jobId?.bookingNumber || selectedQuote.jobId || selectedQuote.orderId || "Linked Work Order"}
+                      </div>
                     </div>
+                    
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setShowDetailModal(false);
+                        const targetJobId = selectedQuote.jobId?._id || selectedQuote.jobId || selectedQuote.orderId || "";
+                        window.location.href = `/admin/bookings${targetJobId ? `?inspect=${encodeURIComponent(targetJobId)}` : ""}`;
+                      }}
+                      style={{
+                        width: "100%", background: "linear-gradient(135deg,#4f46e5,#4338ca)", color: "#fff",
+                        border: "none", borderRadius: 10, height: 42, fontSize: 12.5, fontWeight: 700,
+                        cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+                        boxShadow: "0 2px 6px rgba(79,70,229,0.3)"
+                      }}
+                    >
+                      🚀 Assign Technician →
+                    </button>
                   </div>
                 ) : (
                   <div>

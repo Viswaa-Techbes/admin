@@ -70,7 +70,7 @@ export function Sidebar({ active, setActive, collapsed, setCollapsed, user, onLo
       id: "grp-ops",
       title: "Work Orders & Field Ops",
       items: [
-        { id: "service-requests", label: "Service Requests", icon: <BellIcon /> },
+        { id: "service-requests", label: "Work Orders", icon: <BellIcon /> },
         { id: "dispatch-monitor", label: "Live Dispatch", icon: <MapPinIcon /> },
         { id: "tracking", label: "Fleet Live Map", icon: <MapPinIcon /> },
         { id: "worksheets", label: "Worksheets & Proofs", icon: <BriefcaseIcon /> },
@@ -359,7 +359,7 @@ export function TopNavbar({ page, notifCount, user, onLogout, onNotifClick, onMe
     technicians: "Customers",
     leads: "Leads & Inquiries",
     jobs: "Projects",
-    "service-requests": "Service Requests / Bookings",
+    "service-requests": "Work Orders & Bookings",
     "dispatch-monitor": "Live Dispatch & Work Orders",
     expenses: "Technician Expenses",
     cancellations: "Cancellations",
