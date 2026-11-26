@@ -89,7 +89,7 @@ export function QuoteRequestsPage() {
   const [serviceCharge, setServiceCharge] = useState(0);
   const [accessoriesCharge, setAccessoriesCharge] = useState(0);
   const [miscCharge, setMiscCharge] = useState(0);
-  const [advancePercentage, setAdvancePercentage] = useState(50);
+  const [advancePercentage, setAdvancePercentage] = useState(0);
   const [inventoryCatalog, setInventoryCatalog] = useState([]);
 
   useEffect(() => {
@@ -135,14 +135,14 @@ export function QuoteRequestsPage() {
       setValidityDays(selectedQuote.validityDays || 15);
       setQuoteTerms(
         selectedQuote.terms || 
-        "1. 50% advance on order confirmation, balance on completion.\n2. 1-Year manufacturer warranty on cameras & active equipment.\n3. Physical damage and electrical surges excluded from warranty.\n4. Quote valid for 15 days from date of issue."
+        "1. Payment due upon job completion.\n2. 1-Year manufacturer warranty on cameras & active equipment.\n3. Physical damage and electrical surges excluded from warranty.\n4. Quote valid for 15 days from date of issue."
       );
       setWhatsappResult(null);
       setLabourCharge(selectedQuote.pricingBreakdown?.labourCharge || 0);
       setServiceCharge(selectedQuote.pricingBreakdown?.serviceCharge || 0);
       setAccessoriesCharge(selectedQuote.pricingBreakdown?.accessoriesCharge || 0);
       setMiscCharge(selectedQuote.pricingBreakdown?.miscCharge || 0);
-      setAdvancePercentage(selectedQuote.advancePercentage !== undefined ? selectedQuote.advancePercentage : 50);
+      setAdvancePercentage(selectedQuote.advancePercentage !== undefined ? selectedQuote.advancePercentage : 0);
 
       // Initialize pricing items from quote
       const initialItems = (selectedQuote.items || []).map(item => ({
@@ -223,7 +223,7 @@ export function QuoteRequestsPage() {
     const gstAmount = Math.round(((subtotal * parsedGstRate) / 100) * 100) / 100;
     const finalAmount = Math.round((subtotal + gstAmount) * 100) / 100;
 
-    const advPct = Math.min(100, Math.max(0, parseFloat(advancePercentage) || 50));
+    const advPct = Math.min(100, Math.max(0, parseFloat(advancePercentage) || 0));
     const advanceAmount = Math.round(((finalAmount * advPct) / 100) * 100) / 100;
     const balanceAmount = Math.max(0, Math.round((finalAmount - (selectedQuote?.advancePaidAmount || 0)) * 100) / 100);
 
@@ -348,7 +348,7 @@ export function QuoteRequestsPage() {
             accessoriesCharge: parseFloat(accessoriesCharge) || 0,
             miscCharge: parseFloat(miscCharge) || 0,
           },
-          advancePercentage: parseFloat(advancePercentage) || 50,
+          advancePercentage: parseFloat(advancePercentage) || 0,
           gstRate: parseFloat(gstRate) || 0,
           validityDays: parseInt(validityDays, 10) || 15,
           adminNotes,
@@ -461,7 +461,7 @@ export function QuoteRequestsPage() {
             accessoriesCharge: parseFloat(accessoriesCharge) || 0,
             miscCharge: parseFloat(miscCharge) || 0,
           },
-          advancePercentage: parseFloat(advancePercentage) || 50,
+          advancePercentage: parseFloat(advancePercentage) || 0,
           gstRate: parseFloat(gstRate) || 0,
           validityDays: parseInt(validityDays, 10) || 15,
           adminNotes,
@@ -529,7 +529,7 @@ export function QuoteRequestsPage() {
             accessoriesCharge: parseFloat(accessoriesCharge) || 0,
             miscCharge: parseFloat(miscCharge) || 0,
           },
-          advancePercentage: parseFloat(advancePercentage) || 50,
+          advancePercentage: parseFloat(advancePercentage) || 0,
           gstRate: parseFloat(gstRate) || 0,
           validityDays: parseInt(validityDays, 10) || 15,
           adminNotes,
